@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"os"
 
 	"github.com/specvital/collector/internal/config"
+	"github.com/specvital/collector/internal/db"
 )
 
 func main() {
@@ -23,6 +25,20 @@ func main() {
 		"database_url", maskURL(cfg.DatabaseURL),
 		"redis_url", maskURL(cfg.RedisURL),
 	)
+
+	ctx := context.Background()
+
+	pool, err := db.NewPool(ctx, cfg.DatabaseURL)
+	if err != nil {
+		slog.Error("failed to connect to database", "error", err)
+		os.Exit(1)
+	}
+	defer pool.Close()
+
+	slog.Info("postgres connected")
+
+	// pool will be used by sqlc Queries in Commit 4
+	_ = pool
 
 	slog.Info("collector initialized")
 }

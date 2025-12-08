@@ -7,6 +7,27 @@ deps: deps-root
 deps-root:
     pnpm install
 
+dump-schema:
+    PGPASSWORD=postgres pg_dump -h specvital-postgres -U postgres -d specvital --schema-only --no-owner --no-privileges -n public | grep -v '^\\\|^SET \|^SELECT ' > src/internal/db/schema.sql
+
+gen-sqlc:
+    cd src && sqlc generate
+
+install-psql:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if ! command -v psql &> /dev/null; then
+      DEBIAN_FRONTEND=noninteractive apt-get update && \
+        apt-get -y install lsb-release wget && \
+        wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - && \
+        echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main" | tee /etc/apt/sources.list.d/pgdg.list && \
+        apt-get update && \
+        apt-get -y install postgresql-client-16
+    fi
+
+install-sqlc:
+    go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.28.0
+
 lint target="all":
     #!/usr/bin/env bash
     set -euox pipefail
@@ -14,6 +35,7 @@ lint target="all":
       all)
         just lint justfile
         just lint config
+        just lint go
         ;;
       justfile)
         just --fmt --unstable
@@ -21,8 +43,26 @@ lint target="all":
       config)
         npx prettier --write "**/*.{json,yml,yaml,md}"
         ;;
+      go)
+        gofmt -w src
+        ;;
       *)
         echo "Unknown target: {{ target }}"
         exit 1
         ;;
     esac
+
+build:
+    cd src && go build ./...
+
+run:
+    cd src && go run ./cmd/collector
+
+test:
+    cd src && go test -v ./...
+
+tidy:
+    cd src && go mod tidy
+
+update-core:
+    cd src && GOPROXY=direct go get -u github.com/specvital/core@main && go mod tidy
