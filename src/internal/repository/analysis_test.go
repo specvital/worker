@@ -132,7 +132,8 @@ func runMigrations(ctx context.Context, pool *pgxpool.Pool) error {
 			name varchar(500) NOT NULL,
 			line_number integer,
 			status test_status DEFAULT 'active' NOT NULL,
-			tags jsonb DEFAULT '[]' NOT NULL
+			tags jsonb DEFAULT '[]' NOT NULL,
+			modifier varchar(50)
 		);
 	`
 	_, err := pool.Exec(ctx, schema)
@@ -493,8 +494,8 @@ func TestSaveAnalysisResultParams_Validate(t *testing.T) {
 				if err == nil {
 					t.Error("expected error, got nil")
 				}
-				if !errors.Is(err, ErrInvalidInput) {
-					t.Errorf("expected ErrInvalidInput, got %v", err)
+				if !errors.Is(err, ErrInvalidParams) {
+					t.Errorf("expected ErrInvalidParams, got %v", err)
 				}
 			} else {
 				if err != nil {

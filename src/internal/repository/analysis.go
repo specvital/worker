@@ -27,16 +27,16 @@ type SaveAnalysisResultParams struct {
 
 func (p SaveAnalysisResultParams) Validate() error {
 	if p.Owner == "" {
-		return fmt.Errorf("%w: owner is required", ErrInvalidInput)
+		return fmt.Errorf("%w: owner is required", ErrInvalidParams)
 	}
 	if p.Repo == "" {
-		return fmt.Errorf("%w: repo is required", ErrInvalidInput)
+		return fmt.Errorf("%w: repo is required", ErrInvalidParams)
 	}
 	if p.CommitSHA == "" {
-		return fmt.Errorf("%w: commit SHA is required", ErrInvalidInput)
+		return fmt.Errorf("%w: commit SHA is required", ErrInvalidParams)
 	}
 	if p.Result == nil {
-		return fmt.Errorf("%w: result is required", ErrInvalidInput)
+		return fmt.Errorf("%w: result is required", ErrInvalidParams)
 	}
 	return nil
 }

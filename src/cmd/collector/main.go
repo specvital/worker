@@ -12,6 +12,8 @@ import (
 	"github.com/specvital/collector/internal/db"
 	"github.com/specvital/collector/internal/jobs"
 	"github.com/specvital/collector/internal/queue"
+	"github.com/specvital/collector/internal/repository"
+	"github.com/specvital/collector/internal/service"
 )
 
 const (
@@ -56,8 +58,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	analysisRepo := repository.NewPostgresAnalysisRepository(pool)
+	analysisSvc := service.NewAnalysisService(analysisRepo)
+
 	mux := queue.NewServeMux()
-	analyzeHandler := jobs.NewAnalyzeHandler(pool)
+	analyzeHandler := jobs.NewAnalyzeHandler(analysisSvc)
 	mux.HandleFunc(jobs.TypeAnalyze, analyzeHandler.ProcessTask)
 
 	shutdown := make(chan os.Signal, 1)

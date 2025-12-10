@@ -4,5 +4,5 @@ import "errors"
 
 // Sentinel errors for repository operations.
 var (
-	ErrInvalidInput = errors.New("invalid input")
+	ErrInvalidParams = errors.New("invalid repository parameters")
 )
