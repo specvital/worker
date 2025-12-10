@@ -128,6 +128,7 @@
 - Actively use for libraries, only when necessary for applications
 
 **Recommended libraries**
+
 - Web: Chi
 - DB: Bun, SQLBoiler (when managing external migrations)
 - Logging: slog
@@ -143,39 +144,51 @@
 ## Common Principles
 
 ### Test File Structure
+
 1:1 matching with target file. Test files located in same directory as target files.
 
 ### Test Hierarchy
+
 Organize major sections by method (function) units, write minor sections for each case. Complex methods can add intermediate sections by scenario.
 
 ### Test Scope Selection
+
 Omit obvious or overly simple logic (simple getters, constant returns). Prioritize testing business logic, conditional branches, code with external dependencies.
 
 ### Test Case Composition
+
 Minimum 1 basic success case required. Main focus on failure cases, boundaries, edge cases, exception scenarios.
 
 ### Test Independence
+
 Each test must be independently executable. Prohibit dependency on execution order between tests. Initialize for each test when using shared state.
 
 ### Given-When-Then Pattern
+
 Structure test code in 3 stages—Given (setup), When (execution), Then (verification). Distinguish stages with comments or blank lines for complex tests.
 
 ### Test Data
+
 Use hardcoded meaningful values. Avoid random data as it causes irreproducible failures. Fix seed if necessary.
 
 ### Mocking Principles
+
 Mock external dependencies (API, DB, file system). Use actual modules within same project when possible, mock only when complexity is high.
 
 ### Test Reusability
+
 Extract repeated mocking setups, fixtures, helper functions as common utilities. However, be careful not to harm test readability with excessive abstraction.
 
 ### Integration/E2E Tests
+
 Unit tests take priority. Write integration/E2E when complex flows or multi-module interactions are difficult to understand from code alone. Located in separate directories (`tests/integration`, `tests/e2e`).
 
 ### Test Naming
+
 Test names should clearly express "what is being tested". Recommend "when ~ should ~" format. Focus on behavior rather than implementation details.
 
 ### Assertion Count
+
 Allow multiple related assertions in one test, but separate tests when verifying different concepts.
 
 ---
@@ -183,20 +196,25 @@ Allow multiple related assertions in one test, but separate tests when verifying
 ## Go
 
 ### File Naming
+
 `{target-filename}_test.go` format.
 
 **Example:** `user.go` → `user_test.go`
 
 ### Test Functions
+
 `func TestXxx(t *testing.T)` format. Write `TestMethodName` function per method, compose subtests with `t.Run()`.
 
 ### Subtests
+
 `t.Run("case name", func(t *testing.T) {...})` pattern. Each case independently executable, call `t.Parallel()` for parallel execution.
 
 ### Table-Driven Tests
+
 Recommend table-driven tests when multiple cases have similar structure. Define cases with `[]struct{ name, input, want, wantErr }`.
 
 **Example:**
+
 ```go
 tests := []struct {
     name    string
@@ -217,16 +235,21 @@ for _, tt := range tests {
 ```
 
 ### Mocking
+
 Utilize interface-based dependency injection. Prioritize manual mocking, consider gomock for complex cases. Define test-only implementations within `_test.go`.
 
 ### Error Verification
+
 Use `errors.Is()`, `errors.As()`. Avoid error message string comparison, verify with sentinel errors or error types.
 
 ### Setup/Teardown
+
 Global setup/teardown with `TestMain(m *testing.M)`. Individual test preparation within each Test function or extracted as helper functions.
 
 ### Test Helpers
+
 Extract repeated preparation/verification as `testXxx(t *testing.T, ...)` helpers. Receive `*testing.T` as first argument and call `t.Helper()`.
 
 ### Benchmarks
+
 Write `func BenchmarkXxx(b *testing.B)` for performance-critical code. Repeat with `b.N` loop, exclude preparation time with `b.ResetTimer()`.

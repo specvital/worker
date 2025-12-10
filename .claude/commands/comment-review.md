@@ -19,6 +19,7 @@ $ARGUMENTS
 ```
 
 **Interpretation Priority**:
+
 1. If $ARGUMENTS provided → Follow user's request (file path, `--all` for entire project, etc.)
 2. If empty → Check `git status` for uncommitted changes
 3. If no changes → Review latest commit
@@ -36,19 +37,20 @@ $ARGUMENTS
 
 ### ✅ Legitimate Comment Cases
 
-| Category | Description | Examples |
-|----------|-------------|----------|
-| **Public API Docs** | JSDoc, TSDoc, GoDoc | `@param`, `@returns`, `@throws` |
-| **Business Logic WHY** | Domain knowledge not expressible in code | "Due to regulatory requirements...", "Per customer request..." |
-| **External Dependencies** | API limits, policies, quirks | "Stripe API returns max 100 items", "Due to CORS restrictions..." |
-| **Performance/Security Warnings** | Intentional technical decisions | "O(n²) but n < 10 guaranteed", "SQL injection prevention" |
-| **Complex Patterns** | Regex, algorithm intent | Regex part explanations, algorithm choice reasoning |
-| **Legal/License** | Copyright, patents | "MIT License", "Based on Apache algorithm" |
-| **TODO/FIXME** | Must include context | `// TODO(username): #123 remove after migration` |
+| Category                          | Description                              | Examples                                                          |
+| --------------------------------- | ---------------------------------------- | ----------------------------------------------------------------- |
+| **Public API Docs**               | JSDoc, TSDoc, GoDoc                      | `@param`, `@returns`, `@throws`                                   |
+| **Business Logic WHY**            | Domain knowledge not expressible in code | "Due to regulatory requirements...", "Per customer request..."    |
+| **External Dependencies**         | API limits, policies, quirks             | "Stripe API returns max 100 items", "Due to CORS restrictions..." |
+| **Performance/Security Warnings** | Intentional technical decisions          | "O(n²) but n < 10 guaranteed", "SQL injection prevention"         |
+| **Complex Patterns**              | Regex, algorithm intent                  | Regex part explanations, algorithm choice reasoning               |
+| **Legal/License**                 | Copyright, patents                       | "MIT License", "Based on Apache algorithm"                        |
+| **TODO/FIXME**                    | Must include context                     | `// TODO(username): #123 remove after migration`                  |
 
 ### ⚠️ Business Logic Comment Rules
 
 **Cohesion Principle**: Same business logic explanation should exist in **ONE place only**.
+
 - ❌ Scattered: Same rule repeated across multiple files
 - ✅ Cohesive: Documented once in core domain module
 
@@ -58,29 +60,30 @@ $ARGUMENTS
 
 ### ❌ REMOVE (Recommend Deletion)
 
-| Type | Example | Reason |
-|------|---------|--------|
-| Obvious explanation | `// increment counter` above `counter++` | Code already explains |
-| Name compensation | `// get user data` above `getData()` | Rename to `getUserData()` |
-| Commented-out code | `// oldFunction()` | Use Git history |
-| Section dividers | `// ===== Validation =====` | Extract function instead |
-| Type duplication | `// returns string` (TypeScript) | Type system explains |
-| Outdated/lying | Doesn't match code | Maintenance hazard |
-| Closing brace comment | `} // end if` | Indentation is sufficient |
+| Type                  | Example                                  | Reason                    |
+| --------------------- | ---------------------------------------- | ------------------------- |
+| Obvious explanation   | `// increment counter` above `counter++` | Code already explains     |
+| Name compensation     | `// get user data` above `getData()`     | Rename to `getUserData()` |
+| Commented-out code    | `// oldFunction()`                       | Use Git history           |
+| Section dividers      | `// ===== Validation =====`              | Extract function instead  |
+| Type duplication      | `// returns string` (TypeScript)         | Type system explains      |
+| Outdated/lying        | Doesn't match code                       | Maintenance hazard        |
+| Closing brace comment | `} // end if`                            | Indentation is sufficient |
 
 ### ⚠️ IMPROVE (Needs Improvement)
 
-| Type | Problem | Improvement Direction |
-|------|---------|----------------------|
-| Unclear TODO | `// TODO: fix later` | `// TODO(user): #ticket specific details` |
-| WHAT explanation | "Validates user" | Explain WHY: "Due to security policy..." |
-| Verbose comment | Paragraph-level explanation | Keep concise |
-| Non-standard docs | Plain comment for API | Use JSDoc/TSDoc/GoDoc format |
-| Scattered business comments | Same rule in multiple places | Consolidate to one place |
+| Type                        | Problem                      | Improvement Direction                     |
+| --------------------------- | ---------------------------- | ----------------------------------------- |
+| Unclear TODO                | `// TODO: fix later`         | `// TODO(user): #ticket specific details` |
+| WHAT explanation            | "Validates user"             | Explain WHY: "Due to security policy..."  |
+| Verbose comment             | Paragraph-level explanation  | Keep concise                              |
+| Non-standard docs           | Plain comment for API        | Use JSDoc/TSDoc/GoDoc format              |
+| Scattered business comments | Same rule in multiple places | Consolidate to one place                  |
 
 ### ✅ KEEP (Maintain)
 
 Matches legitimate comment cases AND:
+
 - Concise and clear
 - Synchronized with code
 - Explains WHY
@@ -97,6 +100,7 @@ git status --porcelain
 ```
 
 **Decision Tree**:
+
 1. $ARGUMENTS has specific request → Honor it
 2. $ARGUMENTS empty + uncommitted changes exist → Analyze changed files via `git diff`
 3. $ARGUMENTS empty + no changes → Analyze latest commit via `git show HEAD`
@@ -105,12 +109,14 @@ git status --porcelain
 ### 2. Extract Comments
 
 **Language-specific patterns**:
+
 - TypeScript/JavaScript: `//`, `/* */`, `/** */`
 - Go: `//`, `/* */`
 - Python: `#`, `""" """`
 - HTML/JSX: `{/* */}`, `<!-- -->`
 
 **Include with each comment**:
+
 - Comment content
 - File path:line number
 - Surrounding code context (±3 lines)
@@ -118,17 +124,18 @@ git status --porcelain
 ### 3. Classify and Analyze
 
 For each comment:
+
 1. Classification (REMOVE / IMPROVE / KEEP)
 2. Reasoning
 3. Refactoring suggestion (if applicable)
 
 ### 4. Action Decision
 
-| Situation | Action |
-|-----------|--------|
-| **Obvious removals** (commented code, trivial explanations) | Fix immediately without asking |
-| **Needs discussion** (unclear intent, judgment required) | Suggest in conversation |
-| **Entire project review** | Generate formal report with Refactoring Suggestions section |
+| Situation                                                   | Action                                                      |
+| ----------------------------------------------------------- | ----------------------------------------------------------- |
+| **Obvious removals** (commented code, trivial explanations) | Fix immediately without asking                              |
+| **Needs discussion** (unclear intent, judgment required)    | Suggest in conversation                                     |
+| **Entire project review**                                   | Generate formal report with Refactoring Suggestions section |
 
 ---
 
@@ -137,6 +144,7 @@ For each comment:
 ### For Individual Files / Changes (Conversational)
 
 Provide feedback directly in conversation:
+
 - List issues found with file:line references
 - Explain reasoning briefly
 - Apply obvious fixes immediately
@@ -157,17 +165,18 @@ Generate only when reviewing entire project (`--all`):
 
 ## 📊 Summary
 
-| Category | Count | Percentage |
-|----------|-------|------------|
-| ❌ REMOVE | {n} | {%} |
-| ⚠️ IMPROVE | {n} | {%} |
-| ✅ KEEP | {n} | {%} |
+| Category   | Count | Percentage |
+| ---------- | ----- | ---------- |
+| ❌ REMOVE  | {n}   | {%}        |
+| ⚠️ IMPROVE | {n}   | {%}        |
+| ✅ KEEP    | {n}   | {%}        |
 
 ---
 
 ## ❌ REMOVE - Recommend Deletion ({count})
 
 ### 1. {file_path}:{line}
+
 ... details ...
 
 ---
@@ -175,6 +184,7 @@ Generate only when reviewing entire project (`--all`):
 ## ⚠️ IMPROVE - Needs Improvement ({count})
 
 ### 1. {file_path}:{line}
+
 ... details ...
 
 ---
@@ -188,9 +198,11 @@ Brief list of legitimate comments found.
 ## 🔧 Refactoring Suggestions
 
 ### Extract Function
+
 ... suggestions ...
 
 ### Rename
+
 ... suggestions ...
 
 ---

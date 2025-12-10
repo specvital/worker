@@ -8,8 +8,8 @@ import (
 )
 
 const (
-	DefaultConcurrency      = 5
-	DefaultShutdownTimeout  = 30 * time.Second
+	DefaultConcurrency     = 5
+	DefaultShutdownTimeout = 30 * time.Second
 )
 
 type ServerConfig struct {

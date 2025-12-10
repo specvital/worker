@@ -241,4 +241,3 @@ func TestAnalysisService_Analyze_Timeout(t *testing.T) {
 		t.Errorf("expected context.DeadlineExceeded in error chain, got %v", err)
 	}
 }
-
