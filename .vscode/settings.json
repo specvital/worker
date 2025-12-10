@@ -55,6 +55,105 @@
       ]
     },
     {
+      "color": "teal",
+      "name": "$(tools) Utils",
+      "shortcut": "u",
+      "group": [
+        {
+          "command": "just deps",
+          "name": "Deps",
+          "shortcut": "d",
+          "terminalName": "Deps"
+        },
+        {
+          "command": "just lint",
+          "name": "Lint",
+          "shortcut": "l",
+          "terminalName": "Lint"
+        },
+        {
+          "color": "",
+          "command": "just tidy",
+          "name": "tidy",
+          "shortcut": "t",
+          "terminalName": "tidy",
+          "useVsCodeApi": false
+        },
+        {
+          "color": "",
+          "command": "just update-core",
+          "name": "update-core",
+          "shortcut": "u",
+          "terminalName": "update-core",
+          "useVsCodeApi": false
+        },
+        {
+          "color": "",
+          "command": "just bootstrap",
+          "name": "bootstrap",
+          "shortcut": "b",
+          "terminalName": "bootstrap",
+          "useVsCodeApi": false
+        },
+        {
+          "color": "",
+          "command": "just dump-schema",
+          "name": "dump-schema",
+          "shortcut": "s",
+          "terminalName": "dump-schema",
+          "useVsCodeApi": false
+        },
+        {
+          "color": "",
+          "command": "just gen-sqlc",
+          "name": "gen-sqlc",
+          "shortcut": "g",
+          "terminalName": "gen-sqlc",
+          "useVsCodeApi": false
+        }
+      ]
+    },
+    {
+      "color": "tomato",
+      "name": "$(beaker) Test",
+      "shortcut": "t",
+      "group": [
+        {
+          "color": "",
+          "command": "just test",
+          "name": "all",
+          "shortcut": "a",
+          "terminalName": "all test",
+          "useVsCodeApi": false
+        },
+        {
+          "color": "",
+          "command": "just test unit",
+          "name": "unit",
+          "shortcut": "u",
+          "terminalName": "unit test",
+          "useVsCodeApi": false
+        },
+        {
+          "color": "",
+          "command": "just test integration",
+          "name": "integration",
+          "shortcut": "i",
+          "terminalName": "integration test",
+          "useVsCodeApi": false
+        }
+      ]
+    },
+    {
+      "color": "#2196F3",
+      "command": "just run",
+      "insertOnly": false,
+      "name": "$(play-circle) Run",
+      "shortcut": "r",
+      "terminalName": "run collector",
+      "useVsCodeApi": false
+    },
+    {
       "color": "blue",
       "command": "export IS_SANDBOX=1 && claude --dangerously-skip-permissions",
       "name": "$(hubot) Claude",
