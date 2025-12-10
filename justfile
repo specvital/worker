@@ -2,6 +2,8 @@ set dotenv-load := true
 
 root_dir := justfile_directory()
 
+bootstrap: install-psql install-sqlc
+
 deps: deps-root
 
 deps-root:
