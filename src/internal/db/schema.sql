@@ -140,14 +140,6 @@ ALTER TABLE ONLY public.test_suites
 
 
 --
--- Name: analyses uq_analyses_commit; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.analyses
-    ADD CONSTRAINT uq_analyses_commit UNIQUE (codebase_id, commit_sha);
-
-
---
 -- Name: codebases uq_codebases_identity; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -209,6 +201,13 @@ CREATE INDEX idx_test_suites_file ON public.test_suites USING btree (analysis_id
 --
 
 CREATE INDEX idx_test_suites_parent ON public.test_suites USING btree (parent_id) WHERE (parent_id IS NOT NULL);
+
+
+--
+-- Name: uq_analyses_completed_commit; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_analyses_completed_commit ON public.analyses USING btree (codebase_id, commit_sha) WHERE (status = 'completed'::public.analysis_status);
 
 
 --
