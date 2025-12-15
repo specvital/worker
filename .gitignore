@@ -4,3 +4,4 @@ node_modules
 docs/work
 .claude/settings.local.json
 tmp
+coverage.out
