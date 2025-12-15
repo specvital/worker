@@ -25,6 +25,9 @@ func (p CreateAnalysisRecordParams) Validate() error {
 	if p.Repo == "" {
 		return fmt.Errorf("%w: repo is required", ErrInvalidInput)
 	}
+	if p.Branch == "" {
+		return fmt.Errorf("%w: branch is required", ErrInvalidInput)
+	}
 	if p.CommitSHA == "" {
 		return fmt.Errorf("%w: commit SHA is required", ErrInvalidInput)
 	}

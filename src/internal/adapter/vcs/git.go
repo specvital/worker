@@ -4,39 +4,25 @@ import (
 	"context"
 	"fmt"
 
-	"golang.org/x/sync/semaphore"
-
 	"github.com/specvital/collector/internal/domain/analysis"
 	"github.com/specvital/core/pkg/source"
 )
 
 // GitVCS implements analysis.VCS using specvital/core's GitSource.
-// It manages repository cloning with concurrency control via semaphore.
-type GitVCS struct {
-	cloneSem *semaphore.Weighted
-}
+// It is a thin, stateless adapter that delegates to the underlying source package.
+// Concurrency control (semaphore) is managed by the use case layer, not here.
+type GitVCS struct{}
 
-// NewGitVCS creates a new GitVCS with the specified maximum concurrent clones.
-func NewGitVCS(maxConcurrentClones int64) *GitVCS {
-	if maxConcurrentClones <= 0 {
-		maxConcurrentClones = 1
-	}
-	return &GitVCS{
-		cloneSem: semaphore.NewWeighted(maxConcurrentClones),
-	}
+// NewGitVCS creates a new GitVCS.
+func NewGitVCS() *GitVCS {
+	return &GitVCS{}
 }
 
 // Clone implements analysis.VCS by cloning a Git repository.
-// It uses a semaphore to limit concurrent clone operations.
 func (v *GitVCS) Clone(ctx context.Context, url string) (analysis.Source, error) {
 	if url == "" {
 		return nil, fmt.Errorf("clone repository: URL is required")
 	}
-
-	if err := v.cloneSem.Acquire(ctx, 1); err != nil {
-		return nil, fmt.Errorf("clone repository %q: acquire semaphore: %w", url, err)
-	}
-	defer v.cloneSem.Release(1)
 
 	gitSrc, err := source.NewGitSource(ctx, url, nil)
 	if err != nil {
