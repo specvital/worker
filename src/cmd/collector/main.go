@@ -8,14 +8,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/specvital/collector/internal/adapter/parser"
-	"github.com/specvital/collector/internal/adapter/repository/postgres"
-	"github.com/specvital/collector/internal/adapter/vcs"
-	handler "github.com/specvital/collector/internal/handler/queue"
+	"github.com/specvital/collector/internal/app"
+	"github.com/specvital/collector/internal/handler/queue"
 	"github.com/specvital/collector/internal/infra/config"
 	"github.com/specvital/collector/internal/infra/db"
-	"github.com/specvital/collector/internal/infra/queue"
-	uc "github.com/specvital/collector/internal/usecase/analysis"
+	infraqueue "github.com/specvital/collector/internal/infra/queue"
 
 	_ "github.com/specvital/core/pkg/parser/strategies/all"
 )
@@ -52,7 +49,7 @@ func main() {
 
 	slog.Info("postgres connected")
 
-	srv, err := queue.NewServer(queue.ServerConfig{
+	srv, err := infraqueue.NewServer(infraqueue.ServerConfig{
 		RedisURL:        cfg.RedisURL,
 		Concurrency:     workerConcurrency,
 		ShutdownTimeout: gracefulShutdownTimeout,
@@ -63,15 +60,17 @@ func main() {
 		os.Exit(1)
 	}
 
-	analysisRepo := postgres.NewAnalysisRepository(pool)
-	gitVCS := vcs.NewGitVCS()
-	coreParser := parser.NewCoreParser()
+	container, err := app.NewContainer(app.ContainerConfig{
+		Pool: pool,
+	})
+	if err != nil {
+		slog.Error("failed to create container", "error", err)
+		pool.Close()
+		os.Exit(1)
+	}
 
-	analyzeUC := uc.NewAnalyzeUseCase(analysisRepo, gitVCS, coreParser)
-
-	mux := queue.NewServeMux()
-	analyzeHandler := handler.NewAnalyzeHandler(analyzeUC)
-	mux.HandleFunc(handler.TypeAnalyze, analyzeHandler.ProcessTask)
+	mux := infraqueue.NewServeMux()
+	mux.HandleFunc(queue.TypeAnalyze, container.AnalyzeHandler.ProcessTask)
 
 	slog.Info("worker starting", "concurrency", workerConcurrency)
 	if err := srv.Start(mux); err != nil {
