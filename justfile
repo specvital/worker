@@ -74,8 +74,38 @@ lint target="all":
 migrate-local:
     PGPASSWORD=postgres psql -h local-postgres -U postgres -d specvital -f src/internal/db/schema.sql
 
-build:
-    cd src && go build ./...
+build target="all":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd src
+    case "{{ target }}" in
+      all)
+        go build -o ../bin/worker ./cmd/worker
+        go build -o ../bin/scheduler ./cmd/scheduler
+        go build -o ../bin/enqueue ./cmd/enqueue
+        go build -o ../bin/collector ./cmd/collector
+        echo "Built: bin/worker, bin/scheduler, bin/enqueue, bin/collector"
+        ;;
+      worker)
+        go build -o ../bin/worker ./cmd/worker
+        ;;
+      scheduler)
+        go build -o ../bin/scheduler ./cmd/scheduler
+        ;;
+      enqueue)
+        go build -o ../bin/enqueue ./cmd/enqueue
+        ;;
+      collector)
+        go build -o ../bin/collector ./cmd/collector
+        ;;
+      check)
+        go build ./...
+        ;;
+      *)
+        echo "Unknown target: {{ target }}. Use: all, worker, scheduler, enqueue, collector, check"
+        exit 1
+        ;;
+    esac
 
 run mode="local":
     #!/usr/bin/env bash
@@ -121,3 +151,6 @@ tidy:
 
 update-core:
     cd src && GOPROXY=direct go get -u github.com/specvital/core@main && go mod tidy
+
+docker-build service="worker":
+    docker build --build-arg SERVICE={{ service }} -t specvital-{{ service }}:local .

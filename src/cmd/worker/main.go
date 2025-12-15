@@ -1,5 +1,3 @@
-// Package main provides the collector entry point.
-// Deprecated: Use cmd/worker instead. This entry point is maintained for backward compatibility.
 package main
 
 import (
@@ -23,11 +21,11 @@ func main() {
 	}
 
 	if err := bootstrap.StartWorker(bootstrap.WorkerConfig{
-		ServiceName: "collector",
+		ServiceName: "worker",
 		DatabaseURL: cfg.DatabaseURL,
 		RedisURL:    cfg.RedisURL,
 	}); err != nil {
-		slog.Error("collector failed", "error", err)
+		slog.Error("worker failed", "error", err)
 		os.Exit(1)
 	}
 }
