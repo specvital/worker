@@ -110,6 +110,14 @@
           "shortcut": "g",
           "terminalName": "gen-sqlc",
           "useVsCodeApi": false
+        },
+        {
+          "color": "",
+          "command": "just migrate-local",
+          "name": "migrate-local",
+          "shortcut": "m",
+          "terminalName": "migrate-local",
+          "useVsCodeApi": false
         }
       ]
     },
