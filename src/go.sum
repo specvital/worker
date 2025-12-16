@@ -127,8 +127,8 @@ github.com/sirupsen/logrus v1.9.3 h1:dueUQJ1C2q9oE3F7wvmSGAaVtTmUizReu6fjN8uqzbQ
 github.com/sirupsen/logrus v1.9.3/go.mod h1:naHLuLoDiP4jHNo9R0sCBMtWGeIprob74mVsIT4qYEQ=
 github.com/smacker/go-tree-sitter v0.0.0-20240827094217-dd81d9e9be82 h1:6C8qej6f1bStuePVkLSFxoU22XBS165D3klxlzRg8F4=
 github.com/smacker/go-tree-sitter v0.0.0-20240827094217-dd81d9e9be82/go.mod h1:xe4pgH49k4SsmkQq5OT8abwhWmnzkhpgnXeekbx2efw=
-github.com/specvital/core v1.3.0 h1:4xCGjQYuEIfHZrefxBD4+ABhzTvVajNXBvSvR1m4OR8=
-github.com/specvital/core v1.3.0/go.mod h1:R3zxXzfSLsATQFEsO0gUOek99bCkP7dG0mVtViKLXRs=
+github.com/specvital/core v1.3.1-0.20251212171621-0b95b2d2bbc6 h1:GMmx4xd6k25zNOWJZ/Unt9VeDrxIqCTD+88DPZ9i1Eo=
+github.com/specvital/core v1.3.1-0.20251212171621-0b95b2d2bbc6/go.mod h1:R3zxXzfSLsATQFEsO0gUOek99bCkP7dG0mVtViKLXRs=
 github.com/spf13/cast v1.7.0 h1:ntdiHjuueXFgm5nzDRdOS4yfT43P5Fnud6DH50rz/7w=
 github.com/spf13/cast v1.7.0/go.mod h1:ancEpBxwJDODSW/UG4rDrAqiKolqNNh2DX3mk86cAdo=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
