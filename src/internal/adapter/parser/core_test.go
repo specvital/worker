@@ -18,19 +18,19 @@ func TestNewCoreParser(t *testing.T) {
 func TestCoreParser_Scan_InvalidSourceType(t *testing.T) {
 	parser := NewCoreParser()
 
-	// mockSource doesn't implement gitSourceUnwrapper
+	// mockSource doesn't implement coreSourceProvider
 	mockSrc := &mockInvalidSource{}
 
 	_, err := parser.Scan(context.Background(), mockSrc)
 	if err == nil {
-		t.Fatal("expected error for source without unwrapper")
+		t.Fatal("expected error for source not implementing coreSourceProvider")
 	}
-	if !strings.Contains(err.Error(), "does not support unwrapping") {
+	if !strings.Contains(err.Error(), "does not implement coreSourceProvider interface") {
 		t.Errorf("unexpected error message: %v", err)
 	}
 }
 
-// mockInvalidSource implements analysis.Source but not gitSourceUnwrapper.
+// mockInvalidSource implements analysis.Source but not coreSourceProvider.
 type mockInvalidSource struct{}
 
 var _ analysis.Source = (*mockInvalidSource)(nil)

@@ -43,8 +43,7 @@ func (v *GitVCS) Clone(ctx context.Context, url string, token *string) (analysis
 }
 
 // gitSourceAdapter adapts source.GitSource to implement analysis.Source.
-// The main difference is that our domain Source.Close accepts a context,
-// while the underlying GitSource.Close does not.
+// It also provides access to the underlying source.Source for parser integration.
 type gitSourceAdapter struct {
 	gitSrc *source.GitSource
 }
@@ -57,17 +56,13 @@ func (a *gitSourceAdapter) CommitSHA() string {
 	return a.gitSrc.CommitSHA()
 }
 
-// Close implements analysis.Source.Close.
-// The context parameter is accepted for interface compatibility but is not used
-// by the underlying GitSource.Close implementation. Close operations are typically
-// fast (temp directory cleanup) and don't benefit from cancellation.
 func (a *gitSourceAdapter) Close(_ context.Context) error {
 	return a.gitSrc.Close()
 }
 
-// unwrapGitSource returns the underlying source.GitSource.
-// This is used by the parser adapter to access the source.Source interface
-// required by parser.Scan.
-func (a *gitSourceAdapter) unwrapGitSource() *source.GitSource {
+// CoreSource returns the underlying source.Source for use by the parser adapter.
+// This allows the parser to access the core source interface without exposing
+// implementation details in the domain layer.
+func (a *gitSourceAdapter) CoreSource() source.Source {
 	return a.gitSrc
 }

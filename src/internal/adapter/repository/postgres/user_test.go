@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/specvital/collector/internal/domain/analysis"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -155,7 +156,7 @@ func TestUserRepository_GetOAuthToken(t *testing.T) {
 	t.Run("should return ErrTokenNotFound for non-existent user", func(t *testing.T) {
 		nonExistentUserID := "00000000-0000-0000-0000-000000000000"
 		_, err := repo.GetOAuthToken(ctx, nonExistentUserID, "github")
-		if !errors.Is(err, ErrTokenNotFound) {
+		if !errors.Is(err, analysis.ErrTokenNotFound) {
 			t.Errorf("expected ErrTokenNotFound, got %v", err)
 		}
 	})
@@ -171,7 +172,7 @@ func TestUserRepository_GetOAuthToken(t *testing.T) {
 		}
 
 		_, err = repo.GetOAuthToken(ctx, userID, "github")
-		if !errors.Is(err, ErrTokenNotFound) {
+		if !errors.Is(err, analysis.ErrTokenNotFound) {
 			t.Errorf("expected ErrTokenNotFound, got %v", err)
 		}
 	})
@@ -195,7 +196,7 @@ func TestUserRepository_GetOAuthToken(t *testing.T) {
 		}
 
 		_, err = repo.GetOAuthToken(ctx, userID, "github")
-		if !errors.Is(err, ErrTokenNotFound) {
+		if !errors.Is(err, analysis.ErrTokenNotFound) {
 			t.Errorf("expected ErrTokenNotFound for null token, got %v", err)
 		}
 	})
@@ -219,7 +220,7 @@ func TestUserRepository_GetOAuthToken(t *testing.T) {
 		}
 
 		_, err = repo.GetOAuthToken(ctx, userID, "github")
-		if !errors.Is(err, ErrTokenNotFound) {
+		if !errors.Is(err, analysis.ErrTokenNotFound) {
 			t.Errorf("expected ErrTokenNotFound for empty token, got %v", err)
 		}
 	})

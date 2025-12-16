@@ -10,15 +10,6 @@ import (
 	"github.com/specvital/core/pkg/source"
 )
 
-// gitSourceUnwrapper is an internal interface to access the underlying source.Source
-// needed by parser.Scan. This avoids exposing the core package types in the domain layer.
-//
-// Only gitSourceAdapter from the vcs package implements this interface.
-// This coupling is acceptable as both adapters wrap the same external library.
-type gitSourceUnwrapper interface {
-	unwrapGitSource() *source.GitSource
-}
-
 // CoreParser implements analysis.Parser using specvital/core's parser package.
 type CoreParser struct{}
 
@@ -27,17 +18,21 @@ func NewCoreParser() *CoreParser {
 	return &CoreParser{}
 }
 
+// coreSourceProvider is implemented by sources that can provide
+// the underlying source.Source for the core parser.
+type coreSourceProvider interface {
+	CoreSource() source.Source
+}
+
 // Scan implements analysis.Parser by delegating to the core parser
 // and converting the result to domain types.
 func (p *CoreParser) Scan(ctx context.Context, src analysis.Source) (*analysis.Inventory, error) {
-	unwrapper, ok := src.(gitSourceUnwrapper)
+	provider, ok := src.(coreSourceProvider)
 	if !ok {
-		return nil, fmt.Errorf("source does not support unwrapping to core source type")
+		return nil, fmt.Errorf("source does not implement coreSourceProvider interface")
 	}
 
-	gitSrc := unwrapper.unwrapGitSource()
-
-	result, err := parser.Scan(ctx, gitSrc)
+	result, err := parser.Scan(ctx, provider.CoreSource())
 	if err != nil {
 		return nil, fmt.Errorf("core parser scan: %w", err)
 	}
