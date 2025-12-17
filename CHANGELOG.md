@@ -1,3 +1,9 @@
+## 🔧 Maintenance
+
+### 🔧 Internal Fixes
+
+- fix asynq logs incorrectly classified as error in Railway ([d2180cc](https://github.com/specvital/collector/commit/d2180cc1182a0f1187f7dd63b982fc7816e3be47))
+
 ## 🎯 Highlights
 
 ### 🐛 Bug Fixes
