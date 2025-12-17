@@ -9,7 +9,7 @@ ARG SERVICE
 
 WORKDIR /app
 
-RUN apk add --no-cache git
+RUN apk add --no-cache git gcc musl-dev
 
 COPY src/go.mod src/go.sum ./
 
@@ -17,7 +17,7 @@ RUN go mod download
 
 COPY src/ ./
 
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /service ./cmd/${SERVICE}
+RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-s -w" -o /service ./cmd/${SERVICE}
 
 FROM alpine:3.21
 
