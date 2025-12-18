@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-# Build target: worker, scheduler, enqueue, collector
+# Build target: worker, scheduler, enqueue
 ARG SERVICE=worker
 
 FROM golang:1.24-alpine AS builder

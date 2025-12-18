@@ -22,11 +22,8 @@ const (
 
 const maxConsecutiveFailures = 5
 
+// CalculateRefreshIntervalAt returns refresh interval based on last viewed time.
 // Returns 0 if lastViewedAt is future or idle exceeds 90 days.
-func CalculateRefreshInterval(lastViewedAt time.Time) time.Duration {
-	return CalculateRefreshIntervalAt(lastViewedAt, time.Now())
-}
-
 func CalculateRefreshIntervalAt(lastViewedAt, now time.Time) time.Duration {
 	duration := now.Sub(lastViewedAt)
 	if duration < 0 {
@@ -51,10 +48,7 @@ func CalculateRefreshIntervalAt(lastViewedAt, now time.Time) time.Duration {
 	}
 }
 
-func ShouldRefresh(lastViewedAt time.Time, lastCompletedAt *time.Time, consecutiveFailures int) bool {
-	return ShouldRefreshAt(lastViewedAt, lastCompletedAt, consecutiveFailures, time.Now())
-}
-
+// ShouldRefreshAt determines if codebase should be refreshed based on decay rules.
 func ShouldRefreshAt(lastViewedAt time.Time, lastCompletedAt *time.Time, consecutiveFailures int, now time.Time) bool {
 	if consecutiveFailures >= maxConsecutiveFailures {
 		return false

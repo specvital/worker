@@ -83,8 +83,7 @@ build target="all":
         go build -o ../bin/worker ./cmd/worker
         go build -o ../bin/scheduler ./cmd/scheduler
         go build -o ../bin/enqueue ./cmd/enqueue
-        go build -o ../bin/collector ./cmd/collector
-        echo "Built: bin/worker, bin/scheduler, bin/enqueue, bin/collector"
+        echo "Built: bin/worker, bin/scheduler, bin/enqueue"
         ;;
       worker)
         go build -o ../bin/worker ./cmd/worker
@@ -95,14 +94,11 @@ build target="all":
       enqueue)
         go build -o ../bin/enqueue ./cmd/enqueue
         ;;
-      collector)
-        go build -o ../bin/collector ./cmd/collector
-        ;;
       check)
         go build ./...
         ;;
       *)
-        echo "Unknown target: {{ target }}. Use: all, worker, scheduler, enqueue, collector, check"
+        echo "Unknown target: {{ target }}. Use: all, worker, scheduler, enqueue, check"
         exit 1
         ;;
     esac
