@@ -1,6 +1,6 @@
 {
   "name": "specvital-collector",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "A collector for SpecVital data",
   "repository": {
     "type": "git",

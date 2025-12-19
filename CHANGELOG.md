@@ -1,3 +1,9 @@
+## 🎯 Highlights
+
+### 🐛 Bug Fixes
+
+- resolve 60-second timeout issue during bulk INSERT operations on NeonDB ([0b6bc9b](https://github.com/specvital/collector/commit/0b6bc9bbef0c14190ec953a14caa5b29da0422d5))
+
 ## 🔧 Maintenance
 
 ### ♻️ Refactoring
