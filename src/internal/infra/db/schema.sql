@@ -36,6 +36,22 @@ CREATE TYPE public.oauth_provider AS ENUM (
 
 
 --
+-- Name: river_job_state; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.river_job_state AS ENUM (
+    'available',
+    'cancelled',
+    'completed',
+    'discarded',
+    'pending',
+    'retryable',
+    'running',
+    'scheduled'
+);
+
+
+--
 -- Name: test_status; Type: TYPE; Schema: public; Owner: -
 --
 
@@ -46,6 +62,27 @@ CREATE TYPE public.test_status AS ENUM (
     'focused',
     'xfail'
 );
+
+
+--
+-- Name: river_job_state_in_bitmask(bit, public.river_job_state); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.river_job_state_in_bitmask(bitmask bit, state public.river_job_state) RETURNS boolean
+    LANGUAGE sql IMMUTABLE
+    AS $$
+    SELECT CASE state
+        WHEN 'available' THEN get_bit(bitmask, 7)
+        WHEN 'cancelled' THEN get_bit(bitmask, 6)
+        WHEN 'completed' THEN get_bit(bitmask, 5)
+        WHEN 'discarded' THEN get_bit(bitmask, 4)
+        WHEN 'pending'   THEN get_bit(bitmask, 3)
+        WHEN 'retryable' THEN get_bit(bitmask, 2)
+        WHEN 'running'   THEN get_bit(bitmask, 1)
+        WHEN 'scheduled' THEN get_bit(bitmask, 0)
+        ELSE 0
+    END = 1;
+$$;
 
 
 
@@ -66,6 +103,26 @@ CREATE TABLE public.analyses (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     total_suites integer DEFAULT 0 NOT NULL,
     total_tests integer DEFAULT 0 NOT NULL
+);
+
+
+--
+-- Name: atlas_schema_revisions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.atlas_schema_revisions (
+    version character varying NOT NULL,
+    description character varying NOT NULL,
+    type bigint DEFAULT 2 NOT NULL,
+    applied bigint DEFAULT 0 NOT NULL,
+    total bigint DEFAULT 0 NOT NULL,
+    executed_at timestamp with time zone NOT NULL,
+    execution_time bigint NOT NULL,
+    error text,
+    error_stmt text,
+    hash character varying NOT NULL,
+    partial_hashes jsonb,
+    operator_version character varying NOT NULL
 );
 
 
@@ -99,6 +156,116 @@ CREATE TABLE public.oauth_accounts (
     scope character varying(500),
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: river_client; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE UNLOGGED TABLE public.river_client (
+    id text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    paused_at timestamp with time zone,
+    updated_at timestamp with time zone NOT NULL,
+    CONSTRAINT name_length CHECK (((char_length(id) > 0) AND (char_length(id) < 128)))
+);
+
+
+--
+-- Name: river_client_queue; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE UNLOGGED TABLE public.river_client_queue (
+    river_client_id text NOT NULL,
+    name text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    max_workers bigint DEFAULT 0 NOT NULL,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    num_jobs_completed bigint DEFAULT 0 NOT NULL,
+    num_jobs_running bigint DEFAULT 0 NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    CONSTRAINT name_length CHECK (((char_length(name) > 0) AND (char_length(name) < 128))),
+    CONSTRAINT num_jobs_completed_zero_or_positive CHECK ((num_jobs_completed >= 0)),
+    CONSTRAINT num_jobs_running_zero_or_positive CHECK ((num_jobs_running >= 0))
+);
+
+
+--
+-- Name: river_job; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.river_job (
+    id bigint NOT NULL,
+    state public.river_job_state DEFAULT 'available'::public.river_job_state NOT NULL,
+    attempt smallint DEFAULT 0 NOT NULL,
+    max_attempts smallint NOT NULL,
+    attempted_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    finalized_at timestamp with time zone,
+    scheduled_at timestamp with time zone DEFAULT now() NOT NULL,
+    priority smallint DEFAULT 1 NOT NULL,
+    args jsonb NOT NULL,
+    attempted_by text[],
+    errors jsonb[],
+    kind text NOT NULL,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    queue text DEFAULT 'default'::text NOT NULL,
+    tags character varying(255)[] DEFAULT '{}'::character varying[] NOT NULL,
+    unique_key bytea,
+    unique_states bit(8),
+    CONSTRAINT finalized_or_finalized_at_null CHECK ((((finalized_at IS NULL) AND (state <> ALL (ARRAY['cancelled'::public.river_job_state, 'completed'::public.river_job_state, 'discarded'::public.river_job_state]))) OR ((finalized_at IS NOT NULL) AND (state = ANY (ARRAY['cancelled'::public.river_job_state, 'completed'::public.river_job_state, 'discarded'::public.river_job_state]))))),
+    CONSTRAINT kind_length CHECK (((char_length(kind) > 0) AND (char_length(kind) < 128))),
+    CONSTRAINT max_attempts_is_positive CHECK ((max_attempts > 0)),
+    CONSTRAINT priority_in_range CHECK (((priority >= 1) AND (priority <= 4))),
+    CONSTRAINT queue_length CHECK (((char_length(queue) > 0) AND (char_length(queue) < 128)))
+);
+
+
+--
+-- Name: river_job_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.river_job_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: river_job_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.river_job_id_seq OWNED BY public.river_job.id;
+
+
+--
+-- Name: river_leader; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE UNLOGGED TABLE public.river_leader (
+    elected_at timestamp with time zone NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    leader_id text NOT NULL,
+    name text DEFAULT 'default'::text NOT NULL,
+    CONSTRAINT leader_id_length CHECK (((char_length(leader_id) > 0) AND (char_length(leader_id) < 128))),
+    CONSTRAINT name_length CHECK ((name = 'default'::text))
+);
+
+
+--
+-- Name: river_queue; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.river_queue (
+    name text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    paused_at timestamp with time zone,
+    updated_at timestamp with time zone NOT NULL
 );
 
 
@@ -150,11 +317,26 @@ CREATE TABLE public.users (
 
 
 --
+-- Name: river_job id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.river_job ALTER COLUMN id SET DEFAULT nextval('public.river_job_id_seq'::regclass);
+
+
+--
 -- Name: analyses analyses_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.analyses
     ADD CONSTRAINT analyses_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: atlas_schema_revisions atlas_schema_revisions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.atlas_schema_revisions
+    ADD CONSTRAINT atlas_schema_revisions_pkey PRIMARY KEY (version);
 
 
 --
@@ -171,6 +353,46 @@ ALTER TABLE ONLY public.codebases
 
 ALTER TABLE ONLY public.oauth_accounts
     ADD CONSTRAINT oauth_accounts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: river_client river_client_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.river_client
+    ADD CONSTRAINT river_client_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: river_client_queue river_client_queue_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.river_client_queue
+    ADD CONSTRAINT river_client_queue_pkey PRIMARY KEY (river_client_id, name);
+
+
+--
+-- Name: river_job river_job_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.river_job
+    ADD CONSTRAINT river_job_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: river_leader river_leader_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.river_leader
+    ADD CONSTRAINT river_leader_pkey PRIMARY KEY (name);
+
+
+--
+-- Name: river_queue river_queue_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.river_queue
+    ADD CONSTRAINT river_queue_pkey PRIMARY KEY (name);
 
 
 --
@@ -305,6 +527,48 @@ CREATE INDEX idx_users_username ON public.users USING btree (username);
 
 
 --
+-- Name: river_job_args_index; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX river_job_args_index ON public.river_job USING gin (args);
+
+
+--
+-- Name: river_job_kind; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX river_job_kind ON public.river_job USING btree (kind);
+
+
+--
+-- Name: river_job_metadata_index; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX river_job_metadata_index ON public.river_job USING gin (metadata);
+
+
+--
+-- Name: river_job_prioritized_fetching_index; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX river_job_prioritized_fetching_index ON public.river_job USING btree (state, queue, priority, scheduled_at, id);
+
+
+--
+-- Name: river_job_state_and_finalized_at_index; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX river_job_state_and_finalized_at_index ON public.river_job USING btree (state, finalized_at) WHERE (finalized_at IS NOT NULL);
+
+
+--
+-- Name: river_job_unique_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX river_job_unique_idx ON public.river_job USING btree (unique_key) WHERE ((unique_key IS NOT NULL) AND (unique_states IS NOT NULL) AND public.river_job_state_in_bitmask(unique_states, state));
+
+
+--
 -- Name: uq_analyses_completed_commit; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -349,6 +613,14 @@ ALTER TABLE ONLY public.test_suites
 
 ALTER TABLE ONLY public.test_suites
     ADD CONSTRAINT fk_test_suites_parent FOREIGN KEY (parent_id) REFERENCES public.test_suites(id) ON DELETE CASCADE;
+
+
+--
+-- Name: river_client_queue river_client_queue_river_client_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.river_client_queue
+    ADD CONSTRAINT river_client_queue_river_client_id_fkey FOREIGN KEY (river_client_id) REFERENCES public.river_client(id) ON DELETE CASCADE;
 
 
 --

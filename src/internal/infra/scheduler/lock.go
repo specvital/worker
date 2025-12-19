@@ -3,118 +3,57 @@ package scheduler
 import (
 	"context"
 	"fmt"
-	"time"
+	"hash/fnv"
 
-	"github.com/google/uuid"
-	"github.com/redis/go-redis/v9"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Only deletes the key if it matches the owner token.
-const releaseScript = `
-if redis.call("get", KEYS[1]) == ARGV[1] then
-	return redis.call("del", KEYS[1])
-else
-	return 0
-end
-`
-
-// Only extends TTL if the key matches the owner token.
-const extendScript = `
-if redis.call("get", KEYS[1]) == ARGV[1] then
-	return redis.call("expire", KEYS[1], ARGV[2])
-else
-	return 0
-end
-`
-
-// DistributedLock provides Redis-based distributed locking.
-// Uses token-based ownership to prevent incorrect release after TTL expiration.
+// DistributedLock uses PostgreSQL advisory locks.
+// Advisory locks are session-scoped - connection pool recycling releases the lock.
 type DistributedLock struct {
-	client *redis.Client
-	key    string
-	token  string
-	ttl    time.Duration
+	pool   *pgxpool.Pool
+	lockID int64
 }
 
-// Key should be unique per job type (e.g., "scheduler:auto-refresh").
-// TTL should be longer than the maximum expected job duration.
-func NewDistributedLock(redisURL, key string, ttl time.Duration) (*DistributedLock, error) {
-	opt, err := redis.ParseURL(redisURL)
-	if err != nil {
-		return nil, fmt.Errorf("parse redis URL: %w", err)
-	}
-
-	client := redis.NewClient(opt)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	if err := client.Ping(ctx).Err(); err != nil {
-		return nil, fmt.Errorf("redis ping: %w", err)
-	}
-
+func NewDistributedLock(pool *pgxpool.Pool, key string) *DistributedLock {
 	return &DistributedLock{
-		client: client,
-		key:    key,
-		ttl:    ttl,
-	}, nil
-}
-
-// Use this to share a Redis connection pool across multiple components.
-func NewDistributedLockWithClient(client *redis.Client, key string, ttl time.Duration) *DistributedLock {
-	return &DistributedLock{
-		client: client,
-		key:    key,
-		ttl:    ttl,
+		pool:   pool,
+		lockID: hashKey(key),
 	}
 }
 
-// Returns true if lock was acquired, false if another instance holds it.
-// Generates a unique token to ensure only this instance can release the lock.
+func hashKey(key string) int64 {
+	h := fnv.New64a()
+	h.Write([]byte(key))
+	return int64(h.Sum64())
+}
+
+// TryAcquire attempts to acquire the advisory lock without blocking.
+// Returns true if lock was acquired, false if another session holds it.
 func (l *DistributedLock) TryAcquire(ctx context.Context) (bool, error) {
-	token := uuid.New().String()
-	ok, err := l.client.SetNX(ctx, l.key, token, l.ttl).Result()
+	var acquired bool
+	err := l.pool.QueryRow(ctx, "SELECT pg_try_advisory_lock($1)", l.lockID).Scan(&acquired)
 	if err != nil {
-		return false, fmt.Errorf("redis setnx: %w", err)
+		return false, fmt.Errorf("pg_try_advisory_lock: %w", err)
 	}
-	if ok {
-		l.token = token
-	}
-	return ok, nil
+	return acquired, nil
 }
 
-// Use for long-running jobs. Only extends if this instance still owns the lock.
-func (l *DistributedLock) Extend(ctx context.Context) error {
-	if l.token == "" {
-		return fmt.Errorf("lock not held: no token")
-	}
-
-	result, err := l.client.Eval(ctx, extendScript, []string{l.key}, l.token, int(l.ttl.Seconds())).Int()
-	if err != nil {
-		return fmt.Errorf("redis extend: %w", err)
-	}
-	if result == 0 {
-		return fmt.Errorf("lock not held: token mismatch or expired")
-	}
-	return nil
-}
-
-// Only releases if this instance still owns the lock (token matches).
-// Safe to call even if lock expired - will not affect other instance's lock.
+// Release releases the advisory lock.
+// Always attempts unlock regardless of in-memory state since connection pool
+// may have recycled the connection that originally acquired the lock.
+// Safe to call multiple times - PostgreSQL returns false if lock wasn't held.
 func (l *DistributedLock) Release(ctx context.Context) error {
-	if l.token == "" {
-		return nil
+	var released bool
+	err := l.pool.QueryRow(ctx, "SELECT pg_advisory_unlock($1)", l.lockID).Scan(&released)
+	if err != nil {
+		return fmt.Errorf("pg_advisory_unlock: %w", err)
 	}
-
-	_, err := l.client.Eval(ctx, releaseScript, []string{l.key}, l.token).Result()
-	if err != nil && err != redis.Nil {
-		return fmt.Errorf("redis release: %w", err)
-	}
-
-	l.token = ""
 	return nil
 }
 
+// Close is a no-op for PostgreSQL advisory locks.
+// Advisory locks are automatically released when the session ends.
 func (l *DistributedLock) Close() error {
-	return l.client.Close()
+	return nil
 }

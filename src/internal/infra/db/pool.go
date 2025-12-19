@@ -8,8 +8,10 @@ import (
 )
 
 const (
-	defaultMaxConns = 10
-	defaultMinConns = 2
+	// Pool size: (workers * 2) + (schedulers * 2) + buffer
+	// (5 * 2) + (1 * 2) + 8 = 20
+	defaultMaxConns = 20
+	defaultMinConns = 5
 )
 
 func NewPool(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {

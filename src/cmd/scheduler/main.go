@@ -14,7 +14,6 @@ func main() {
 	cfg := bootstrap.SchedulerConfig{
 		ServiceName: "scheduler",
 		DatabaseURL: os.Getenv("DATABASE_URL"),
-		RedisURL:    os.Getenv("REDIS_URL"),
 	}
 
 	if err := bootstrap.StartScheduler(cfg); err != nil {

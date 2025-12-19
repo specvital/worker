@@ -1,14 +1,15 @@
 package app
 
 import (
+	"context"
 	"fmt"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/riverqueue/river"
 	"github.com/specvital/collector/internal/adapter/parser"
 	"github.com/specvital/collector/internal/adapter/repository/postgres"
 	"github.com/specvital/collector/internal/adapter/vcs"
-	"github.com/specvital/collector/internal/handler/queue"
+	"github.com/specvital/collector/internal/adapter/queue"
 	handlerscheduler "github.com/specvital/collector/internal/handler/scheduler"
 	infraqueue "github.com/specvital/collector/internal/infra/queue"
 	infrascheduler "github.com/specvital/collector/internal/infra/scheduler"
@@ -17,23 +18,16 @@ import (
 	"github.com/specvital/core/pkg/crypto"
 )
 
-const (
-	schedulerLockKey = "scheduler:auto-refresh:lock"
-	schedulerLockTTL = 10 * time.Minute
-)
+const schedulerLockKey = "scheduler:auto-refresh:lock"
 
 type ContainerConfig struct {
 	EncryptionKey string
 	Pool          *pgxpool.Pool
-	RedisURL      string
 }
 
 func (c ContainerConfig) Validate() error {
 	if c.Pool == nil {
 		return fmt.Errorf("pool is required")
-	}
-	if c.RedisURL == "" {
-		return fmt.Errorf("redis URL is required")
 	}
 	return nil
 }
@@ -49,11 +43,12 @@ func (c ContainerConfig) ValidateWorker() error {
 }
 
 type WorkerContainer struct {
-	AnalyzeHandler *queue.AnalyzeHandler
-	QueueClient    *infraqueue.Client
+	AnalyzeWorker *queue.AnalyzeWorker
+	Workers       *river.Workers
+	QueueClient   *infraqueue.Client
 }
 
-func NewWorkerContainer(cfg ContainerConfig) (*WorkerContainer, error) {
+func NewWorkerContainer(ctx context.Context, cfg ContainerConfig) (*WorkerContainer, error) {
 	if err := cfg.ValidateWorker(); err != nil {
 		return nil, fmt.Errorf("invalid container config: %w", err)
 	}
@@ -68,16 +63,20 @@ func NewWorkerContainer(cfg ContainerConfig) (*WorkerContainer, error) {
 	gitVCS := vcs.NewGitVCS()
 	coreParser := parser.NewCoreParser()
 	analyzeUC := uc.NewAnalyzeUseCase(analysisRepo, gitVCS, coreParser, userRepo)
-	analyzeHandler := queue.NewAnalyzeHandler(analyzeUC)
+	analyzeWorker := queue.NewAnalyzeWorker(analyzeUC)
 
-	queueClient, err := infraqueue.NewClient(cfg.RedisURL)
+	workers := river.NewWorkers()
+	river.AddWorker(workers, analyzeWorker)
+
+	queueClient, err := infraqueue.NewClient(ctx, cfg.Pool)
 	if err != nil {
 		return nil, fmt.Errorf("create queue client: %w", err)
 	}
 
 	return &WorkerContainer{
-		AnalyzeHandler: analyzeHandler,
-		QueueClient:    queueClient,
+		AnalyzeWorker: analyzeWorker,
+		Workers:       workers,
+		QueueClient:   queueClient,
 	}, nil
 }
 
@@ -97,23 +96,19 @@ type SchedulerContainer struct {
 	schedulerLock      *infrascheduler.DistributedLock
 }
 
-func NewSchedulerContainer(cfg ContainerConfig) (*SchedulerContainer, error) {
+func NewSchedulerContainer(ctx context.Context, cfg ContainerConfig) (*SchedulerContainer, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid container config: %w", err)
 	}
 
 	analysisRepo := postgres.NewAnalysisRepository(cfg.Pool)
 
-	queueClient, err := infraqueue.NewClient(cfg.RedisURL)
+	queueClient, err := infraqueue.NewClient(ctx, cfg.Pool)
 	if err != nil {
 		return nil, fmt.Errorf("create queue client: %w", err)
 	}
 
-	schedulerLock, err := infrascheduler.NewDistributedLock(cfg.RedisURL, schedulerLockKey, schedulerLockTTL)
-	if err != nil {
-		queueClient.Close()
-		return nil, fmt.Errorf("create scheduler lock: %w", err)
-	}
+	schedulerLock := infrascheduler.NewDistributedLock(cfg.Pool, schedulerLockKey)
 
 	autoRefreshUC := autorefresh.NewAutoRefreshUseCase(analysisRepo, queueClient)
 	autoRefreshHandler := handlerscheduler.NewAutoRefreshHandler(autoRefreshUC, schedulerLock)

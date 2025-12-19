@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/specvital/collector/internal/app"
-	"github.com/specvital/collector/internal/handler/queue"
 	"github.com/specvital/collector/internal/infra/db"
 	infraqueue "github.com/specvital/collector/internal/infra/queue"
 )
@@ -25,7 +24,6 @@ type WorkerConfig struct {
 	ShutdownTimeout time.Duration
 	DatabaseURL     string
 	EncryptionKey   string
-	RedisURL        string
 }
 
 func (c *WorkerConfig) Validate() error {
@@ -37,9 +35,6 @@ func (c *WorkerConfig) Validate() error {
 	}
 	if c.EncryptionKey == "" {
 		return fmt.Errorf("encryption key is required")
-	}
-	if c.RedisURL == "" {
-		return fmt.Errorf("redis URL is required")
 	}
 	return nil
 }
@@ -54,7 +49,7 @@ func (c *WorkerConfig) applyDefaults() {
 }
 
 // StartWorker starts the worker service for queue processing.
-// Workers consume tasks from Redis queue and process them.
+// Workers consume tasks from PostgreSQL-based river queue and process them.
 // Horizontal scaling is safe - multiple worker instances share the workload.
 func StartWorker(cfg WorkerConfig) error {
 	if err := cfg.Validate(); err != nil {
@@ -63,10 +58,7 @@ func StartWorker(cfg WorkerConfig) error {
 	cfg.applyDefaults()
 
 	slog.Info("starting service", "name", cfg.ServiceName)
-	slog.Info("config loaded",
-		"database_url", maskURL(cfg.DatabaseURL),
-		"redis_url", maskURL(cfg.RedisURL),
-	)
+	slog.Info("config loaded", "database_url", maskURL(cfg.DatabaseURL))
 
 	ctx := context.Background()
 
@@ -78,20 +70,9 @@ func StartWorker(cfg WorkerConfig) error {
 
 	slog.Info("postgres connected")
 
-	srv, err := infraqueue.NewServer(infraqueue.ServerConfig{
-		RedisURL:        cfg.RedisURL,
-		Concurrency:     cfg.Concurrency,
-		ShutdownTimeout: cfg.ShutdownTimeout,
-		Logger:          slog.Default(),
-	})
-	if err != nil {
-		return fmt.Errorf("queue server: %w", err)
-	}
-
-	container, err := app.NewWorkerContainer(app.ContainerConfig{
+	container, err := app.NewWorkerContainer(ctx, app.ContainerConfig{
 		EncryptionKey: cfg.EncryptionKey,
 		Pool:          pool,
-		RedisURL:      cfg.RedisURL,
 	})
 	if err != nil {
 		return fmt.Errorf("container: %w", err)
@@ -102,12 +83,18 @@ func StartWorker(cfg WorkerConfig) error {
 		}
 	}()
 
-	mux := infraqueue.NewServeMux()
-	mux.HandleFunc(queue.TypeAnalyze, container.AnalyzeHandler.ProcessTask)
+	srv, err := infraqueue.NewServer(ctx, infraqueue.ServerConfig{
+		Pool:            pool,
+		Concurrency:     cfg.Concurrency,
+		ShutdownTimeout: cfg.ShutdownTimeout,
+		Workers:         container.Workers,
+	})
+	if err != nil {
+		return fmt.Errorf("queue server: %w", err)
+	}
 
 	slog.Info("worker starting", "concurrency", cfg.Concurrency)
-	if err := srv.Start(mux); err != nil {
-		srv.Shutdown()
+	if err := srv.Start(ctx); err != nil {
 		return fmt.Errorf("start server: %w", err)
 	}
 	slog.Info("worker ready", "concurrency", cfg.Concurrency)
@@ -118,7 +105,9 @@ func StartWorker(cfg WorkerConfig) error {
 	sig := <-shutdown
 	slog.Info("shutdown signal received", "signal", sig.String())
 
-	srv.Shutdown()
+	if err := srv.Stop(ctx); err != nil {
+		slog.Error("queue server stop error", "error", err)
+	}
 	slog.Info("queue server stopped")
 
 	slog.Info("service shutdown complete", "name", cfg.ServiceName)

@@ -21,7 +21,6 @@ const (
 type SchedulerConfig struct {
 	ServiceName     string
 	DatabaseURL     string
-	RedisURL        string
 	ShutdownTimeout time.Duration
 }
 
@@ -31,9 +30,6 @@ func (c *SchedulerConfig) Validate() error {
 	}
 	if c.DatabaseURL == "" {
 		return fmt.Errorf("database URL is required")
-	}
-	if c.RedisURL == "" {
-		return fmt.Errorf("redis URL is required")
 	}
 	return nil
 }
@@ -46,7 +42,7 @@ func (c *SchedulerConfig) applyDefaults() {
 
 // StartScheduler starts the scheduler service with cron-based jobs.
 //
-// Uses Redis-based distributed locking to prevent duplicate execution
+// Uses PostgreSQL advisory lock-based distributed locking to prevent duplicate execution
 // when multiple scheduler instances are deployed (e.g., during blue-green deployment).
 func StartScheduler(cfg SchedulerConfig) error {
 	if err := cfg.Validate(); err != nil {
@@ -55,10 +51,7 @@ func StartScheduler(cfg SchedulerConfig) error {
 	cfg.applyDefaults()
 
 	slog.Info("starting service", "name", cfg.ServiceName)
-	slog.Info("config loaded",
-		"database_url", maskURL(cfg.DatabaseURL),
-		"redis_url", maskURL(cfg.RedisURL),
-	)
+	slog.Info("config loaded", "database_url", maskURL(cfg.DatabaseURL))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -71,9 +64,8 @@ func StartScheduler(cfg SchedulerConfig) error {
 
 	slog.Info("postgres connected")
 
-	container, err := app.NewSchedulerContainer(app.ContainerConfig{
-		Pool:     pool,
-		RedisURL: cfg.RedisURL,
+	container, err := app.NewSchedulerContainer(ctx, app.ContainerConfig{
+		Pool: pool,
 	})
 	if err != nil {
 		return fmt.Errorf("container: %w", err)

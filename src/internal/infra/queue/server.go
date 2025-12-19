@@ -1,11 +1,13 @@
 package queue
 
 import (
-	"fmt"
-	"log/slog"
+	"context"
 	"time"
 
-	"github.com/hibiken/asynq"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/riverqueue/river"
+	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 )
 
 const (
@@ -14,13 +16,18 @@ const (
 )
 
 type ServerConfig struct {
+	Pool            *pgxpool.Pool
 	Concurrency     int
-	RedisURL        string
 	ShutdownTimeout time.Duration
-	Logger          *slog.Logger
+	Workers         *river.Workers
 }
 
-func NewServer(cfg ServerConfig) (*asynq.Server, error) {
+type Server struct {
+	client          *river.Client[pgx.Tx]
+	shutdownTimeout time.Duration
+}
+
+func NewServer(ctx context.Context, cfg ServerConfig) (*Server, error) {
 	concurrency := cfg.Concurrency
 	if concurrency <= 0 {
 		concurrency = DefaultConcurrency
@@ -31,24 +38,32 @@ func NewServer(cfg ServerConfig) (*asynq.Server, error) {
 		shutdownTimeout = DefaultShutdownTimeout
 	}
 
-	opt, err := asynq.ParseRedisURI(cfg.RedisURL)
+	client, err := river.NewClient(riverpgxv5.New(cfg.Pool), &river.Config{
+		Queues: map[string]river.QueueConfig{
+			river.QueueDefault: {MaxWorkers: concurrency},
+		},
+		Workers: cfg.Workers,
+	})
 	if err != nil {
-		return nil, fmt.Errorf("parse redis URI: %w", err)
+		return nil, err
 	}
 
-	asynqConfig := asynq.Config{
-		Concurrency:     concurrency,
-		ShutdownTimeout: shutdownTimeout,
-	}
-
-	// Use custom slog adapter to ensure logs go to stdout as JSON
-	if cfg.Logger != nil {
-		asynqConfig.Logger = NewSlogAdapter(cfg.Logger)
-	}
-
-	return asynq.NewServer(opt, asynqConfig), nil
+	return &Server{
+		client:          client,
+		shutdownTimeout: shutdownTimeout,
+	}, nil
 }
 
-func NewServeMux() *asynq.ServeMux {
-	return asynq.NewServeMux()
+func (s *Server) Start(ctx context.Context) error {
+	return s.client.Start(ctx)
+}
+
+func (s *Server) Stop(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, s.shutdownTimeout)
+	defer cancel()
+	return s.client.Stop(ctx)
+}
+
+func (s *Server) Client() *river.Client[pgx.Tx] {
+	return s.client
 }

@@ -18,7 +18,7 @@ enqueue mode="local" *args:
     cd src
     case "{{ mode }}" in
       local)
-        go run ./cmd/enqueue -redis="$LOCAL_REDIS_URL" {{ args }}
+        DATABASE_URL="$LOCAL_DATABASE_URL" go run ./cmd/enqueue {{ args }}
         ;;
       integration)
         go run ./cmd/enqueue {{ args }}
@@ -133,9 +133,7 @@ run mode="local":
     cd src
     case "{{ mode }}" in
       local)
-        DATABASE_URL="$LOCAL_DATABASE_URL" \
-        REDIS_URL="$LOCAL_REDIS_URL" \
-        air
+        DATABASE_URL="$LOCAL_DATABASE_URL" air
         ;;
       integration)
         air
@@ -152,9 +150,7 @@ run-scheduler mode="local":
     cd src
     case "{{ mode }}" in
       local)
-        DATABASE_URL="$LOCAL_DATABASE_URL" \
-        REDIS_URL="$LOCAL_REDIS_URL" \
-        go run ./cmd/scheduler
+        DATABASE_URL="$LOCAL_DATABASE_URL" go run ./cmd/scheduler
         ;;
       integration)
         go run ./cmd/scheduler

@@ -2,11 +2,11 @@ package queue
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"testing"
 
-	"github.com/hibiken/asynq"
+	"github.com/riverqueue/river"
+	"github.com/riverqueue/river/rivertype"
 	"github.com/specvital/collector/internal/domain/analysis"
 	uc "github.com/specvital/collector/internal/usecase/analysis"
 )
@@ -122,33 +122,42 @@ func newSuccessfulMocks() (*mockRepository, *mockVCS, *mockParser) {
 	return repo, vcs, parser
 }
 
-// Tests
-
-func TestNewAnalyzeHandler(t *testing.T) {
-	repo, vcs, parser := newSuccessfulMocks()
-	analyzeUC := uc.NewAnalyzeUseCase(repo, vcs, parser, nil)
-
-	handler := NewAnalyzeHandler(analyzeUC)
-
-	if handler == nil {
-		t.Error("expected handler, got nil")
-	}
-	if handler.analyzeUC == nil {
-		t.Error("expected handler.analyzeUC to be set, got nil")
+func newTestJob(args AnalyzeArgs) *river.Job[AnalyzeArgs] {
+	return &river.Job[AnalyzeArgs]{
+		JobRow: &rivertype.JobRow{
+			ID: 1,
+		},
+		Args: args,
 	}
 }
 
-func TestAnalyzeHandler_ProcessTask(t *testing.T) {
+// Tests
+
+func TestNewAnalyzeWorker(t *testing.T) {
+	repo, vcs, parser := newSuccessfulMocks()
+	analyzeUC := uc.NewAnalyzeUseCase(repo, vcs, parser, nil)
+
+	worker := NewAnalyzeWorker(analyzeUC)
+
+	if worker == nil {
+		t.Error("expected worker, got nil")
+	}
+	if worker.analyzeUC == nil {
+		t.Error("expected worker.analyzeUC to be set, got nil")
+	}
+}
+
+func TestAnalyzeWorker_Work(t *testing.T) {
 	tests := []struct {
 		name        string
-		payload     any
+		args        AnalyzeArgs
 		setupMocks  func() (*mockRepository, *mockVCS, *mockParser)
 		wantErr     bool
 		errContains string
 	}{
 		{
-			name: "success case - valid payload and use case succeeds",
-			payload: AnalyzePayload{
+			name: "success case - valid args and use case succeeds",
+			args: AnalyzeArgs{
 				Owner: "octocat",
 				Repo:  "Hello-World",
 			},
@@ -159,7 +168,7 @@ func TestAnalyzeHandler_ProcessTask(t *testing.T) {
 		},
 		{
 			name: "clone failed - VCS clone returns error",
-			payload: AnalyzePayload{
+			args: AnalyzeArgs{
 				Owner: "testowner",
 				Repo:  "testrepo",
 			},
@@ -176,7 +185,7 @@ func TestAnalyzeHandler_ProcessTask(t *testing.T) {
 		},
 		{
 			name: "scan failed - parser returns error",
-			payload: AnalyzePayload{
+			args: AnalyzeArgs{
 				Owner: "testowner",
 				Repo:  "testrepo",
 			},
@@ -203,7 +212,7 @@ func TestAnalyzeHandler_ProcessTask(t *testing.T) {
 		},
 		{
 			name: "save failed - repository save returns error",
-			payload: AnalyzePayload{
+			args: AnalyzeArgs{
 				Owner: "testowner",
 				Repo:  "testrepo",
 			},
@@ -227,7 +236,7 @@ func TestAnalyzeHandler_ProcessTask(t *testing.T) {
 		},
 		{
 			name: "invalid input - empty owner",
-			payload: AnalyzePayload{
+			args: AnalyzeArgs{
 				Owner: "",
 				Repo:  "testrepo",
 			},
@@ -238,7 +247,7 @@ func TestAnalyzeHandler_ProcessTask(t *testing.T) {
 		},
 		{
 			name: "invalid input - empty repo",
-			payload: AnalyzePayload{
+			args: AnalyzeArgs{
 				Owner: "testowner",
 				Repo:  "",
 			},
@@ -253,24 +262,14 @@ func TestAnalyzeHandler_ProcessTask(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			repo, vcs, parser := tt.setupMocks()
 			analyzeUC := uc.NewAnalyzeUseCase(repo, vcs, parser, nil)
-			handler := NewAnalyzeHandler(analyzeUC)
+			worker := NewAnalyzeWorker(analyzeUC)
 
-			payloadBytes, err := json.Marshal(tt.payload)
-			if err != nil {
-				t.Fatalf("failed to marshal payload: %v", err)
-			}
-			task := asynq.NewTask(TypeAnalyze, payloadBytes)
-
-			err = handler.ProcessTask(context.Background(), task)
+			job := newTestJob(tt.args)
+			err := worker.Work(context.Background(), job)
 
 			if tt.wantErr {
 				if err == nil {
 					t.Error("expected error, got nil")
-				}
-				if tt.errContains != "" && err != nil {
-					if !containsString(err.Error(), tt.errContains) {
-						t.Errorf("expected error containing '%s', got '%s'", tt.errContains, err.Error())
-					}
 				}
 			} else {
 				if err != nil {
@@ -281,142 +280,7 @@ func TestAnalyzeHandler_ProcessTask(t *testing.T) {
 	}
 }
 
-func TestAnalyzeHandler_ProcessTask_InvalidPayload(t *testing.T) {
-	tests := []struct {
-		name        string
-		payload     []byte
-		errContains string
-	}{
-		{
-			name:        "malformed JSON - invalid syntax",
-			payload:     []byte(`{invalid json`),
-			errContains: "unmarshal payload",
-		},
-		{
-			name:        "invalid JSON type - string instead of object",
-			payload:     []byte(`"just a string"`),
-			errContains: "unmarshal payload",
-		},
-		{
-			name:        "empty payload - empty bytes",
-			payload:     []byte(``),
-			errContains: "unmarshal payload",
-		},
-		{
-			name:        "null payload - JSON null value",
-			payload:     []byte(`null`),
-			errContains: "",
-		},
-		{
-			name:        "wrong field types - integer and boolean",
-			payload:     []byte(`{"owner": 123, "repo": true}`),
-			errContains: "unmarshal payload",
-		},
-		{
-			name:        "array instead of object",
-			payload:     []byte(`["owner", "repo"]`),
-			errContains: "unmarshal payload",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			repo, vcs, parser := newSuccessfulMocks()
-			analyzeUC := uc.NewAnalyzeUseCase(repo, vcs, parser, nil)
-			handler := NewAnalyzeHandler(analyzeUC)
-
-			task := asynq.NewTask(TypeAnalyze, tt.payload)
-
-			err := handler.ProcessTask(context.Background(), task)
-
-			if err == nil && tt.errContains != "" {
-				t.Error("expected error, got nil")
-			}
-			if err != nil && tt.errContains != "" {
-				if !containsString(err.Error(), tt.errContains) {
-					t.Errorf("expected error containing '%s', got '%s'", tt.errContains, err.Error())
-				}
-			}
-		})
-	}
-}
-
-func TestAnalyzeHandler_ProcessTask_ServiceInvocation(t *testing.T) {
-	t.Run("should pass correct parameters to use case", func(t *testing.T) {
-		var capturedOwner, capturedRepo string
-		repo, _, parser := newSuccessfulMocks()
-
-		src := &mockSource{
-			branchFn:    func() string { return "main" },
-			commitSHAFn: func() string { return "abc123" },
-			closeFn:     func(ctx context.Context) error { return nil },
-		}
-
-		vcs := &mockVCS{
-			cloneFn: func(ctx context.Context, url string, token *string) (analysis.Source, error) {
-				// Extract owner/repo from URL
-				if containsString(url, "test-owner/test-repo") {
-					capturedOwner = "test-owner"
-					capturedRepo = "test-repo"
-				}
-				return src, nil
-			},
-		}
-
-		analyzeUC := uc.NewAnalyzeUseCase(repo, vcs, parser, nil)
-		handler := NewAnalyzeHandler(analyzeUC)
-
-		payload := AnalyzePayload{
-			Owner: "test-owner",
-			Repo:  "test-repo",
-		}
-		payloadBytes, err := json.Marshal(payload)
-		if err != nil {
-			t.Fatalf("failed to marshal payload: %v", err)
-		}
-		task := asynq.NewTask(TypeAnalyze, payloadBytes)
-
-		err = handler.ProcessTask(context.Background(), task)
-
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if capturedOwner != "test-owner" {
-			t.Errorf("expected owner 'test-owner', got '%s'", capturedOwner)
-		}
-		if capturedRepo != "test-repo" {
-			t.Errorf("expected repo 'test-repo', got '%s'", capturedRepo)
-		}
-	})
-
-	t.Run("should not call use case when unmarshal fails", func(t *testing.T) {
-		useCaseCalled := false
-		repo, _, parser := newSuccessfulMocks()
-
-		vcs := &mockVCS{
-			cloneFn: func(ctx context.Context, url string, token *string) (analysis.Source, error) {
-				useCaseCalled = true
-				return nil, errors.New("should not be called")
-			},
-		}
-
-		analyzeUC := uc.NewAnalyzeUseCase(repo, vcs, parser, nil)
-		handler := NewAnalyzeHandler(analyzeUC)
-
-		task := asynq.NewTask(TypeAnalyze, []byte(`invalid json`))
-
-		err := handler.ProcessTask(context.Background(), task)
-
-		if err == nil {
-			t.Error("expected error, got nil")
-		}
-		if useCaseCalled {
-			t.Error("use case should not be called when payload unmarshal fails")
-		}
-	})
-}
-
-func TestAnalyzeHandler_ProcessTask_ContextPropagation(t *testing.T) {
+func TestAnalyzeWorker_Work_ContextPropagation(t *testing.T) {
 	t.Run("should propagate context to use case", func(t *testing.T) {
 		type ctxKey string
 		testKey := ctxKey("test-key")
@@ -439,20 +303,12 @@ func TestAnalyzeHandler_ProcessTask_ContextPropagation(t *testing.T) {
 		}
 
 		analyzeUC := uc.NewAnalyzeUseCase(repo, vcs, parser, nil)
-		handler := NewAnalyzeHandler(analyzeUC)
+		worker := NewAnalyzeWorker(analyzeUC)
 
-		payload := AnalyzePayload{
-			Owner: "owner",
-			Repo:  "repo",
-		}
-		payloadBytes, err := json.Marshal(payload)
-		if err != nil {
-			t.Fatalf("failed to marshal payload: %v", err)
-		}
-		task := asynq.NewTask(TypeAnalyze, payloadBytes)
+		job := newTestJob(AnalyzeArgs{Owner: "owner", Repo: "repo"})
 		ctx := context.WithValue(context.Background(), testKey, testValue)
 
-		err = handler.ProcessTask(ctx, task)
+		err := worker.Work(ctx, job)
 
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -469,43 +325,33 @@ func TestAnalyzeHandler_ProcessTask_ContextPropagation(t *testing.T) {
 		repo, _, parser := newSuccessfulMocks()
 		vcs := &mockVCS{
 			cloneFn: func(ctx context.Context, url string, token *string) (analysis.Source, error) {
-				// Should not reach here because semaphore.Acquire will fail first
 				return nil, ctx.Err()
 			},
 		}
 
 		analyzeUC := uc.NewAnalyzeUseCase(repo, vcs, parser, nil)
-		handler := NewAnalyzeHandler(analyzeUC)
+		worker := NewAnalyzeWorker(analyzeUC)
 
-		payload := AnalyzePayload{
-			Owner: "owner",
-			Repo:  "repo",
-		}
-		payloadBytes, err := json.Marshal(payload)
-		if err != nil {
-			t.Fatalf("failed to marshal payload: %v", err)
-		}
-		task := asynq.NewTask(TypeAnalyze, payloadBytes)
-
+		job := newTestJob(AnalyzeArgs{Owner: "owner", Repo: "repo"})
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		err = handler.ProcessTask(ctx, task)
+		err := worker.Work(ctx, job)
 
 		if err == nil {
 			t.Error("expected error from cancelled context, got nil")
 		}
-		// Verify that the error is related to context cancellation
 		if !errors.Is(err, context.Canceled) {
 			t.Errorf("expected error to wrap context.Canceled, got %v", err)
 		}
 	})
 }
 
-func TestAnalyzeHandler_ProcessTask_ErrorPropagation(t *testing.T) {
+func TestAnalyzeWorker_Work_ErrorPropagation(t *testing.T) {
 	tests := []struct {
 		name      string
 		setupMock func() (*mockRepository, *mockVCS, *mockParser)
+		args      AnalyzeArgs
 		wantError error
 	}{
 		{
@@ -519,6 +365,7 @@ func TestAnalyzeHandler_ProcessTask_ErrorPropagation(t *testing.T) {
 				}
 				return repo, vcs, parser
 			},
+			args:      AnalyzeArgs{Owner: "owner", Repo: "repo"},
 			wantError: uc.ErrCloneFailed,
 		},
 		{
@@ -542,6 +389,7 @@ func TestAnalyzeHandler_ProcessTask_ErrorPropagation(t *testing.T) {
 
 				return repo, vcs, parser
 			},
+			args:      AnalyzeArgs{Owner: "owner", Repo: "repo"},
 			wantError: uc.ErrScanFailed,
 		},
 		{
@@ -562,6 +410,7 @@ func TestAnalyzeHandler_ProcessTask_ErrorPropagation(t *testing.T) {
 
 				return repo, vcs, parser
 			},
+			args:      AnalyzeArgs{Owner: "owner", Repo: "repo"},
 			wantError: uc.ErrSaveFailed,
 		},
 		{
@@ -569,6 +418,7 @@ func TestAnalyzeHandler_ProcessTask_ErrorPropagation(t *testing.T) {
 			setupMock: func() (*mockRepository, *mockVCS, *mockParser) {
 				return newSuccessfulMocks()
 			},
+			args:      AnalyzeArgs{Owner: "", Repo: "repo"},
 			wantError: analysis.ErrInvalidInput,
 		},
 	}
@@ -577,22 +427,10 @@ func TestAnalyzeHandler_ProcessTask_ErrorPropagation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			repo, vcs, parser := tt.setupMock()
 			analyzeUC := uc.NewAnalyzeUseCase(repo, vcs, parser, nil)
-			handler := NewAnalyzeHandler(analyzeUC)
+			worker := NewAnalyzeWorker(analyzeUC)
 
-			var payload AnalyzePayload
-			if tt.wantError == analysis.ErrInvalidInput {
-				payload = AnalyzePayload{Owner: "", Repo: "repo"}
-			} else {
-				payload = AnalyzePayload{Owner: "owner", Repo: "repo"}
-			}
-
-			payloadBytes, err := json.Marshal(payload)
-			if err != nil {
-				t.Fatalf("failed to marshal payload: %v", err)
-			}
-			task := asynq.NewTask(TypeAnalyze, payloadBytes)
-
-			err = handler.ProcessTask(context.Background(), task)
+			job := newTestJob(tt.args)
+			err := worker.Work(context.Background(), job)
 
 			if err == nil {
 				t.Errorf("expected error %v, got nil", tt.wantError)
@@ -605,15 +443,9 @@ func TestAnalyzeHandler_ProcessTask_ErrorPropagation(t *testing.T) {
 	}
 }
 
-// containsString checks if s contains substr
-func containsString(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
-		func() bool {
-			for i := 0; i <= len(s)-len(substr); i++ {
-				if s[i:i+len(substr)] == substr {
-					return true
-				}
-			}
-			return false
-		}())
+func TestAnalyzeArgs_Kind(t *testing.T) {
+	args := AnalyzeArgs{}
+	if args.Kind() != "analysis:analyze" {
+		t.Errorf("expected kind 'analysis:analyze', got '%s'", args.Kind())
+	}
 }

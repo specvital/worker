@@ -1,18 +1,18 @@
 package main
 
 import (
-	"encoding/json"
+	"context"
 	"flag"
 	"fmt"
 	"log/slog"
 	"os"
 
-	"github.com/hibiken/asynq"
-	handler "github.com/specvital/collector/internal/handler/queue"
+	"github.com/specvital/collector/internal/infra/db"
+	"github.com/specvital/collector/internal/infra/queue"
 )
 
 func main() {
-	redisURL := flag.String("redis", os.Getenv("REDIS_URL"), "Redis URL")
+	databaseURL := flag.String("database", os.Getenv("DATABASE_URL"), "Database URL")
 	flag.Parse()
 
 	if flag.NArg() < 1 {
@@ -20,8 +20,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	if *redisURL == "" {
-		fmt.Fprintln(os.Stderr, "Error: Redis URL is required (use -redis flag or set REDIS_URL)")
+	if *databaseURL == "" {
+		fmt.Fprintln(os.Stderr, "Error: Database URL is required (use -database flag or set DATABASE_URL)")
 		os.Exit(1)
 	}
 
@@ -31,7 +31,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := enqueue(*redisURL, owner, repo); err != nil {
+	if err := enqueue(*databaseURL, owner, repo); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: failed to enqueue task: %v\n", err)
 		os.Exit(1)
 	}
@@ -48,36 +48,30 @@ func printUsage() {
 	fmt.Fprintln(os.Stderr, "")
 	fmt.Fprintln(os.Stderr, "Examples:")
 	fmt.Fprintln(os.Stderr, "  enqueue github.com/octocat/Hello-World")
-	fmt.Fprintln(os.Stderr, "  enqueue -redis redis://localhost:6379 github.com/owner/repo")
+	fmt.Fprintln(os.Stderr, "  enqueue -database postgres://localhost/mydb github.com/owner/repo")
 	fmt.Fprintln(os.Stderr, "  enqueue https://github.com/owner/repo.git")
 }
 
-func enqueue(redisURL, owner, repo string) error {
-	opt, err := asynq.ParseRedisURI(redisURL)
-	if err != nil {
-		return fmt.Errorf("parse redis URI: %w", err)
-	}
+func enqueue(databaseURL, owner, repo string) error {
+	ctx := context.Background()
 
-	client := asynq.NewClient(opt)
+	pool, err := db.NewPool(ctx, databaseURL)
+	if err != nil {
+		return fmt.Errorf("database connection: %w", err)
+	}
+	defer pool.Close()
+
+	client, err := queue.NewClient(ctx, pool)
+	if err != nil {
+		return fmt.Errorf("create queue client: %w", err)
+	}
 	defer client.Close()
 
-	payload, err := json.Marshal(handler.AnalyzePayload{
-		Owner: owner,
-		Repo:  repo,
-	})
-	if err != nil {
-		return fmt.Errorf("marshal payload: %w", err)
-	}
-
-	task := asynq.NewTask(handler.TypeAnalyze, payload)
-	info, err := client.Enqueue(task)
-	if err != nil {
+	if err := client.EnqueueAnalysis(ctx, owner, repo); err != nil {
 		return fmt.Errorf("enqueue task: %w", err)
 	}
 
 	slog.Info("task enqueued",
-		"id", info.ID,
-		"queue", info.Queue,
 		"owner", owner,
 		"repo", repo,
 	)

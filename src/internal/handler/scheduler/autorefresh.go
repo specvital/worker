@@ -10,7 +10,6 @@ import (
 )
 
 const defaultJobTimeout = 5 * time.Minute
-const lockHeartbeatInterval = 3 * time.Minute // < 10 min lock TTL
 
 type AutoRefreshHandler struct {
 	lock    *infrascheduler.DistributedLock
@@ -51,11 +50,7 @@ func (h *AutoRefreshHandler) RunWithContext(parentCtx context.Context) {
 			return
 		}
 
-		heartbeatDone := make(chan struct{})
-		go h.heartbeat(ctx, heartbeatDone)
-
 		defer func() {
-			close(heartbeatDone)
 			if err := h.lock.Release(ctx); err != nil {
 				slog.WarnContext(ctx, "auto-refresh lock release failed", "error", err)
 			}
@@ -75,24 +70,4 @@ func (h *AutoRefreshHandler) RunWithContext(parentCtx context.Context) {
 	slog.InfoContext(ctx, "auto-refresh job completed",
 		"duration_ms", time.Since(start).Milliseconds(),
 	)
-}
-
-func (h *AutoRefreshHandler) heartbeat(ctx context.Context, done <-chan struct{}) {
-	ticker := time.NewTicker(lockHeartbeatInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-done:
-			return
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			if err := h.lock.Extend(ctx); err != nil {
-				slog.WarnContext(ctx, "auto-refresh lock extend failed", "error", err)
-			} else {
-				slog.DebugContext(ctx, "auto-refresh lock extended")
-			}
-		}
-	}
 }

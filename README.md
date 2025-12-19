@@ -8,10 +8,9 @@ Clean Architecture with separate entry points for Railway deployment:
 
 ```
 src/cmd/
-├── worker/      # Asynq worker - queue processing (Railway service #1)
+├── worker/      # River worker - queue processing (Railway service #1)
 ├── scheduler/   # Cron scheduler - periodic jobs (Railway service #2)
 ├── enqueue/     # CLI tool for manual task enqueue
-└── collector/   # Legacy entry point (deprecated, use worker)
 ```
 
 ## Build
@@ -25,7 +24,7 @@ just build worker
 just build scheduler
 just build enqueue
 
-# Output: bin/worker, bin/scheduler, bin/enqueue, bin/collector
+# Output: bin/worker, bin/scheduler, bin/enqueue
 ```
 
 ## Development
@@ -45,8 +44,7 @@ just test all
 
 ## Environment Variables
 
-- `DATABASE_URL`: PostgreSQL connection string
-- `REDIS_URL`: Redis connection string for Asynq
+- `DATABASE_URL`: PostgreSQL connection string (also used for river job queue)
 
 ## Railway Deployment
 

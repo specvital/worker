@@ -24,7 +24,6 @@ func main() {
 		ServiceName:   "worker",
 		DatabaseURL:   cfg.DatabaseURL,
 		EncryptionKey: cfg.EncryptionKey,
-		RedisURL:      cfg.RedisURL,
 	}); err != nil {
 		slog.Error("worker failed", "error", err)
 		os.Exit(1)

@@ -2,66 +2,63 @@ package queue
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"log/slog"
 	"time"
 
-	"github.com/hibiken/asynq"
-	"github.com/specvital/collector/internal/handler/queue"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/riverqueue/river"
+	"github.com/riverqueue/river/riverdriver/riverpgxv5"
+	adapterqueue "github.com/specvital/collector/internal/adapter/queue"
 )
 
 // 2 hours > 1h cron interval, prevents duplicate tasks from cron jitter.
 const deduplicationWindow = 2 * time.Hour
 
+// Client is insert-only (no worker).
 type Client struct {
-	client *asynq.Client
+	client *river.Client[pgx.Tx]
 }
 
-func NewClient(redisURL string) (*Client, error) {
-	opt, err := asynq.ParseRedisURI(redisURL)
+func NewClient(ctx context.Context, pool *pgxpool.Pool) (*Client, error) {
+	client, err := river.NewClient(riverpgxv5.New(pool), &river.Config{})
 	if err != nil {
-		return nil, fmt.Errorf("parse redis URI: %w", err)
+		return nil, err
 	}
 
 	return &Client{
-		client: asynq.NewClient(opt),
+		client: client,
 	}, nil
 }
 
 func (c *Client) Close() error {
-	return c.client.Close()
+	// river.Client doesn't need explicit close for insert-only mode
+	return nil
 }
 
-// Uses deduplication to prevent duplicate tasks within 2 hour window.
 func (c *Client) EnqueueAnalysis(ctx context.Context, owner, repo string) error {
-	payload := queue.AnalyzePayload{
+	_, err := c.client.Insert(ctx, adapterqueue.AnalyzeArgs{
 		Owner: owner,
 		Repo:  repo,
-	}
+	}, &river.InsertOpts{
+		UniqueOpts: river.UniqueOpts{
+			ByArgs:   true,
+			ByPeriod: deduplicationWindow,
+		},
+	})
+	return err
+}
 
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return fmt.Errorf("marshal payload: %w", err)
-	}
-
-	task := asynq.NewTask(queue.TypeAnalyze, data)
-
-	_, err = c.client.EnqueueContext(ctx, task,
-		asynq.Unique(deduplicationWindow),
-	)
-	if err != nil {
-		if errors.Is(err, asynq.ErrDuplicateTask) {
-			slog.DebugContext(ctx, "duplicate task ignored by deduplication",
-				"owner", owner,
-				"repo", repo,
-				"window", deduplicationWindow,
-			)
-			return nil
-		}
-		return fmt.Errorf("enqueue task: %w", err)
-	}
-
-	return nil
+func (c *Client) EnqueueAnalysisWithID(ctx context.Context, analysisID, owner, repo string, userID *string) error {
+	_, err := c.client.Insert(ctx, adapterqueue.AnalyzeArgs{
+		AnalysisID: &analysisID,
+		Owner:      owner,
+		Repo:       repo,
+		UserID:     userID,
+	}, &river.InsertOpts{
+		UniqueOpts: river.UniqueOpts{
+			ByArgs:   true,
+			ByPeriod: deduplicationWindow,
+		},
+	})
+	return err
 }
