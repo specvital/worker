@@ -36,6 +36,10 @@ func NewAnalyzeWorker(analyzeUC *uc.AnalyzeUseCase) *AnalyzeWorker {
 	return &AnalyzeWorker{analyzeUC: analyzeUC}
 }
 
+func (w *AnalyzeWorker) Timeout(job *river.Job[AnalyzeArgs]) time.Duration {
+	return 5 * time.Minute // Match NeonDB idle_in_transaction_session_timeout (default 5min)
+}
+
 // Exponential backoff: 1st retry +1s, 2nd +4s, 3rd +9s
 func (w *AnalyzeWorker) NextRetry(job *river.Job[AnalyzeArgs]) time.Time {
 	attempt := job.Attempt

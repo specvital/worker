@@ -22,7 +22,6 @@ func NewPool(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
 
 	config.MaxConns = defaultMaxConns
 	config.MinConns = defaultMinConns
-	config.ConnConfig.RuntimeParams["statement_timeout"] = "900000" // 15min in ms
 
 	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
