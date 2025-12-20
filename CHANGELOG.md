@@ -1,56 +1,72 @@
-## 🎯 Highlights
+# Changelog
 
-### 🐛 Bug Fixes
+## [1.0.6](https://github.com/specvital/collector/compare/v1.0.5...v1.0.6) (2025-12-19)
+
+### 🎯 Highlights
+
+#### 🐛 Bug Fixes
 
 - resolve 60-second timeout failure during large analysis jobs ([ed18bc3](https://github.com/specvital/collector/commit/ed18bc3f587c0a446ea41b09431126ab1d22bba5))
 
-## 🎯 Highlights
+## [1.0.5](https://github.com/specvital/collector/compare/v1.0.4...v1.0.5) (2025-12-19)
 
-### 🐛 Bug Fixes
+### 🎯 Highlights
+
+#### 🐛 Bug Fixes
 
 - resolve 60-second timeout issue during bulk INSERT operations on NeonDB ([0b6bc9b](https://github.com/specvital/collector/commit/0b6bc9bbef0c14190ec953a14caa5b29da0422d5))
 
-## 🔧 Maintenance
+## [1.0.4](https://github.com/specvital/collector/compare/v1.0.3...v1.0.4) (2025-12-19)
 
-### ♻️ Refactoring
+### 🔧 Maintenance
+
+#### ♻️ Refactoring
 
 - migrate queue system from asynq(Redis) to river(PostgreSQL) ([9664002](https://github.com/specvital/collector/commit/9664002057ef1f801dd8313e9f081760c3e0af21))
 
-### 🔨 Chore
+#### 🔨 Chore
 
 - missing changes ([de9c0ec](https://github.com/specvital/collector/commit/de9c0ecaa7e136fe71d70a4a231dbd194ed7a33d))
 
-## 🎯 Highlights
+## [1.0.3](https://github.com/specvital/collector/compare/v1.0.2...v1.0.3) (2025-12-18)
 
-### 🐛 Bug Fixes
+### 🎯 Highlights
+
+#### 🐛 Bug Fixes
 
 - fix git clone failure in runtime container ([f11dfa3](https://github.com/specvital/collector/commit/f11dfa3e4090a6412af71b58a7eca6f081e49d4d))
 
-## 🔧 Maintenance
+### 🔧 Maintenance
 
-### ♻️ Refactoring
+#### ♻️ Refactoring
 
 - remove unused dead code ([95cee17](https://github.com/specvital/collector/commit/95cee17e1307fe3e0cc23ba7d549292b05c19744))
 
-### 🔨 Chore
+#### 🔨 Chore
 
 - sync docs ([9007e97](https://github.com/specvital/collector/commit/9007e97bbff365afcae69cfcba2f501732a20c8b))
 
-## 🔧 Maintenance
+## [1.0.2](https://github.com/specvital/collector/compare/v1.0.1...v1.0.2) (2025-12-17)
 
-### 🔧 Internal Fixes
+### 🔧 Maintenance
+
+#### 🔧 Internal Fixes
 
 - fix asynq logs incorrectly classified as error in Railway ([d2180cc](https://github.com/specvital/collector/commit/d2180cc1182a0f1187f7dd63b982fc7816e3be47))
 
-## 🎯 Highlights
+## [1.0.1](https://github.com/specvital/collector/compare/v1.0.0...v1.0.1) (2025-12-17)
 
-### 🐛 Bug Fixes
+### 🎯 Highlights
+
+#### 🐛 Bug Fixes
 
 - enable CGO for go-tree-sitter build ([50b1fea](https://github.com/specvital/collector/commit/50b1fea3c7834bd585c3a23615d8acb5cbae8a5f))
 
-## 🎯 Highlights
+## [1.0.0](https://github.com/specvital/collector/releases/tag/v1.0.0) (2025-12-17)
 
-### ✨ Features
+### 🎯 Highlights
+
+#### ✨ Features
 
 - add adaptive decay logic for auto-refresh scheduling ([8a85854](https://github.com/specvital/collector/commit/8a858547c7b8a5190176253830b862588cda8042))
 - add enqueue CLI tool ([5697cb9](https://github.com/specvital/collector/commit/5697cb9533b8dcfd8c7c90fa34d5419b181fa287))
@@ -70,23 +86,23 @@
 - support external analysis ID for record creation ([5448202](https://github.com/specvital/collector/commit/54482021c84b6faa466f0ce006de06ddcd79d22d))
 - support OAuth token decryption for private repo analysis ([8d0ad30](https://github.com/specvital/collector/commit/8d0ad307ce07aa7562daa6a38230e19ce2cc1644))
 
-### 🐛 Bug Fixes
+#### 🐛 Bug Fixes
 
 - handle missing error logging and DB status update on analysis task failure ([64ae8d9](https://github.com/specvital/collector/commit/64ae8d9fcbc620e7470e2c7cc21ade39d7327f8d))
 - parser scan failing due to unexported method type assertion ([6256673](https://github.com/specvital/collector/commit/6256673dc23d48998851f977fcd034498c591642))
 - remove unnecessary wait and potential deadlock in graceful shutdown ([b78c981](https://github.com/specvital/collector/commit/b78c981c662d32fde66c0890da0e226e9b4a4d3e))
 
-## 🔧 Maintenance
+### 🔧 Maintenance
 
-### 🔧 Internal Fixes
+#### 🔧 Internal Fixes
 
 - go mod tidy ([c58f73b](https://github.com/specvital/collector/commit/c58f73b40f2de49c8c69b1d67efd45b1487c0359))
 
-### 💄 Styles
+#### 💄 Styles
 
 - format code ([5e994e2](https://github.com/specvital/collector/commit/5e994e2ab90f6ae6a8cd64d392b946c9bde0bd1d))
 
-### ♻️ Refactoring
+#### ♻️ Refactoring
 
 - centralize dependency wiring with DI container ([c1b8215](https://github.com/specvital/collector/commit/c1b82151bdba8b62e194100e6f04271fd3f4e026))
 - extract domain layer with zero infrastructure dependencies ([7ba9e51](https://github.com/specvital/collector/commit/7ba9e51a0ffa76327736e91c828fe5949cbfbcb6))
@@ -100,16 +116,16 @@
 - separate Scheduler from Worker into independent service ([9481141](https://github.com/specvital/collector/commit/9481141e99f0adcc225e93d05c8104846f836c17))
 - split entry points for Railway separate deployments ([d899192](https://github.com/specvital/collector/commit/d899192cb1772fe9ed16d426d460e016c1bbf2ee))
 
-### ✅ Tests
+#### ✅ Tests
 
 - add AnalyzeHandler unit tests ([0286e7c](https://github.com/specvital/collector/commit/0286e7cd687d65be853e503a883cd74010f8dede))
 - remove unnecessary skipped tests ([f8c0eb4](https://github.com/specvital/collector/commit/f8c0eb40a4f99252650bbf9e0f9ca93a378223fb))
 
-### 🔧 CI/CD
+#### 🔧 CI/CD
 
 - configure semantic-release automated deployment pipeline ([37f128f](https://github.com/specvital/collector/commit/37f128f2c9d113144d2af530e88f84d3209f235c))
 
-### 🔨 Chore
+#### 🔨 Chore
 
 - add bootstrap command ([c8371f0](https://github.com/specvital/collector/commit/c8371f0d5f47a19353c260ecf83c5033b4e5ba53))
 - add Dockerfile for collector service ([6e3b0e4](https://github.com/specvital/collector/commit/6e3b0e4225b4b0875e2ee0bae909a594b1b9f87c))
