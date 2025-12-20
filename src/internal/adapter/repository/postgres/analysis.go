@@ -5,7 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
+	"slices"
 	"time"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -28,8 +31,6 @@ func truncateErrorMessage(msg string) string {
 	return msg[:maxErrorMessageLength-15] + "... (truncated)"
 }
 
-// SaveAnalysisResultParams is used internally for the convenience method SaveAnalysisResult.
-// It combines CreateAnalysisRecord and SaveAnalysisInventory into a single operation.
 type SaveAnalysisResultParams struct {
 	Branch    string
 	CommitSHA string
@@ -186,7 +187,7 @@ func (r *AnalysisRepository) SaveAnalysisInventory(ctx context.Context, params a
 	queries := db.New(tx)
 	pgID := toPgUUID(params.AnalysisID)
 
-	totalSuites, totalTests, err := r.saveInventory(ctx, queries, pgID, params.Inventory)
+	totalSuites, totalTests, err := r.saveInventory(ctx, tx, pgID, params.Inventory)
 	if err != nil {
 		return fmt.Errorf("save inventory: %w", err)
 	}
@@ -237,137 +238,21 @@ func (r *AnalysisRepository) SaveAnalysisResult(ctx context.Context, params Save
 	return nil
 }
 
-func (r *AnalysisRepository) saveInventory(ctx context.Context, queries *db.Queries, analysisID pgtype.UUID, inventory *analysis.Inventory) (int, int, error) {
-	if inventory == nil {
-		return 0, 0, nil
-	}
-
-	var totalSuites, totalTests int
-	for _, file := range inventory.Files {
-		suites, tests, err := r.saveTestFile(ctx, queries, analysisID, file, 0)
-		if err != nil {
-			return 0, 0, fmt.Errorf("save test file %s: %w", file.Path, err)
-		}
-		totalSuites += suites
-		totalTests += tests
-	}
-
-	return totalSuites, totalTests, nil
-}
-
-func (r *AnalysisRepository) saveTestFile(ctx context.Context, queries *db.Queries, analysisID pgtype.UUID, file analysis.TestFile, depth int) (int, int, error) {
-	var totalSuites, totalTests int
-
-	for _, suite := range file.Suites {
-		suites, tests, err := r.saveSuite(ctx, queries, analysisID, pgtype.UUID{}, file, suite, depth)
-		if err != nil {
-			return 0, 0, err
-		}
-		totalSuites += suites
-		totalTests += tests
-	}
-
-	if len(file.Tests) > 0 {
-		implicitSuite, err := r.createImplicitSuite(ctx, queries, analysisID, file, depth)
-		if err != nil {
-			return 0, 0, err
-		}
-		totalSuites++
-
-		for _, test := range file.Tests {
-			if err := r.saveTest(ctx, queries, implicitSuite.ID, test); err != nil {
-				return 0, 0, err
-			}
-			totalTests++
-		}
-	}
-
-	return totalSuites, totalTests, nil
-}
-
-func (r *AnalysisRepository) createImplicitSuite(ctx context.Context, queries *db.Queries, analysisID pgtype.UUID, file analysis.TestFile, depth int) (db.TestSuite, error) {
-	suite, err := queries.CreateTestSuite(ctx, db.CreateTestSuiteParams{
-		AnalysisID: analysisID,
-		ParentID:   pgtype.UUID{},
-		Name:       file.Path,
-		FilePath:   file.Path,
-		LineNumber: pgtype.Int4{Int32: 1, Valid: true},
-		Framework:  pgtype.Text{String: file.Framework, Valid: file.Framework != ""},
-		Depth:      int32(depth),
-	})
-	if err != nil {
-		return db.TestSuite{}, fmt.Errorf("create implicit suite: %w", err)
-	}
-	return suite, nil
-}
-
-func (r *AnalysisRepository) saveSuite(ctx context.Context, queries *db.Queries, analysisID, parentID pgtype.UUID, file analysis.TestFile, suite analysis.TestSuite, depth int) (int, int, error) {
-	name := truncateString(suite.Name, maxTestSuiteNameLength)
-
-	created, err := queries.CreateTestSuite(ctx, db.CreateTestSuiteParams{
-		AnalysisID: analysisID,
-		ParentID:   parentID,
-		Name:       name,
-		FilePath:   file.Path,
-		LineNumber: pgtype.Int4{Int32: int32(suite.Location.StartLine), Valid: true},
-		Framework:  pgtype.Text{String: file.Framework, Valid: file.Framework != ""},
-		Depth:      int32(depth),
-	})
-	if err != nil {
-		return 0, 0, fmt.Errorf("create suite (name=%q, file=%s, line=%d): %w",
-			truncateString(suite.Name, 100), file.Path, suite.Location.StartLine, err)
-	}
-
-	totalSuites := 1
-	var totalTests int
-
-	for _, test := range suite.Tests {
-		if err := r.saveTest(ctx, queries, created.ID, test); err != nil {
-			return 0, 0, err
-		}
-		totalTests++
-	}
-
-	for _, nested := range suite.Suites {
-		suites, tests, err := r.saveSuite(ctx, queries, analysisID, created.ID, file, nested, depth+1)
-		if err != nil {
-			return 0, 0, err
-		}
-		totalSuites += suites
-		totalTests += tests
-	}
-
-	return totalSuites, totalTests, nil
-}
-
 const (
 	maxTestCaseNameLength  = 2000
 	maxTestSuiteNameLength = 500
 )
 
-func (r *AnalysisRepository) saveTest(ctx context.Context, queries *db.Queries, suiteID pgtype.UUID, test analysis.Test) error {
-	status := mapTestStatus(test.Status)
-	name := truncateString(test.Name, maxTestCaseNameLength)
-
-	_, err := queries.CreateTestCase(ctx, db.CreateTestCaseParams{
-		SuiteID:    suiteID,
-		Name:       name,
-		LineNumber: pgtype.Int4{Int32: int32(test.Location.StartLine), Valid: true},
-		Status:     status,
-		Tags:       []byte("[]"),
-	})
-	if err != nil {
-		return fmt.Errorf("create test case (name=%q, line=%d): %w",
-			truncateString(test.Name, 100), test.Location.StartLine, err)
-	}
-	return nil
-}
-
 func truncateString(s string, maxLen int) string {
 	if len(s) <= maxLen {
 		return s
 	}
-	return s[:maxLen-3] + "..."
+	truncated := s[:maxLen-3]
+	// Ensure we don't break UTF-8 encoding by removing incomplete runes
+	for len(truncated) > 0 && !utf8.ValidString(truncated) {
+		truncated = truncated[:len(truncated)-1]
+	}
+	return truncated + "..."
 }
 
 func mapTestStatus(status analysis.TestStatus) db.TestStatus {
@@ -409,4 +294,222 @@ func (r *AnalysisRepository) GetCodebasesForAutoRefresh(ctx context.Context) ([]
 	}
 
 	return result, nil
+}
+
+type flatSuite struct {
+	tempID     int
+	parentTemp int // -1 if root
+	suite      analysis.TestSuite
+	file       analysis.TestFile
+	depth      int
+}
+
+type flatTest struct {
+	suiteTempID int
+	test        analysis.Test
+}
+
+func flattenInventory(inventory *analysis.Inventory) ([]flatSuite, []flatTest) {
+	if inventory == nil {
+		return nil, nil
+	}
+
+	var suites []flatSuite
+	var tests []flatTest
+	tempID := 0
+
+	for _, file := range inventory.Files {
+		for _, suite := range file.Suites {
+			flattenSuiteRecursive(&suites, &tests, &tempID, -1, file, suite, 0)
+		}
+
+		if len(file.Tests) > 0 {
+			implicitSuite := flatSuite{
+				tempID:     tempID,
+				parentTemp: -1,
+				suite: analysis.TestSuite{
+					Name:     file.Path,
+					Location: analysis.Location{StartLine: 1},
+				},
+				file:  file,
+				depth: 0,
+			}
+			suites = append(suites, implicitSuite)
+
+			for _, test := range file.Tests {
+				tests = append(tests, flatTest{
+					suiteTempID: tempID,
+					test:        test,
+				})
+			}
+			tempID++
+		}
+	}
+
+	return suites, tests
+}
+
+func flattenSuiteRecursive(suites *[]flatSuite, tests *[]flatTest, tempID *int, parentTemp int, file analysis.TestFile, suite analysis.TestSuite, depth int) {
+	currentTempID := *tempID
+	*suites = append(*suites, flatSuite{
+		tempID:     currentTempID,
+		parentTemp: parentTemp,
+		suite:      suite,
+		file:       file,
+		depth:      depth,
+	})
+	*tempID++
+
+	for _, test := range suite.Tests {
+		*tests = append(*tests, flatTest{
+			suiteTempID: currentTempID,
+			test:        test,
+		})
+	}
+
+	for _, nested := range suite.Suites {
+		flattenSuiteRecursive(suites, tests, tempID, currentTempID, file, nested, depth+1)
+	}
+}
+
+func groupByDepth(suites []flatSuite) map[int][]flatSuite {
+	result := make(map[int][]flatSuite)
+	for _, s := range suites {
+		result[s.depth] = append(result[s.depth], s)
+	}
+	return result
+}
+
+func maxDepthInSuites(suitesByDepth map[int][]flatSuite) int {
+	if len(suitesByDepth) == 0 {
+		return -1
+	}
+	depths := slices.Collect(maps.Keys(suitesByDepth))
+	return slices.Max(depths)
+}
+
+func (r *AnalysisRepository) saveSuitesBatch(
+	ctx context.Context,
+	tx pgx.Tx,
+	analysisID pgtype.UUID,
+	suites []flatSuite,
+	parentIDs map[int]pgtype.UUID,
+) (map[int]pgtype.UUID, error) {
+	if len(suites) == 0 {
+		return make(map[int]pgtype.UUID), nil
+	}
+
+	batch := &pgx.Batch{}
+
+	for _, s := range suites {
+		parentID := pgtype.UUID{}
+		if s.parentTemp >= 0 {
+			parentID = parentIDs[s.parentTemp]
+		}
+
+		batch.Queue(db.InsertTestSuiteBatch,
+			analysisID,
+			parentID,
+			truncateString(s.suite.Name, maxTestSuiteNameLength),
+			s.file.Path,
+			pgtype.Int4{Int32: int32(s.suite.Location.StartLine), Valid: true},
+			pgtype.Text{String: s.file.Framework, Valid: s.file.Framework != ""},
+			int32(s.depth),
+		)
+	}
+
+	results := tx.SendBatch(ctx, batch)
+	defer results.Close()
+
+	newIDs := make(map[int]pgtype.UUID)
+	for _, s := range suites {
+		var id pgtype.UUID
+		if err := results.QueryRow().Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan suite ID for %q: %w", truncateString(s.suite.Name, 50), err)
+		}
+		newIDs[s.tempID] = id
+	}
+	return newIDs, nil
+}
+
+func (r *AnalysisRepository) saveTestsCopyFrom(
+	ctx context.Context,
+	tx pgx.Tx,
+	tests []flatTest,
+	suiteIDs map[int]pgtype.UUID,
+) error {
+	if len(tests) == 0 {
+		return nil
+	}
+
+	for _, t := range tests {
+		if _, exists := suiteIDs[t.suiteTempID]; !exists {
+			return fmt.Errorf("suite ID not found for tempID %d (test=%q)",
+				t.suiteTempID, truncateString(t.test.Name, 50))
+		}
+	}
+
+	rows := make([][]any, len(tests))
+	for i, t := range tests {
+		rows[i] = []any{
+			suiteIDs[t.suiteTempID],
+			truncateString(t.test.Name, maxTestCaseNameLength),
+			pgtype.Int4{Int32: int32(t.test.Location.StartLine), Valid: true},
+			mapTestStatus(t.test.Status),
+			[]byte("[]"),
+			pgtype.Text{},
+		}
+	}
+
+	_, err := tx.Conn().CopyFrom(
+		ctx,
+		pgx.Identifier{"test_cases"},
+		db.TestCaseCopyColumns,
+		pgx.CopyFromRows(rows),
+	)
+	if err != nil {
+		return fmt.Errorf("copy test cases: %w", err)
+	}
+	return nil
+}
+
+func (r *AnalysisRepository) saveInventory(
+	ctx context.Context,
+	tx pgx.Tx,
+	analysisID pgtype.UUID,
+	inventory *analysis.Inventory,
+) (totalSuites, totalTests int, err error) {
+	if inventory == nil {
+		return 0, 0, nil
+	}
+
+	suites, tests := flattenInventory(inventory)
+	if len(suites) == 0 {
+		return 0, 0, nil
+	}
+
+	suitesByDepth := groupByDepth(suites)
+	maxDepth := maxDepthInSuites(suitesByDepth)
+
+	allIDs := make(map[int]pgtype.UUID)
+	for depth := 0; depth <= maxDepth; depth++ {
+		if err := ctx.Err(); err != nil {
+			return 0, 0, err
+		}
+		depthSuites := suitesByDepth[depth]
+		if len(depthSuites) == 0 {
+			continue
+		}
+		newIDs, err := r.saveSuitesBatch(ctx, tx, analysisID, depthSuites, allIDs)
+		if err != nil {
+			return 0, 0, fmt.Errorf("save suites at depth %d (count=%d): %w", depth, len(depthSuites), err)
+		}
+		maps.Copy(allIDs, newIDs)
+	}
+
+	if err := r.saveTestsCopyFrom(ctx, tx, tests, allIDs); err != nil {
+		return 0, 0, err
+	}
+
+	return len(suites), len(tests), nil
 }

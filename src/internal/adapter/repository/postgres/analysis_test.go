@@ -696,6 +696,12 @@ func Test_truncateString(t *testing.T) {
 			maxLen:   10,
 			expected: "",
 		},
+		{
+			name:     "utf8 multibyte safe truncation",
+			input:    "한글테스트입니다",
+			maxLen:   10,
+			expected: "한글...",
+		},
 	}
 
 	for _, tt := range tests {
@@ -784,4 +790,148 @@ func TestSaveAnalysisResultParams_Validate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_flattenInventory(t *testing.T) {
+	t.Run("nil inventory returns empty", func(t *testing.T) {
+		suites, tests := flattenInventory(nil)
+		if suites != nil || tests != nil {
+			t.Errorf("expected nil, nil for nil inventory")
+		}
+	})
+
+	t.Run("empty inventory returns empty slices", func(t *testing.T) {
+		inv := &analysis.Inventory{}
+		suites, tests := flattenInventory(inv)
+		if len(suites) != 0 || len(tests) != 0 {
+			t.Errorf("expected empty slices for empty inventory")
+		}
+	})
+
+	t.Run("flattens nested suites correctly", func(t *testing.T) {
+		inv := &analysis.Inventory{
+			Files: []analysis.TestFile{
+				{
+					Path:      "test.go",
+					Framework: "go-test",
+					Suites: []analysis.TestSuite{
+						{
+							Name:     "OuterSuite",
+							Location: analysis.Location{StartLine: 10},
+							Tests: []analysis.Test{
+								{Name: "OuterTest", Location: analysis.Location{StartLine: 12}},
+							},
+							Suites: []analysis.TestSuite{
+								{
+									Name:     "InnerSuite",
+									Location: analysis.Location{StartLine: 20},
+									Tests: []analysis.Test{
+										{Name: "InnerTest", Location: analysis.Location{StartLine: 22}},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		suites, tests := flattenInventory(inv)
+
+		if len(suites) != 2 {
+			t.Errorf("expected 2 suites, got %d", len(suites))
+		}
+		if len(tests) != 2 {
+			t.Errorf("expected 2 tests, got %d", len(tests))
+		}
+
+		// Check depths
+		depthCounts := make(map[int]int)
+		for _, s := range suites {
+			depthCounts[s.depth]++
+		}
+		if depthCounts[0] != 1 || depthCounts[1] != 1 {
+			t.Errorf("expected 1 suite at depth 0 and 1 at depth 1, got %v", depthCounts)
+		}
+
+		// Check parent relationships
+		var innerSuite flatSuite
+		for _, s := range suites {
+			if s.suite.Name == "InnerSuite" {
+				innerSuite = s
+				break
+			}
+		}
+		if innerSuite.parentTemp == -1 {
+			t.Error("inner suite should have a parent")
+		}
+	})
+
+	t.Run("creates implicit suite for file-level tests", func(t *testing.T) {
+		inv := &analysis.Inventory{
+			Files: []analysis.TestFile{
+				{
+					Path:      "simple_test.go",
+					Framework: "go-test",
+					Tests: []analysis.Test{
+						{Name: "TestSimple", Location: analysis.Location{StartLine: 5}},
+					},
+				},
+			},
+		}
+
+		suites, tests := flattenInventory(inv)
+
+		if len(suites) != 1 {
+			t.Errorf("expected 1 implicit suite, got %d", len(suites))
+		}
+		if len(tests) != 1 {
+			t.Errorf("expected 1 test, got %d", len(tests))
+		}
+		if suites[0].suite.Name != "simple_test.go" {
+			t.Errorf("expected implicit suite name to be file path, got %s", suites[0].suite.Name)
+		}
+	})
+}
+
+func Test_groupByDepth(t *testing.T) {
+	suites := []flatSuite{
+		{tempID: 0, depth: 0},
+		{tempID: 1, depth: 0},
+		{tempID: 2, depth: 1},
+		{tempID: 3, depth: 2},
+	}
+
+	result := groupByDepth(suites)
+
+	if len(result[0]) != 2 {
+		t.Errorf("expected 2 suites at depth 0, got %d", len(result[0]))
+	}
+	if len(result[1]) != 1 {
+		t.Errorf("expected 1 suite at depth 1, got %d", len(result[1]))
+	}
+	if len(result[2]) != 1 {
+		t.Errorf("expected 1 suite at depth 2, got %d", len(result[2]))
+	}
+}
+
+func Test_maxDepthInSuites(t *testing.T) {
+	t.Run("empty map returns -1", func(t *testing.T) {
+		result := maxDepthInSuites(map[int][]flatSuite{})
+		if result != -1 {
+			t.Errorf("expected -1 for empty map, got %d", result)
+		}
+	})
+
+	t.Run("returns max depth", func(t *testing.T) {
+		suitesByDepth := map[int][]flatSuite{
+			0: {{tempID: 0}},
+			2: {{tempID: 1}},
+			5: {{tempID: 2}},
+		}
+		result := maxDepthInSuites(suitesByDepth)
+		if result != 5 {
+			t.Errorf("expected max depth 5, got %d", result)
+		}
+	})
 }
