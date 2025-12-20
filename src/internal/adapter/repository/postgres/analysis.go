@@ -198,6 +198,10 @@ func (r *AnalysisRepository) SaveAnalysisInventory(ctx context.Context, params a
 		TotalTests:  int32(totalTests),
 		CompletedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
 	}); err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return analysis.ErrAlreadyCompleted
+		}
 		return fmt.Errorf("update analysis: %w", err)
 	}
 

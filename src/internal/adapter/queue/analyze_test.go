@@ -459,3 +459,36 @@ func TestAnalyzeArgs_Kind(t *testing.T) {
 		t.Errorf("expected kind 'analysis:analyze', got '%s'", args.Kind())
 	}
 }
+
+func TestAnalyzeWorker_Work_AlreadyCompleted(t *testing.T) {
+	t.Run("should return JobCancel for ErrAlreadyCompleted", func(t *testing.T) {
+		repo, vcs, parser := newSuccessfulMocks()
+
+		testAnalysisID := analysis.NewUUID()
+		repo.createAnalysisRecordFn = func(ctx context.Context, params analysis.CreateAnalysisRecordParams) (analysis.UUID, error) {
+			return testAnalysisID, nil
+		}
+		repo.recordFailureFn = func(ctx context.Context, analysisID analysis.UUID, errMessage string) error {
+			return nil
+		}
+		repo.saveAnalysisInventoryFn = func(ctx context.Context, params analysis.SaveAnalysisInventoryParams) error {
+			// Simulate duplicate key error from repository
+			return analysis.ErrAlreadyCompleted
+		}
+
+		analyzeUC := uc.NewAnalyzeUseCase(repo, vcs, parser, nil)
+		worker := NewAnalyzeWorker(analyzeUC)
+
+		job := newTestJob(AnalyzeArgs{Owner: "owner", Repo: "repo", CommitSHA: "abc123"})
+		err := worker.Work(context.Background(), job)
+
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+
+		// Check that ErrAlreadyCompleted is wrapped in the error chain
+		if !errors.Is(err, analysis.ErrAlreadyCompleted) {
+			t.Errorf("expected error to wrap ErrAlreadyCompleted, got %v", err)
+		}
+	})
+}

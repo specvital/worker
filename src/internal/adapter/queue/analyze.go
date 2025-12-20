@@ -2,6 +2,7 @@ package queue
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -68,6 +69,16 @@ func (w *AnalyzeWorker) Work(ctx context.Context, job *river.Job[AnalyzeArgs]) e
 	}
 
 	if err := w.analyzeUC.Execute(ctx, req); err != nil {
+		if errors.Is(err, analysis.ErrAlreadyCompleted) {
+			slog.InfoContext(ctx, "analysis already completed, cancelling job",
+				"job_id", job.ID,
+				"owner", args.Owner,
+				"repo", args.Repo,
+				"commit", args.CommitSHA,
+			)
+			return river.JobCancel(err)
+		}
+
 		slog.ErrorContext(ctx, "analyze task failed",
 			"job_id", job.ID,
 			"owner", args.Owner,
