@@ -13,3 +13,10 @@ type Source interface {
 	CommitSHA() string
 	Close(ctx context.Context) error
 }
+
+// VCSAPIClient retrieves repository metadata from VCS platform APIs.
+type VCSAPIClient interface {
+	// GetRepoID returns the platform-specific repository ID.
+	// Returns ErrRepoNotFound if the repository does not exist.
+	GetRepoID(ctx context.Context, host, owner, repo string, token *string) (string, error)
+}
