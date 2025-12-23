@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/specvital/collector/internal/domain/analysis"
 	"github.com/specvital/collector/internal/infra/db"
@@ -98,6 +99,53 @@ func (r *CodebaseRepository) UpdateOwnerName(ctx context.Context, id analysis.UU
 			return nil, analysis.ErrCodebaseNotFound
 		}
 		return nil, fmt.Errorf("update codebase owner/name: %w", err)
+	}
+
+	return mapCodebase(row), nil
+}
+
+func (r *CodebaseRepository) FindWithLastCommit(ctx context.Context, host, owner, name string) (*analysis.Codebase, error) {
+	queries := db.New(r.pool)
+
+	row, err := queries.FindCodebaseWithLastCommitByOwnerName(ctx, db.FindCodebaseWithLastCommitByOwnerNameParams{
+		Host:  host,
+		Owner: owner,
+		Name:  name,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, analysis.ErrCodebaseNotFound
+		}
+		return nil, fmt.Errorf("find codebase with last commit: %w", err)
+	}
+
+	return &analysis.Codebase{
+		ExternalRepoID: row.ExternalRepoID,
+		Host:           row.Host,
+		ID:             fromPgUUID(row.ID),
+		IsStale:        row.IsStale,
+		LastCommitSHA:  row.LastCommitSha,
+		Name:           row.Name,
+		Owner:          row.Owner,
+	}, nil
+}
+
+func (r *CodebaseRepository) Upsert(ctx context.Context, params analysis.UpsertCodebaseParams) (*analysis.Codebase, error) {
+	if err := params.Validate(); err != nil {
+		return nil, err
+	}
+
+	queries := db.New(r.pool)
+
+	row, err := queries.UpsertCodebase(ctx, db.UpsertCodebaseParams{
+		Host:           params.Host,
+		Owner:          params.Owner,
+		Name:           params.Name,
+		DefaultBranch:  pgtype.Text{String: params.DefaultBranch, Valid: params.DefaultBranch != ""},
+		ExternalRepoID: params.ExternalRepoID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("upsert codebase: %w", err)
 	}
 
 	return mapCodebase(row), nil

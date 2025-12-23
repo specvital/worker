@@ -88,15 +88,21 @@ func (r *AnalysisRepository) CreateAnalysisRecord(ctx context.Context, params an
 	queries := db.New(tx)
 	startedAt := time.Now()
 
-	codebase, err := queries.UpsertCodebase(ctx, db.UpsertCodebaseParams{
-		Host:           defaultHost,
-		Owner:          params.Owner,
-		Name:           params.Repo,
-		DefaultBranch:  pgtype.Text{String: params.Branch, Valid: params.Branch != ""},
-		ExternalRepoID: params.ExternalRepoID,
-	})
-	if err != nil {
-		return analysis.NilUUID, fmt.Errorf("upsert codebase: %w", err)
+	var codebaseID pgtype.UUID
+	if params.CodebaseID != nil {
+		codebaseID = toPgUUID(*params.CodebaseID)
+	} else {
+		codebase, upsertErr := queries.UpsertCodebase(ctx, db.UpsertCodebaseParams{
+			Host:           defaultHost,
+			Owner:          params.Owner,
+			Name:           params.Repo,
+			DefaultBranch:  pgtype.Text{String: params.Branch, Valid: params.Branch != ""},
+			ExternalRepoID: params.ExternalRepoID,
+		})
+		if upsertErr != nil {
+			return analysis.NilUUID, fmt.Errorf("upsert codebase: %w", upsertErr)
+		}
+		codebaseID = codebase.ID
 	}
 
 	analysisID := analysis.NewUUID()
@@ -106,7 +112,7 @@ func (r *AnalysisRepository) CreateAnalysisRecord(ctx context.Context, params an
 
 	dbAnalysis, err := queries.CreateAnalysis(ctx, db.CreateAnalysisParams{
 		ID:         toPgUUID(analysisID),
-		CodebaseID: codebase.ID,
+		CodebaseID: codebaseID,
 		CommitSha:  params.CommitSHA,
 		BranchName: pgtype.Text{String: params.Branch, Valid: params.Branch != ""},
 		Status:     db.AnalysisStatusRunning,

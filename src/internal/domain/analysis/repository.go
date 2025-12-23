@@ -14,6 +14,7 @@ type Repository interface {
 type CreateAnalysisRecordParams struct {
 	AnalysisID     *UUID
 	Branch         string
+	CodebaseID     *UUID
 	CommitSHA      string
 	ExternalRepoID string
 	Owner          string

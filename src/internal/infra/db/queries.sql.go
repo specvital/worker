@@ -186,6 +186,59 @@ func (q *Queries) FindCodebaseByOwnerName(ctx context.Context, arg FindCodebaseB
 	return i, err
 }
 
+const findCodebaseWithLastCommitByOwnerName = `-- name: FindCodebaseWithLastCommitByOwnerName :one
+SELECT
+    c.id, c.host, c.owner, c.name, c.default_branch, c.created_at, c.updated_at, c.last_viewed_at, c.external_repo_id, c.is_stale,
+    COALESCE(a.commit_sha, '') as last_commit_sha
+FROM codebases c
+LEFT JOIN (
+    SELECT DISTINCT ON (codebase_id) codebase_id, commit_sha
+    FROM analyses
+    WHERE status = 'completed'
+    ORDER BY codebase_id, completed_at DESC
+) a ON c.id = a.codebase_id
+WHERE c.host = $1 AND c.owner = $2 AND c.name = $3 AND c.is_stale = false
+`
+
+type FindCodebaseWithLastCommitByOwnerNameParams struct {
+	Host  string `json:"host"`
+	Owner string `json:"owner"`
+	Name  string `json:"name"`
+}
+
+type FindCodebaseWithLastCommitByOwnerNameRow struct {
+	ID             pgtype.UUID        `json:"id"`
+	Host           string             `json:"host"`
+	Owner          string             `json:"owner"`
+	Name           string             `json:"name"`
+	DefaultBranch  pgtype.Text        `json:"default_branch"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	LastViewedAt   pgtype.Timestamptz `json:"last_viewed_at"`
+	ExternalRepoID string             `json:"external_repo_id"`
+	IsStale        bool               `json:"is_stale"`
+	LastCommitSha  string             `json:"last_commit_sha"`
+}
+
+func (q *Queries) FindCodebaseWithLastCommitByOwnerName(ctx context.Context, arg FindCodebaseWithLastCommitByOwnerNameParams) (FindCodebaseWithLastCommitByOwnerNameRow, error) {
+	row := q.db.QueryRow(ctx, findCodebaseWithLastCommitByOwnerName, arg.Host, arg.Owner, arg.Name)
+	var i FindCodebaseWithLastCommitByOwnerNameRow
+	err := row.Scan(
+		&i.ID,
+		&i.Host,
+		&i.Owner,
+		&i.Name,
+		&i.DefaultBranch,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.LastViewedAt,
+		&i.ExternalRepoID,
+		&i.IsStale,
+		&i.LastCommitSha,
+	)
+	return i, err
+}
+
 const getCodebaseByID = `-- name: GetCodebaseByID :one
 SELECT id, host, owner, name, default_branch, created_at, updated_at, last_viewed_at, external_repo_id, is_stale FROM codebases WHERE id = $1
 `

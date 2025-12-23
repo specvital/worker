@@ -18,16 +18,19 @@ const (
 	// DefaultOAuthProvider is the OAuth provider for VCS authentication.
 	// Currently only GitHub is supported as the VCS provider (see repoURL construction in Execute).
 	DefaultOAuthProvider = "github"
+	DefaultHost          = "github.com"
 )
 
 // AnalyzeUseCase orchestrates repository analysis workflow.
 type AnalyzeUseCase struct {
-	cloneSem    *semaphore.Weighted
-	parser      analysis.Parser
-	repository  analysis.Repository
-	timeout     time.Duration
-	tokenLookup analysis.TokenLookup
-	vcs         analysis.VCS
+	cloneSem     *semaphore.Weighted
+	codebaseRepo analysis.CodebaseRepository
+	parser       analysis.Parser
+	repository   analysis.Repository
+	timeout      time.Duration
+	tokenLookup  analysis.TokenLookup
+	vcs          analysis.VCS
+	vcsAPIClient analysis.VCSAPIClient
 }
 
 // Config holds configuration for AnalyzeUseCase.
@@ -63,7 +66,9 @@ func WithMaxConcurrentClones(n int64) Option {
 // tokenLookup is optional - if nil, all clones use public access (token=nil).
 func NewAnalyzeUseCase(
 	repository analysis.Repository,
+	codebaseRepo analysis.CodebaseRepository,
 	vcs analysis.VCS,
+	vcsAPIClient analysis.VCSAPIClient,
 	parser analysis.Parser,
 	tokenLookup analysis.TokenLookup,
 	opts ...Option,
@@ -78,22 +83,17 @@ func NewAnalyzeUseCase(
 	}
 
 	return &AnalyzeUseCase{
-		cloneSem:    semaphore.NewWeighted(cfg.MaxConcurrentClones),
-		parser:      parser,
-		repository:  repository,
-		timeout:     cfg.AnalysisTimeout,
-		tokenLookup: tokenLookup,
-		vcs:         vcs,
+		cloneSem:     semaphore.NewWeighted(cfg.MaxConcurrentClones),
+		codebaseRepo: codebaseRepo,
+		parser:       parser,
+		repository:   repository,
+		timeout:      cfg.AnalysisTimeout,
+		tokenLookup:  tokenLookup,
+		vcs:          vcs,
+		vcsAPIClient: vcsAPIClient,
 	}
 }
 
-// Execute performs the complete analysis workflow:
-// 1. Validates input
-// 2. Clones repository (with concurrency control)
-// 3. Creates analysis record
-// 4. Scans for test inventory
-// 5. Saves analysis results
-// On any error after record creation, RecordFailure is called.
 func (uc *AnalyzeUseCase) Execute(ctx context.Context, req analysis.AnalyzeRequest) (err error) {
 	if err = req.Validate(); err != nil {
 		return err
@@ -115,12 +115,18 @@ func (uc *AnalyzeUseCase) Execute(ctx context.Context, req analysis.AnalyzeReque
 	}
 	defer uc.closeSource(src, req.Owner, req.Repo)
 
+	codebase, err := uc.resolveCodebase(timeoutCtx, req, src, token)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrCodebaseResolutionFailed, err)
+	}
+
 	createParams := analysis.CreateAnalysisRecordParams{
 		Branch:         src.Branch(),
+		CodebaseID:     &codebase.ID,
 		CommitSHA:      src.CommitSHA(),
-		ExternalRepoID: fmt.Sprintf("legacy:%s/%s", req.Owner, req.Repo), // TODO: replace with actual repo ID from GitHub API
-		Owner:          req.Owner,
-		Repo:           req.Repo,
+		ExternalRepoID: codebase.ExternalRepoID,
+		Owner:          codebase.Owner,
+		Repo:           codebase.Name,
 	}
 	if err = createParams.Validate(); err != nil {
 		return fmt.Errorf("%w: %w", ErrSaveFailed, err)
@@ -131,10 +137,6 @@ func (uc *AnalyzeUseCase) Execute(ctx context.Context, req analysis.AnalyzeReque
 		return fmt.Errorf("%w: %w", ErrSaveFailed, err)
 	}
 
-	// Record failure on any error after analysis record creation.
-	// Uses context.Background() to ensure RecordFailure completes even if parent context
-	// is cancelled (timeout, shutdown). Failure recording is critical for data integrity
-	// and should complete independently of the analysis workflow lifecycle.
 	defer func() {
 		if err != nil {
 			if recordErr := uc.repository.RecordFailure(context.Background(), analysisID, err.Error()); recordErr != nil {
@@ -177,6 +179,149 @@ func (uc *AnalyzeUseCase) Execute(ctx context.Context, req analysis.AnalyzeReque
 	}
 
 	return nil
+}
+
+// resolveCodebase determines which codebase to use for the analysis request.
+//
+// Resolution strategy uses external_repo_id as source of truth:
+//   - Case A: New analysis - no codebase exists, create new
+//   - Case B: Reanalysis - codebase exists, git fetch verifies same repo (API-free)
+//   - Case D: Rename/Transfer - different owner/name but same external_repo_id
+//   - Case E: Delete and recreate - same owner/name but different external_repo_id
+//   - Case F: Force push - git fetch fails but same external_repo_id
+func (uc *AnalyzeUseCase) resolveCodebase(
+	ctx context.Context,
+	req analysis.AnalyzeRequest,
+	src analysis.Source,
+	token *string,
+) (*analysis.Codebase, error) {
+	host := DefaultHost
+
+	codebase, err := uc.codebaseRepo.FindWithLastCommit(ctx, host, req.Owner, req.Repo)
+	if err != nil && !errors.Is(err, analysis.ErrCodebaseNotFound) {
+		return nil, fmt.Errorf("find codebase for %s/%s: %w", req.Owner, req.Repo, err)
+	}
+
+	if codebase != nil {
+		if codebase.LastCommitSHA != "" {
+			verified, verifyErr := src.VerifyCommitExists(ctx, codebase.LastCommitSHA)
+			if verifyErr != nil {
+				slog.WarnContext(ctx, "commit verification failed, falling back to API",
+					"error", verifyErr,
+					"owner", req.Owner,
+					"repo", req.Repo,
+					"last_commit_sha", codebase.LastCommitSHA,
+				)
+			} else if verified {
+				slog.InfoContext(ctx, "codebase resolved",
+					"case", "reanalysis",
+					"owner", req.Owner,
+					"repo", req.Repo,
+					"codebase_id", codebase.ID,
+				)
+				return codebase, nil
+			}
+		}
+	}
+
+	return uc.resolveCodebaseWithAPI(ctx, host, req, codebase, token)
+}
+
+func (uc *AnalyzeUseCase) resolveCodebaseWithAPI(
+	ctx context.Context,
+	host string,
+	req analysis.AnalyzeRequest,
+	codebaseByName *analysis.Codebase,
+	token *string,
+) (*analysis.Codebase, error) {
+	externalRepoID, err := uc.vcsAPIClient.GetRepoID(ctx, host, req.Owner, req.Repo, token)
+	if err != nil {
+		if errors.Is(err, analysis.ErrRepoNotFound) {
+			return nil, fmt.Errorf("repository not found %s/%s: %w", req.Owner, req.Repo, err)
+		}
+		return nil, fmt.Errorf("get external repo ID for %s/%s: %w", req.Owner, req.Repo, err)
+	}
+
+	codebaseByID, err := uc.codebaseRepo.FindByExternalID(ctx, host, externalRepoID)
+	if err != nil && !errors.Is(err, analysis.ErrCodebaseNotFound) {
+		return nil, fmt.Errorf("find by external ID %s for %s/%s: %w", externalRepoID, req.Owner, req.Repo, err)
+	}
+
+	if codebaseByID != nil {
+		if codebaseByID.IsStale {
+			updated, updateErr := uc.codebaseRepo.UnmarkStale(ctx, codebaseByID.ID, req.Owner, req.Repo)
+			if updateErr != nil {
+				return nil, fmt.Errorf("unmark stale for %s/%s: %w", req.Owner, req.Repo, updateErr)
+			}
+			slog.InfoContext(ctx, "codebase resolved",
+				"case", "repo_restored",
+				"owner", req.Owner,
+				"repo", req.Repo,
+				"codebase_id", updated.ID,
+			)
+			return updated, nil
+		}
+
+		if codebaseByID.Owner != req.Owner || codebaseByID.Name != req.Repo {
+			updated, updateErr := uc.codebaseRepo.UpdateOwnerName(ctx, codebaseByID.ID, req.Owner, req.Repo)
+			if updateErr != nil {
+				return nil, fmt.Errorf("update owner/name for %s/%s: %w", req.Owner, req.Repo, updateErr)
+			}
+			slog.InfoContext(ctx, "codebase resolved",
+				"case", "rename_transfer",
+				"owner", req.Owner,
+				"repo", req.Repo,
+				"codebase_id", updated.ID,
+				"old_owner", codebaseByID.Owner,
+				"old_name", codebaseByID.Name,
+			)
+			return updated, nil
+		}
+
+		slog.InfoContext(ctx, "codebase resolved",
+			"case", "force_push",
+			"owner", req.Owner,
+			"repo", req.Repo,
+			"codebase_id", codebaseByID.ID,
+		)
+		return codebaseByID, nil
+	}
+
+	if codebaseByName != nil && codebaseByName.ExternalRepoID != externalRepoID {
+		if markErr := uc.codebaseRepo.MarkStale(ctx, codebaseByName.ID); markErr != nil {
+			return nil, fmt.Errorf("mark stale for %s/%s: %w", req.Owner, req.Repo, markErr)
+		}
+		slog.InfoContext(ctx, "old codebase marked stale",
+			"case", "delete_recreate",
+			"owner", req.Owner,
+			"repo", req.Repo,
+			"old_codebase_id", codebaseByName.ID,
+			"old_external_repo_id", codebaseByName.ExternalRepoID,
+			"new_external_repo_id", externalRepoID,
+		)
+	}
+
+	newCodebase, err := uc.codebaseRepo.Upsert(ctx, analysis.UpsertCodebaseParams{
+		Host:           host,
+		Owner:          req.Owner,
+		Name:           req.Repo,
+		ExternalRepoID: externalRepoID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("upsert codebase for %s/%s: %w", req.Owner, req.Repo, err)
+	}
+
+	caseType := "new"
+	if codebaseByName != nil {
+		caseType = "delete_recreate"
+	}
+	slog.InfoContext(ctx, "codebase resolved",
+		"case", caseType,
+		"owner", req.Owner,
+		"repo", req.Repo,
+		"codebase_id", newCodebase.ID,
+	)
+	return newCodebase, nil
 }
 
 func (uc *AnalyzeUseCase) cloneWithSemaphore(ctx context.Context, url string, token *string) (analysis.Source, error) {

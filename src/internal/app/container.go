@@ -59,10 +59,12 @@ func NewWorkerContainer(ctx context.Context, cfg ContainerConfig) (*WorkerContai
 	}
 
 	analysisRepo := postgres.NewAnalysisRepository(cfg.Pool)
+	codebaseRepo := postgres.NewCodebaseRepository(cfg.Pool)
 	userRepo := postgres.NewUserRepository(cfg.Pool, encryptor)
 	gitVCS := vcs.NewGitVCS()
+	githubAPIClient := vcs.NewGitHubAPIClient(nil)
 	coreParser := parser.NewCoreParser()
-	analyzeUC := uc.NewAnalyzeUseCase(analysisRepo, gitVCS, coreParser, userRepo)
+	analyzeUC := uc.NewAnalyzeUseCase(analysisRepo, codebaseRepo, gitVCS, githubAPIClient, coreParser, userRepo)
 	analyzeWorker := queue.NewAnalyzeWorker(analyzeUC)
 
 	workers := river.NewWorkers()

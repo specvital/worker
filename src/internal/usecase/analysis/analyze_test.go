@@ -78,17 +78,6 @@ type mockRepository struct {
 	saveAnalysisInventoryFn func(ctx context.Context, params analysis.SaveAnalysisInventoryParams) error
 }
 
-type mockTokenLookup struct {
-	getOAuthTokenFn func(ctx context.Context, userID string, provider string) (string, error)
-}
-
-func (m *mockTokenLookup) GetOAuthToken(ctx context.Context, userID string, provider string) (string, error) {
-	if m.getOAuthTokenFn != nil {
-		return m.getOAuthTokenFn(ctx, userID, provider)
-	}
-	return "", nil
-}
-
 func (m *mockRepository) CreateAnalysisRecord(ctx context.Context, params analysis.CreateAnalysisRecordParams) (analysis.UUID, error) {
 	if m.createAnalysisRecordFn != nil {
 		return m.createAnalysisRecordFn(ctx, params)
@@ -108,6 +97,93 @@ func (m *mockRepository) SaveAnalysisInventory(ctx context.Context, params analy
 		return m.saveAnalysisInventoryFn(ctx, params)
 	}
 	return nil
+}
+
+type mockCodebaseRepository struct {
+	findByExternalIDFn   func(ctx context.Context, host, externalRepoID string) (*analysis.Codebase, error)
+	findByOwnerNameFn    func(ctx context.Context, host, owner, name string) (*analysis.Codebase, error)
+	findWithLastCommitFn func(ctx context.Context, host, owner, name string) (*analysis.Codebase, error)
+	markStaleFn          func(ctx context.Context, id analysis.UUID) error
+	unmarkStaleFn        func(ctx context.Context, id analysis.UUID, owner, name string) (*analysis.Codebase, error)
+	updateOwnerNameFn    func(ctx context.Context, id analysis.UUID, owner, name string) (*analysis.Codebase, error)
+	upsertFn             func(ctx context.Context, params analysis.UpsertCodebaseParams) (*analysis.Codebase, error)
+}
+
+func (m *mockCodebaseRepository) FindByExternalID(ctx context.Context, host, externalRepoID string) (*analysis.Codebase, error) {
+	if m.findByExternalIDFn != nil {
+		return m.findByExternalIDFn(ctx, host, externalRepoID)
+	}
+	return nil, analysis.ErrCodebaseNotFound
+}
+
+func (m *mockCodebaseRepository) FindByOwnerName(ctx context.Context, host, owner, name string) (*analysis.Codebase, error) {
+	if m.findByOwnerNameFn != nil {
+		return m.findByOwnerNameFn(ctx, host, owner, name)
+	}
+	return nil, analysis.ErrCodebaseNotFound
+}
+
+func (m *mockCodebaseRepository) FindWithLastCommit(ctx context.Context, host, owner, name string) (*analysis.Codebase, error) {
+	if m.findWithLastCommitFn != nil {
+		return m.findWithLastCommitFn(ctx, host, owner, name)
+	}
+	return nil, analysis.ErrCodebaseNotFound
+}
+
+func (m *mockCodebaseRepository) MarkStale(ctx context.Context, id analysis.UUID) error {
+	if m.markStaleFn != nil {
+		return m.markStaleFn(ctx, id)
+	}
+	return nil
+}
+
+func (m *mockCodebaseRepository) UnmarkStale(ctx context.Context, id analysis.UUID, owner, name string) (*analysis.Codebase, error) {
+	if m.unmarkStaleFn != nil {
+		return m.unmarkStaleFn(ctx, id, owner, name)
+	}
+	return &analysis.Codebase{ID: id, Owner: owner, Name: name}, nil
+}
+
+func (m *mockCodebaseRepository) UpdateOwnerName(ctx context.Context, id analysis.UUID, owner, name string) (*analysis.Codebase, error) {
+	if m.updateOwnerNameFn != nil {
+		return m.updateOwnerNameFn(ctx, id, owner, name)
+	}
+	return &analysis.Codebase{ID: id, Owner: owner, Name: name}, nil
+}
+
+func (m *mockCodebaseRepository) Upsert(ctx context.Context, params analysis.UpsertCodebaseParams) (*analysis.Codebase, error) {
+	if m.upsertFn != nil {
+		return m.upsertFn(ctx, params)
+	}
+	return &analysis.Codebase{
+		ID:             analysis.NewUUID(),
+		Host:           params.Host,
+		Owner:          params.Owner,
+		Name:           params.Name,
+		ExternalRepoID: params.ExternalRepoID,
+	}, nil
+}
+
+type mockVCSAPIClient struct {
+	getRepoIDFn func(ctx context.Context, host, owner, repo string, token *string) (string, error)
+}
+
+func (m *mockVCSAPIClient) GetRepoID(ctx context.Context, host, owner, repo string, token *string) (string, error) {
+	if m.getRepoIDFn != nil {
+		return m.getRepoIDFn(ctx, host, owner, repo, token)
+	}
+	return "123456", nil
+}
+
+type mockTokenLookup struct {
+	getOAuthTokenFn func(ctx context.Context, userID string, provider string) (string, error)
+}
+
+func (m *mockTokenLookup) GetOAuthToken(ctx context.Context, userID string, provider string) (string, error) {
+	if m.getOAuthTokenFn != nil {
+		return m.getOAuthTokenFn(ctx, userID, provider)
+	}
+	return "", nil
 }
 
 // Mock helpers to reduce duplication
@@ -137,6 +213,14 @@ func newSuccessfulRepository() *mockRepository {
 			return nil
 		},
 	}
+}
+
+func newSuccessfulCodebaseRepository() *mockCodebaseRepository {
+	return &mockCodebaseRepository{}
+}
+
+func newSuccessfulVCSAPIClient() *mockVCSAPIClient {
+	return &mockVCSAPIClient{}
 }
 
 func newSuccessfulParser() *mockParser {
@@ -392,7 +476,9 @@ func TestAnalyzeUseCase_Execute(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			vcs, parser, repo := tt.setupMocks()
-			uc := NewAnalyzeUseCase(repo, vcs, parser, nil)
+			codebaseRepo := newSuccessfulCodebaseRepository()
+			vcsAPI := newSuccessfulVCSAPIClient()
+			uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil)
 
 			err := uc.Execute(context.Background(), tt.request)
 
@@ -432,9 +518,11 @@ func TestAnalyzeUseCase_Execute_Timeout(t *testing.T) {
 		}
 
 		repo := &mockRepository{}
+		codebaseRepo := newSuccessfulCodebaseRepository()
+		vcsAPI := newSuccessfulVCSAPIClient()
 		parser := &mockParser{}
 
-		uc := NewAnalyzeUseCase(repo, vcs, parser, nil, WithAnalysisTimeout(50*time.Millisecond))
+		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil, WithAnalysisTimeout(50*time.Millisecond))
 
 		err := uc.Execute(context.Background(), newValidRequest())
 
@@ -482,10 +570,12 @@ func TestAnalyzeUseCase_Options(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := &mockRepository{}
+			codebaseRepo := newSuccessfulCodebaseRepository()
 			vcs := &mockVCS{}
+			vcsAPI := newSuccessfulVCSAPIClient()
 			parser := &mockParser{}
 
-			uc := NewAnalyzeUseCase(repo, vcs, parser, nil, tt.opts...)
+			uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil, tt.opts...)
 
 			if uc.timeout != tt.expectedTimeout {
 				t.Errorf("expected timeout %v, got %v", tt.expectedTimeout, uc.timeout)
@@ -497,10 +587,12 @@ func TestAnalyzeUseCase_Options(t *testing.T) {
 func TestAnalyzeUseCase_MaxConcurrentClones(t *testing.T) {
 	t.Run("max concurrent clones - WithMaxConcurrentClones option", func(t *testing.T) {
 		repo := &mockRepository{}
+		codebaseRepo := newSuccessfulCodebaseRepository()
 		vcs := &mockVCS{}
+		vcsAPI := newSuccessfulVCSAPIClient()
 		parser := &mockParser{}
 
-		uc := NewAnalyzeUseCase(repo, vcs, parser, nil, WithMaxConcurrentClones(5))
+		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil, WithMaxConcurrentClones(5))
 
 		if uc.cloneSem == nil {
 			t.Error("expected cloneSem to be initialized")
@@ -509,10 +601,12 @@ func TestAnalyzeUseCase_MaxConcurrentClones(t *testing.T) {
 
 	t.Run("invalid max concurrent clones - zero value ignored", func(t *testing.T) {
 		repo := &mockRepository{}
+		codebaseRepo := newSuccessfulCodebaseRepository()
 		vcs := &mockVCS{}
+		vcsAPI := newSuccessfulVCSAPIClient()
 		parser := &mockParser{}
 
-		uc := NewAnalyzeUseCase(repo, vcs, parser, nil, WithMaxConcurrentClones(0))
+		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil, WithMaxConcurrentClones(0))
 
 		if uc.cloneSem == nil {
 			t.Error("expected cloneSem to be initialized with default")
@@ -521,10 +615,12 @@ func TestAnalyzeUseCase_MaxConcurrentClones(t *testing.T) {
 
 	t.Run("invalid max concurrent clones - negative value ignored", func(t *testing.T) {
 		repo := &mockRepository{}
+		codebaseRepo := newSuccessfulCodebaseRepository()
 		vcs := &mockVCS{}
+		vcsAPI := newSuccessfulVCSAPIClient()
 		parser := &mockParser{}
 
-		uc := NewAnalyzeUseCase(repo, vcs, parser, nil, WithMaxConcurrentClones(-1))
+		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil, WithMaxConcurrentClones(-1))
 
 		if uc.cloneSem == nil {
 			t.Error("expected cloneSem to be initialized with default")
@@ -542,10 +638,12 @@ func TestAnalyzeUseCase_SourceCleanup(t *testing.T) {
 		}
 
 		vcs := newSuccessfulVCS(src)
+		codebaseRepo := newSuccessfulCodebaseRepository()
+		vcsAPI := newSuccessfulVCSAPIClient()
 		repo := newSuccessfulRepository()
 		parser := newSuccessfulParser()
 
-		uc := NewAnalyzeUseCase(repo, vcs, parser, nil)
+		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil)
 
 		err := uc.Execute(context.Background(), newValidRequest())
 
@@ -566,6 +664,8 @@ func TestAnalyzeUseCase_SourceCleanup(t *testing.T) {
 		}
 
 		vcs := newSuccessfulVCS(src)
+		codebaseRepo := newSuccessfulCodebaseRepository()
+		vcsAPI := newSuccessfulVCSAPIClient()
 
 		testAnalysisID := analysis.NewUUID()
 		repo := &mockRepository{
@@ -583,7 +683,7 @@ func TestAnalyzeUseCase_SourceCleanup(t *testing.T) {
 			},
 		}
 
-		uc := NewAnalyzeUseCase(repo, vcs, parser, nil)
+		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil)
 
 		err := uc.Execute(context.Background(), newValidRequest())
 
@@ -607,6 +707,8 @@ func TestAnalyzeUseCase_TokenLookup(t *testing.T) {
 				return src, nil
 			},
 		}
+		codebaseRepo := newSuccessfulCodebaseRepository()
+		vcsAPI := newSuccessfulVCSAPIClient()
 		repo := newSuccessfulRepository()
 		parser := newSuccessfulParser()
 
@@ -623,7 +725,7 @@ func TestAnalyzeUseCase_TokenLookup(t *testing.T) {
 			},
 		}
 
-		uc := NewAnalyzeUseCase(repo, vcs, parser, tokenLookup)
+		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, tokenLookup)
 
 		userID := "user-123"
 		req := analysis.AnalyzeRequest{
@@ -655,6 +757,8 @@ func TestAnalyzeUseCase_TokenLookup(t *testing.T) {
 				return src, nil
 			},
 		}
+		codebaseRepo := newSuccessfulCodebaseRepository()
+		vcsAPI := newSuccessfulVCSAPIClient()
 		repo := newSuccessfulRepository()
 		parser := newSuccessfulParser()
 
@@ -666,7 +770,7 @@ func TestAnalyzeUseCase_TokenLookup(t *testing.T) {
 			},
 		}
 
-		uc := NewAnalyzeUseCase(repo, vcs, parser, tokenLookup)
+		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, tokenLookup)
 
 		req := analysis.AnalyzeRequest{
 			Owner:     "testowner",
@@ -698,6 +802,8 @@ func TestAnalyzeUseCase_TokenLookup(t *testing.T) {
 				return src, nil
 			},
 		}
+		codebaseRepo := newSuccessfulCodebaseRepository()
+		vcsAPI := newSuccessfulVCSAPIClient()
 		repo := newSuccessfulRepository()
 		parser := newSuccessfulParser()
 
@@ -707,7 +813,7 @@ func TestAnalyzeUseCase_TokenLookup(t *testing.T) {
 			},
 		}
 
-		uc := NewAnalyzeUseCase(repo, vcs, parser, tokenLookup)
+		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, tokenLookup)
 
 		userID := "user-123"
 		req := analysis.AnalyzeRequest{
@@ -735,6 +841,8 @@ func TestAnalyzeUseCase_TokenLookup(t *testing.T) {
 				return src, nil
 			},
 		}
+		codebaseRepo := newSuccessfulCodebaseRepository()
+		vcsAPI := newSuccessfulVCSAPIClient()
 		repo := newSuccessfulRepository()
 		parser := newSuccessfulParser()
 
@@ -744,7 +852,7 @@ func TestAnalyzeUseCase_TokenLookup(t *testing.T) {
 			},
 		}
 
-		uc := NewAnalyzeUseCase(repo, vcs, parser, tokenLookup)
+		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, tokenLookup)
 
 		userID := "user-123"
 		req := analysis.AnalyzeRequest{
@@ -774,6 +882,8 @@ func TestAnalyzeUseCase_TokenLookup(t *testing.T) {
 				return src, nil
 			},
 		}
+		codebaseRepo := newSuccessfulCodebaseRepository()
+		vcsAPI := newSuccessfulVCSAPIClient()
 		repo := newSuccessfulRepository()
 		parser := newSuccessfulParser()
 
@@ -783,7 +893,7 @@ func TestAnalyzeUseCase_TokenLookup(t *testing.T) {
 			},
 		}
 
-		uc := NewAnalyzeUseCase(repo, vcs, parser, tokenLookup)
+		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, tokenLookup)
 
 		userID := "user-123"
 		req := analysis.AnalyzeRequest{
@@ -813,10 +923,12 @@ func TestAnalyzeUseCase_TokenLookup(t *testing.T) {
 				return src, nil
 			},
 		}
+		codebaseRepo := newSuccessfulCodebaseRepository()
+		vcsAPI := newSuccessfulVCSAPIClient()
 		repo := newSuccessfulRepository()
 		parser := newSuccessfulParser()
 
-		uc := NewAnalyzeUseCase(repo, vcs, parser, nil)
+		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil)
 
 		userID := "user-123"
 		req := analysis.AnalyzeRequest{
@@ -833,6 +945,290 @@ func TestAnalyzeUseCase_TokenLookup(t *testing.T) {
 		}
 		if capturedToken != nil {
 			t.Error("expected token to be nil when tokenLookup is nil")
+		}
+	})
+}
+
+func TestResolveCodebase(t *testing.T) {
+	t.Run("Case A: new analysis - no codebase exists", func(t *testing.T) {
+		src := newSuccessfulSource()
+		vcs := newSuccessfulVCS(src)
+		repo := newSuccessfulRepository()
+		parser := newSuccessfulParser()
+
+		upsertCalled := false
+		codebaseRepo := &mockCodebaseRepository{
+			findWithLastCommitFn: func(ctx context.Context, host, owner, name string) (*analysis.Codebase, error) {
+				return nil, analysis.ErrCodebaseNotFound
+			},
+			findByExternalIDFn: func(ctx context.Context, host, externalRepoID string) (*analysis.Codebase, error) {
+				return nil, analysis.ErrCodebaseNotFound
+			},
+			upsertFn: func(ctx context.Context, params analysis.UpsertCodebaseParams) (*analysis.Codebase, error) {
+				upsertCalled = true
+				if params.ExternalRepoID != "123456" {
+					t.Errorf("expected externalRepoID '123456', got '%s'", params.ExternalRepoID)
+				}
+				return &analysis.Codebase{
+					ID:             analysis.NewUUID(),
+					Host:           params.Host,
+					Owner:          params.Owner,
+					Name:           params.Name,
+					ExternalRepoID: params.ExternalRepoID,
+				}, nil
+			},
+		}
+		vcsAPI := newSuccessfulVCSAPIClient()
+
+		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil)
+		err := uc.Execute(context.Background(), newValidRequest())
+
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		if !upsertCalled {
+			t.Error("Upsert should be called for new codebase")
+		}
+	})
+
+	t.Run("Case B: reanalysis - git fetch verifies same repo", func(t *testing.T) {
+		src := &mockSource{
+			branchFn:    func() string { return "main" },
+			commitSHAFn: func() string { return "abc123" },
+			closeFn:     func(ctx context.Context) error { return nil },
+			verifyCommitExistsFn: func(ctx context.Context, sha string) (bool, error) {
+				if sha != "prev-commit-sha" {
+					t.Errorf("expected sha 'prev-commit-sha', got '%s'", sha)
+				}
+				return true, nil
+			},
+		}
+		vcs := newSuccessfulVCS(src)
+		repo := newSuccessfulRepository()
+		parser := newSuccessfulParser()
+
+		existingID := analysis.NewUUID()
+		codebaseRepo := &mockCodebaseRepository{
+			findWithLastCommitFn: func(ctx context.Context, host, owner, name string) (*analysis.Codebase, error) {
+				return &analysis.Codebase{
+					ID:             existingID,
+					Host:           host,
+					Owner:          owner,
+					Name:           name,
+					ExternalRepoID: "123456",
+					LastCommitSHA:  "prev-commit-sha",
+				}, nil
+			},
+		}
+
+		apiCalled := false
+		vcsAPI := &mockVCSAPIClient{
+			getRepoIDFn: func(ctx context.Context, host, owner, repo string, token *string) (string, error) {
+				apiCalled = true
+				return "123456", nil
+			},
+		}
+
+		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil)
+		err := uc.Execute(context.Background(), newValidRequest())
+
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		if apiCalled {
+			t.Error("API should not be called when git fetch succeeds")
+		}
+	})
+
+	t.Run("Case D: rename/transfer - different owner/name, same external_repo_id", func(t *testing.T) {
+		src := newSuccessfulSource()
+		vcs := newSuccessfulVCS(src)
+		repo := newSuccessfulRepository()
+		parser := newSuccessfulParser()
+
+		existingID := analysis.NewUUID()
+		updateCalled := false
+		codebaseRepo := &mockCodebaseRepository{
+			findWithLastCommitFn: func(ctx context.Context, host, owner, name string) (*analysis.Codebase, error) {
+				return nil, analysis.ErrCodebaseNotFound
+			},
+			findByExternalIDFn: func(ctx context.Context, host, externalRepoID string) (*analysis.Codebase, error) {
+				return &analysis.Codebase{
+					ID:             existingID,
+					Host:           host,
+					Owner:          "oldowner",
+					Name:           "oldrepo",
+					ExternalRepoID: "123456",
+				}, nil
+			},
+			updateOwnerNameFn: func(ctx context.Context, id analysis.UUID, owner, name string) (*analysis.Codebase, error) {
+				updateCalled = true
+				if owner != "testowner" || name != "testrepo" {
+					t.Errorf("expected owner/name 'testowner/testrepo', got '%s/%s'", owner, name)
+				}
+				return &analysis.Codebase{
+					ID:             id,
+					Host:           "github.com",
+					Owner:          owner,
+					Name:           name,
+					ExternalRepoID: "123456",
+				}, nil
+			},
+		}
+		vcsAPI := newSuccessfulVCSAPIClient()
+
+		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil)
+		err := uc.Execute(context.Background(), newValidRequest())
+
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		if !updateCalled {
+			t.Error("UpdateOwnerName should be called for rename/transfer")
+		}
+	})
+
+	t.Run("Case E: delete and recreate - same owner/name, different external_repo_id", func(t *testing.T) {
+		src := &mockSource{
+			branchFn:    func() string { return "main" },
+			commitSHAFn: func() string { return "abc123" },
+			closeFn:     func(ctx context.Context) error { return nil },
+			verifyCommitExistsFn: func(ctx context.Context, sha string) (bool, error) {
+				return false, nil
+			},
+		}
+		vcs := newSuccessfulVCS(src)
+		repo := newSuccessfulRepository()
+		parser := newSuccessfulParser()
+
+		oldCodebaseID := analysis.NewUUID()
+		markStaleCalled := false
+		upsertCalled := false
+
+		codebaseRepo := &mockCodebaseRepository{
+			findWithLastCommitFn: func(ctx context.Context, host, owner, name string) (*analysis.Codebase, error) {
+				return &analysis.Codebase{
+					ID:             oldCodebaseID,
+					Host:           host,
+					Owner:          owner,
+					Name:           name,
+					ExternalRepoID: "old-external-id",
+					LastCommitSHA:  "old-commit",
+				}, nil
+			},
+			findByExternalIDFn: func(ctx context.Context, host, externalRepoID string) (*analysis.Codebase, error) {
+				return nil, analysis.ErrCodebaseNotFound
+			},
+			markStaleFn: func(ctx context.Context, id analysis.UUID) error {
+				markStaleCalled = true
+				if id != oldCodebaseID {
+					t.Errorf("expected to mark stale ID %v, got %v", oldCodebaseID, id)
+				}
+				return nil
+			},
+			upsertFn: func(ctx context.Context, params analysis.UpsertCodebaseParams) (*analysis.Codebase, error) {
+				upsertCalled = true
+				return &analysis.Codebase{
+					ID:             analysis.NewUUID(),
+					Host:           params.Host,
+					Owner:          params.Owner,
+					Name:           params.Name,
+					ExternalRepoID: params.ExternalRepoID,
+				}, nil
+			},
+		}
+
+		vcsAPI := &mockVCSAPIClient{
+			getRepoIDFn: func(ctx context.Context, host, owner, repo string, token *string) (string, error) {
+				return "new-external-id", nil
+			},
+		}
+
+		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil)
+		err := uc.Execute(context.Background(), newValidRequest())
+
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		if !markStaleCalled {
+			t.Error("MarkStale should be called for delete/recreate case")
+		}
+		if !upsertCalled {
+			t.Error("Upsert should be called to create new codebase")
+		}
+	})
+
+	t.Run("Case F: force push - git fetch fails but same external_repo_id", func(t *testing.T) {
+		src := &mockSource{
+			branchFn:    func() string { return "main" },
+			commitSHAFn: func() string { return "abc123" },
+			closeFn:     func(ctx context.Context) error { return nil },
+			verifyCommitExistsFn: func(ctx context.Context, sha string) (bool, error) {
+				return false, nil
+			},
+		}
+		vcs := newSuccessfulVCS(src)
+		repo := newSuccessfulRepository()
+		parser := newSuccessfulParser()
+
+		existingID := analysis.NewUUID()
+		codebaseRepo := &mockCodebaseRepository{
+			findWithLastCommitFn: func(ctx context.Context, host, owner, name string) (*analysis.Codebase, error) {
+				return &analysis.Codebase{
+					ID:             existingID,
+					Host:           host,
+					Owner:          owner,
+					Name:           name,
+					ExternalRepoID: "123456",
+					LastCommitSHA:  "old-commit",
+				}, nil
+			},
+			findByExternalIDFn: func(ctx context.Context, host, externalRepoID string) (*analysis.Codebase, error) {
+				return &analysis.Codebase{
+					ID:             existingID,
+					Host:           host,
+					Owner:          "testowner",
+					Name:           "testrepo",
+					ExternalRepoID: "123456",
+				}, nil
+			},
+		}
+		vcsAPI := newSuccessfulVCSAPIClient()
+
+		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil)
+		err := uc.Execute(context.Background(), newValidRequest())
+
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("API failure - analysis fails", func(t *testing.T) {
+		src := newSuccessfulSource()
+		vcs := newSuccessfulVCS(src)
+		repo := newSuccessfulRepository()
+		parser := newSuccessfulParser()
+
+		codebaseRepo := &mockCodebaseRepository{
+			findWithLastCommitFn: func(ctx context.Context, host, owner, name string) (*analysis.Codebase, error) {
+				return nil, analysis.ErrCodebaseNotFound
+			},
+		}
+
+		vcsAPI := &mockVCSAPIClient{
+			getRepoIDFn: func(ctx context.Context, host, owner, repo string, token *string) (string, error) {
+				return "", errors.New("API rate limit exceeded")
+			},
+		}
+
+		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil)
+		err := uc.Execute(context.Background(), newValidRequest())
+
+		if err == nil {
+			t.Error("expected error when API fails")
+		}
+		if !errors.Is(err, ErrCodebaseResolutionFailed) {
+			t.Errorf("expected ErrCodebaseResolutionFailed, got %v", err)
 		}
 	})
 }

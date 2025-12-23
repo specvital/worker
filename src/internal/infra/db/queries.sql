@@ -70,6 +70,19 @@ SET owner = $2, name = $3, updated_at = now()
 WHERE id = $1
 RETURNING *;
 
+-- name: FindCodebaseWithLastCommitByOwnerName :one
+SELECT
+    c.*,
+    COALESCE(a.commit_sha, '') as last_commit_sha
+FROM codebases c
+LEFT JOIN (
+    SELECT DISTINCT ON (codebase_id) codebase_id, commit_sha
+    FROM analyses
+    WHERE status = 'completed'
+    ORDER BY codebase_id, completed_at DESC
+) a ON c.id = a.codebase_id
+WHERE c.host = $1 AND c.owner = $2 AND c.name = $3 AND c.is_stale = false;
+
 -- name: GetCodebasesForAutoRefresh :many
 WITH latest_completions AS (
     SELECT DISTINCT ON (codebase_id)
