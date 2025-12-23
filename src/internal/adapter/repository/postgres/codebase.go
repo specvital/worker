@@ -56,6 +56,53 @@ func (r *CodebaseRepository) FindByOwnerName(ctx context.Context, host, owner, n
 	return mapCodebase(row), nil
 }
 
+func (r *CodebaseRepository) MarkStale(ctx context.Context, id analysis.UUID) error {
+	queries := db.New(r.pool)
+
+	err := queries.MarkCodebaseStale(ctx, toPgUUID(id))
+	if err != nil {
+		return fmt.Errorf("mark codebase stale: %w", err)
+	}
+
+	return nil
+}
+
+func (r *CodebaseRepository) UnmarkStale(ctx context.Context, id analysis.UUID, owner, name string) (*analysis.Codebase, error) {
+	queries := db.New(r.pool)
+
+	row, err := queries.UnmarkCodebaseStale(ctx, db.UnmarkCodebaseStaleParams{
+		ID:    toPgUUID(id),
+		Owner: owner,
+		Name:  name,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, analysis.ErrCodebaseNotFound
+		}
+		return nil, fmt.Errorf("unmark codebase stale: %w", err)
+	}
+
+	return mapCodebase(row), nil
+}
+
+func (r *CodebaseRepository) UpdateOwnerName(ctx context.Context, id analysis.UUID, owner, name string) (*analysis.Codebase, error) {
+	queries := db.New(r.pool)
+
+	row, err := queries.UpdateCodebaseOwnerName(ctx, db.UpdateCodebaseOwnerNameParams{
+		ID:    toPgUUID(id),
+		Owner: owner,
+		Name:  name,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, analysis.ErrCodebaseNotFound
+		}
+		return nil, fmt.Errorf("update codebase owner/name: %w", err)
+	}
+
+	return mapCodebase(row), nil
+}
+
 func mapCodebase(row db.Codebasis) *analysis.Codebase {
 	return &analysis.Codebase{
 		ExternalRepoID: row.ExternalRepoID,

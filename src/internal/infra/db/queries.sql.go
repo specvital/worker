@@ -371,6 +371,46 @@ func (q *Queries) GetTestSuitesByAnalysisID(ctx context.Context, analysisID pgty
 	return items, nil
 }
 
+const markCodebaseStale = `-- name: MarkCodebaseStale :exec
+UPDATE codebases SET is_stale = true, updated_at = now() WHERE id = $1
+`
+
+func (q *Queries) MarkCodebaseStale(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, markCodebaseStale, id)
+	return err
+}
+
+const unmarkCodebaseStale = `-- name: UnmarkCodebaseStale :one
+UPDATE codebases
+SET is_stale = false, owner = $2, name = $3, updated_at = now()
+WHERE id = $1
+RETURNING id, host, owner, name, default_branch, created_at, updated_at, last_viewed_at, external_repo_id, is_stale
+`
+
+type UnmarkCodebaseStaleParams struct {
+	ID    pgtype.UUID `json:"id"`
+	Owner string      `json:"owner"`
+	Name  string      `json:"name"`
+}
+
+func (q *Queries) UnmarkCodebaseStale(ctx context.Context, arg UnmarkCodebaseStaleParams) (Codebasis, error) {
+	row := q.db.QueryRow(ctx, unmarkCodebaseStale, arg.ID, arg.Owner, arg.Name)
+	var i Codebasis
+	err := row.Scan(
+		&i.ID,
+		&i.Host,
+		&i.Owner,
+		&i.Name,
+		&i.DefaultBranch,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.LastViewedAt,
+		&i.ExternalRepoID,
+		&i.IsStale,
+	)
+	return i, err
+}
+
 const updateAnalysisCompleted = `-- name: UpdateAnalysisCompleted :exec
 UPDATE analyses
 SET status = 'completed', total_suites = $2, total_tests = $3, completed_at = $4
@@ -409,6 +449,37 @@ type UpdateAnalysisFailedParams struct {
 func (q *Queries) UpdateAnalysisFailed(ctx context.Context, arg UpdateAnalysisFailedParams) error {
 	_, err := q.db.Exec(ctx, updateAnalysisFailed, arg.ID, arg.ErrorMessage, arg.CompletedAt)
 	return err
+}
+
+const updateCodebaseOwnerName = `-- name: UpdateCodebaseOwnerName :one
+UPDATE codebases
+SET owner = $2, name = $3, updated_at = now()
+WHERE id = $1
+RETURNING id, host, owner, name, default_branch, created_at, updated_at, last_viewed_at, external_repo_id, is_stale
+`
+
+type UpdateCodebaseOwnerNameParams struct {
+	ID    pgtype.UUID `json:"id"`
+	Owner string      `json:"owner"`
+	Name  string      `json:"name"`
+}
+
+func (q *Queries) UpdateCodebaseOwnerName(ctx context.Context, arg UpdateCodebaseOwnerNameParams) (Codebasis, error) {
+	row := q.db.QueryRow(ctx, updateCodebaseOwnerName, arg.ID, arg.Owner, arg.Name)
+	var i Codebasis
+	err := row.Scan(
+		&i.ID,
+		&i.Host,
+		&i.Owner,
+		&i.Name,
+		&i.DefaultBranch,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.LastViewedAt,
+		&i.ExternalRepoID,
+		&i.IsStale,
+	)
+	return i, err
 }
 
 const upsertCodebase = `-- name: UpsertCodebase :one

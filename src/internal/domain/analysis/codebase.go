@@ -19,4 +19,7 @@ type Codebase struct {
 type CodebaseRepository interface {
 	FindByExternalID(ctx context.Context, host, externalRepoID string) (*Codebase, error)
 	FindByOwnerName(ctx context.Context, host, owner, name string) (*Codebase, error)
+	MarkStale(ctx context.Context, id UUID) error
+	UnmarkStale(ctx context.Context, id UUID, owner, name string) (*Codebase, error)
+	UpdateOwnerName(ctx context.Context, id UUID, owner, name string) (*Codebase, error)
 }

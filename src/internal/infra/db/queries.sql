@@ -55,6 +55,21 @@ SELECT * FROM test_cases WHERE suite_id = $1 ORDER BY line_number;
 -- name: GetOAuthAccountByUserAndProvider :one
 SELECT * FROM oauth_accounts WHERE user_id = $1 AND provider = $2;
 
+-- name: MarkCodebaseStale :exec
+UPDATE codebases SET is_stale = true, updated_at = now() WHERE id = $1;
+
+-- name: UnmarkCodebaseStale :one
+UPDATE codebases
+SET is_stale = false, owner = $2, name = $3, updated_at = now()
+WHERE id = $1
+RETURNING *;
+
+-- name: UpdateCodebaseOwnerName :one
+UPDATE codebases
+SET owner = $2, name = $3, updated_at = now()
+WHERE id = $1
+RETURNING *;
+
 -- name: GetCodebasesForAutoRefresh :many
 WITH latest_completions AS (
     SELECT DISTINCT ON (codebase_id)
