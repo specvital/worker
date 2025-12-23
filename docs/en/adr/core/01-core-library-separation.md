@@ -1,5 +1,6 @@
 ---
 title: Core Library
+description: ADR on extracting core library as independent Go module for reuse
 ---
 
 # ADR-01: Core Library as Independent Repository

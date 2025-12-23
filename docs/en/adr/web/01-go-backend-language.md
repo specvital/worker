@@ -1,10 +1,11 @@
 ---
 title: Go Backend Language
+description: ADR on choosing Go for backend to share infrastructure with existing services
 ---
 
 # ADR-01: Go as Backend Language
 
-> :kr: [한국어 버전](/ko/adr/web/01-go-backend-language.md)
+> 🇰🇷 [한국어 버전](/ko/adr/web/01-go-backend-language.md)
 
 | Date       | Author       | Repos |
 | ---------- | ------------ | ----- |
@@ -24,8 +25,8 @@ The web platform requires a backend language choice. Two primary candidates emer
 The system already uses Go for:
 
 - **Core Library**: Parser engine, crypto utilities, domain models
-- **Collector Service**: Background worker processing analysis jobs via asynq
-- **Shared Infrastructure**: Redis-based task queue (asynq)
+- **Collector Service**: Background worker processing analysis jobs via River
+- **Shared Infrastructure**: PostgreSQL-based task queue (River)
 
 ### Key Consideration
 
@@ -41,7 +42,7 @@ The web backend needs to:
 
 Core principles:
 
-1. **Single Queue System**: Share asynq with collector (no separate BullMQ)
+1. **Single Queue System**: Share River with collector (no separate BullMQ)
 2. **Direct Library Access**: Import core library without RPC overhead
 3. **Unified Tooling**: Single language CI/CD, monitoring, deployment
 4. **Shared Cryptography**: Same encryption/decryption for OAuth tokens
@@ -54,13 +55,13 @@ Core principles:
 
 - Go HTTP server (Chi/Gin/Echo) serves REST API
 - Direct import of `github.com/specvital/core` packages
-- Shared asynq client for task enqueueing
-- Same Redis instance as collector
+- Shared River client for task enqueueing
+- Same PostgreSQL instance as collector
 
 **Pros:**
 
 - **Zero Integration Overhead**: Direct core library import
-- **Shared Queue Infrastructure**: Single Redis instance, unified asynq protocol
+- **Shared Queue Infrastructure**: Single PostgreSQL instance, unified River protocol
 - **Consistent Cryptography**: Identical encryption across services
 - **Operational Simplicity**: One language runtime to manage
 - **Resource Efficiency**: Lower memory footprint than Node.js
@@ -76,7 +77,7 @@ Core principles:
 **How It Works:**
 
 - NestJS framework with TypeScript
-- BullMQ for task queue (separate from asynq)
+- BullMQ for task queue (separate from River)
 - Core library access via gRPC wrapper or TypeScript rewrite
 
 **Pros:**
@@ -88,7 +89,7 @@ Core principles:
 **Cons:**
 
 - **Core Library Incompatibility**: Cannot directly use Go core
-- **Dual Queue Systems**: BullMQ (web) + asynq (collector) = 2x Redis or complex bridging
+- **Dual Queue Systems**: BullMQ (web) + River (collector) = complex bridging
 - **Cryptography Reimplementation**: Must rewrite NaCl encryption in TypeScript
 - **Operational Complexity**: Two language runtimes, separate CI/CD
 
@@ -127,16 +128,16 @@ Key packages shared:
 ### Queue Architecture
 
 ```
-Web (Producer)          Redis (Upstash)         Collector (Consumer)
+Web (Producer)       PostgreSQL (NeonDB)      Collector (Consumer)
       │                       │                        │
-      ├─ asynq.Enqueue() ───→ task_queue ────→ asynq.HandleFunc()
+      ├─ river.Insert() ────→ task_queue ────→ river.Work()
       │                       │                        │
-      └──────────── shared asynq protocol ─────────────┘
+      └──────────── shared River protocol ─────────────┘
 ```
 
 Benefits:
 
-- Single Redis instance (cost reduction)
+- Single PostgreSQL instance (cost reduction)
 - Type-safe task payloads
 - Built-in retry, scheduling, dead-letter queue
 
@@ -165,7 +166,7 @@ With NestJS:
 
 **Infrastructure Efficiency:**
 
-- Single Redis instance serves both web and collector
+- Single PostgreSQL instance serves both web and collector
 - Unified monitoring and alerting
 - Shared deployment patterns
 
@@ -200,6 +201,6 @@ With NestJS:
 
 ## References
 
-- [ADR-05: Queue-Based Asynchronous Processing](/en/adr/05-queue-based-async-processing.md)
-- [ADR-08: Shared Infrastructure Strategy](/en/adr/08-shared-infrastructure.md)
+- [ADR-04: Queue-Based Asynchronous Processing](/en/adr/04-queue-based-async-processing.md)
+- [ADR-07: Shared Infrastructure Strategy](/en/adr/07-shared-infrastructure.md)
 - [Core ADR-01: Core Library Separation](/en/adr/core/01-core-library-separation.md)

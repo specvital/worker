@@ -1,5 +1,6 @@
 ---
 title: 데이터베이스 설계
+description: Specvital 데이터베이스 스키마 및 도메인 모델 설계
 ---
 
 # 데이터베이스 설계

@@ -1,5 +1,6 @@
 ---
 title: 템플릿
+description: Specvital 아키텍처 의사결정 기록(ADR) 문서 템플릿
 ---
 
 # ADR-XX: [의사결정 제목]

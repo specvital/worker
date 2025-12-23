@@ -1,5 +1,6 @@
 ---
 title: Differentiation
+description: ADR on multi-language static analysis as core competitive differentiator
 ---
 
 # ADR-02: Competitive Differentiation Strategy

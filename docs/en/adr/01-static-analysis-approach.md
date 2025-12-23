@@ -1,5 +1,6 @@
 ---
 title: Static Analysis
+description: ADR on static AST-based analysis for instant test inventory without CI/CD setup
 ---
 
 # ADR-01: Static Analysis-Based Instant Analysis

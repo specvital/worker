@@ -1,5 +1,6 @@
 ---
 title: Web Platform
+description: Web dashboard and REST API specification for Specvital
 ---
 
 # Web Platform

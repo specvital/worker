@@ -1,5 +1,6 @@
 ---
 title: PRD (한국어)
+description: Specvital 제품 요구사항 문서 모음
 ---
 
 # PRD (Product Requirements Document)

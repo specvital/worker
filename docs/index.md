@@ -1,6 +1,7 @@
 ---
 layout: home
 title: Specvital
+description: Open-source test coverage insights platform for code review
 
 hero:
   name: Specvital

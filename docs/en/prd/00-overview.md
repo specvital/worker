@@ -1,5 +1,6 @@
 ---
 title: Overview
+description: Specvital product overview, target users, and go-to-market strategy
 ---
 
 # Specvital Product Overview

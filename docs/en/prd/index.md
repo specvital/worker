@@ -1,5 +1,6 @@
 ---
 title: PRD
+description: Product Requirements Documents for the Specvital platform
 ---
 
 # PRD (Product Requirements Document)

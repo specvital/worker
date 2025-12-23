@@ -1,10 +1,11 @@
 ---
 title: Go 백엔드 언어
+description: 기존 서비스와의 기술 스택 통합을 위한 Go 백엔드 언어 선택
 ---
 
 # ADR-01: 백엔드 언어로 Go 선택
 
-> :us: [English Version](/en/adr/web/01-go-backend-language.md)
+> 🇺🇸 [English Version](/en/adr/web/01-go-backend-language.md)
 
 | 날짜       | 작성자       | 리포지토리 |
 | ---------- | ------------ | ---------- |
@@ -14,22 +15,22 @@ title: Go 백엔드 언어
 
 ### 언어 선택 문제
 
-웹 플랫폼은 백엔드 언어 선택이 필요했다. 두 가지 주요 후보가 있었다:
+웹 플랫폼은 백엔드 언어 선택이 필요했음. 두 가지 주요 후보가 있었음:
 
 1. **Go**: 기존 collector와 core 서비스와 일치
 2. **NestJS (TypeScript)**: Next.js 프론트엔드와 일치
 
 ### 기존 아키텍처
 
-시스템은 이미 다음에서 Go를 사용 중이었다:
+시스템은 이미 다음에서 Go를 사용 중이었음:
 
 - **Core 라이브러리**: 파서 엔진, crypto 유틸리티, 도메인 모델
-- **Collector 서비스**: asynq를 통한 분석 작업 처리 백그라운드 워커
-- **공유 인프라**: Redis 기반 태스크 큐 (asynq)
+- **Collector 서비스**: River를 통한 분석 작업 처리 백그라운드 워커
+- **공유 인프라**: PostgreSQL 기반 태스크 큐 (River)
 
 ### 핵심 고려사항
 
-웹 백엔드는 다음이 필요했다:
+웹 백엔드는 다음이 필요했음:
 
 - collector 처리를 위한 분석 태스크 enqueue
 - collector와의 암호화 작업 공유 (OAuth 토큰 암호화)
@@ -37,11 +38,11 @@ title: Go 백엔드 언어
 
 ## Decision
 
-**기존 서비스와의 기술 스택 통합을 극대화하기 위해 Go를 웹 백엔드 언어로 채택한다.**
+**기존 서비스와의 기술 스택 통합을 극대화하기 위해 Go를 웹 백엔드 언어로 채택함.**
 
 핵심 원칙:
 
-1. **단일 큐 시스템**: collector와 asynq 공유 (별도 BullMQ 불필요)
+1. **단일 큐 시스템**: collector와 River 공유 (별도 BullMQ 불필요)
 2. **직접 라이브러리 접근**: RPC 오버헤드 없이 core 라이브러리 import
 3. **통합 도구**: 단일 언어 CI/CD, 모니터링, 배포
 4. **암호화 공유**: OAuth 토큰에 대해 동일한 암호화/복호화
@@ -54,13 +55,13 @@ title: Go 백엔드 언어
 
 - Go HTTP 서버 (Chi/Gin/Echo)가 REST API 제공
 - `github.com/specvital/core` 패키지 직접 import
-- 태스크 enqueue를 위한 공유 asynq 클라이언트
-- collector와 동일한 Redis 인스턴스
+- 태스크 enqueue를 위한 공유 River 클라이언트
+- collector와 동일한 PostgreSQL 인스턴스
 
 **장점:**
 
 - **통합 오버헤드 없음**: core 라이브러리 직접 import
-- **공유 큐 인프라**: 단일 Redis 인스턴스, 통합 asynq 프로토콜
+- **공유 큐 인프라**: 단일 PostgreSQL 인스턴스, 통합 River 프로토콜
 - **일관된 암호화**: 서비스 간 동일한 암호화
 - **운영 단순성**: 관리할 언어 런타임이 하나
 - **리소스 효율성**: Node.js보다 낮은 메모리 사용량
@@ -76,7 +77,7 @@ title: Go 백엔드 언어
 **작동 방식:**
 
 - TypeScript 기반 NestJS 프레임워크
-- 태스크 큐로 BullMQ (asynq와 별도)
+- 태스크 큐로 BullMQ (River와 별도)
 - gRPC 래퍼 또는 TypeScript 재작성을 통한 core 라이브러리 접근
 
 **장점:**
@@ -88,7 +89,7 @@ title: Go 백엔드 언어
 **단점:**
 
 - **Core 라이브러리 비호환**: Go core를 직접 사용 불가
-- **이중 큐 시스템**: BullMQ (web) + asynq (collector) = 2배 Redis 또는 복잡한 브릿징
+- **이중 큐 시스템**: BullMQ (web) + River (collector) = 복잡한 브릿징
 - **암호화 재구현**: NaCl 암호화를 TypeScript로 재작성 필요
 - **운영 복잡성**: 두 언어 런타임, 별도 CI/CD
 
@@ -127,16 +128,16 @@ Web Service (Go)                    Collector (Go)
 ### 큐 아키텍처
 
 ```
-Web (Producer)          Redis (Upstash)         Collector (Consumer)
+Web (Producer)    PostgreSQL (NeonDB)      Collector (Consumer)
       │                       │                        │
-      ├─ asynq.Enqueue() ───→ task_queue ────→ asynq.HandleFunc()
+      ├─ river.Insert() ────→ task_queue ────→ river.Work()
       │                       │                        │
-      └──────────── shared asynq protocol ─────────────┘
+      └──────────── shared River protocol ─────────────┘
 ```
 
 이점:
 
-- 단일 Redis 인스턴스 (비용 절감)
+- 단일 PostgreSQL 인스턴스 (비용 절감)
 - 타입 안전 태스크 페이로드
 - 내장 재시도, 스케줄링, dead-letter queue
 
@@ -165,7 +166,7 @@ NestJS 사용 시:
 
 **인프라 효율성:**
 
-- 단일 Redis 인스턴스가 web과 collector 모두 지원
+- 단일 PostgreSQL 인스턴스가 web과 collector 모두 지원
 - 통합 모니터링 및 알림
 - 공유 배포 패턴
 
@@ -200,6 +201,6 @@ NestJS 사용 시:
 
 ## References
 
-- [ADR-05: 큐 기반 비동기 처리](/ko/adr/05-queue-based-async-processing.md)
-- [ADR-08: 공유 인프라 전략](/ko/adr/08-shared-infrastructure.md)
+- [ADR-04: 큐 기반 비동기 처리](/ko/adr/04-queue-based-async-processing.md)
+- [ADR-07: 공유 인프라 전략](/ko/adr/07-shared-infrastructure.md)
 - [Core ADR-01: 코어 라이브러리 분리](/ko/adr/core/01-core-library-separation.md)

@@ -1,5 +1,6 @@
 ---
 title: Core Engine
+description: Tree-sitter based multi-language test parser library specification
 ---
 
 # Core Engine (Test Parser)

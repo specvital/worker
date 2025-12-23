@@ -1,5 +1,6 @@
 ---
 title: Database Design
+description: Database schema design for codebases, analyses, and tests
 ---
 
 # Database Design

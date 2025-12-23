@@ -1,10 +1,11 @@
 ---
 title: Scheduled Re-collection
+description: ADR on scheduler-based re-collection with adaptive decay for data freshness
 ---
 
 # ADR-01: Scheduled Re-collection Architecture
 
-> :kr: [한국어 버전](/ko/adr/collector/01-scheduled-recollection.md)
+> 🇰🇷 [한국어 버전](/ko/adr/collector/01-scheduled-recollection.md)
 
 | Date       | Author       | Repos     |
 | ---------- | ------------ | --------- |
@@ -47,7 +48,7 @@ Beyond response time, pre-collection also solves data staleness (dependency upda
 Core principles:
 
 1. **Adaptive Refresh Intervals**: Decay algorithm based on user activity
-2. **Distributed Locking**: Redis-based lock for single execution guarantee
+2. **Distributed Locking**: PostgreSQL-based lock for single execution guarantee
 3. **Service Separation**: Scheduler runs independently from Worker
 4. **Circuit Breaker**: Automatic halt on consecutive failures
 
@@ -175,7 +176,7 @@ Repository visibility is not stored in the database because it can change at any
 **Complexity:**
 
 - Decay algorithm requires careful tuning
-- Distributed lock adds operational dependency on Redis
+- Distributed lock adds operational dependency on PostgreSQL
 - Multiple failure counters to track and understand
 
 **Limitations:**
@@ -186,4 +187,4 @@ Repository visibility is not stored in the database because it can change at any
 
 ## References
 
-- [ADR-05: Queue-Based Asynchronous Processing](/en/adr/05-queue-based-async-processing.md)
+- [ADR-04: Queue-Based Asynchronous Processing](/en/adr/04-queue-based-async-processing.md)

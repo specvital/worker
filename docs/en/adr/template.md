@@ -1,5 +1,6 @@
 ---
 title: Template
+description: ADR document template for Specvital architecture decisions
 ---
 
 # ADR-XX: [Decision Title]

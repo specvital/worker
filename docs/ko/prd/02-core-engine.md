@@ -1,5 +1,6 @@
 ---
 title: 코어 엔진
+description: Tree-sitter 기반 다중 언어 테스트 파서 라이브러리
 ---
 
 # Core Engine (테스트 파서)

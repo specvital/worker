@@ -1,5 +1,6 @@
 ---
 title: 제품 개요
+description: 소스코드 정적 분석 기반 테스트 인벤토리 자동 생성 플랫폼 개요
 ---
 
 # Specvital 제품 개요

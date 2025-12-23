@@ -1,5 +1,6 @@
 ---
 title: 웹 플랫폼
+description: 테스트 대시보드 웹 애플리케이션 및 REST API
 ---
 
 # Web Platform

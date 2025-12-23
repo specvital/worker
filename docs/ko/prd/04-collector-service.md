@@ -1,5 +1,6 @@
 ---
 title: 컬렉터 서비스
+description: 백그라운드 분석 태스크 처리 워커 서비스
 ---
 
 # Collector Service

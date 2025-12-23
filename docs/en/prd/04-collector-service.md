@@ -1,5 +1,6 @@
 ---
 title: Collector Service
+description: Background analysis worker service specification
 ---
 
 # Collector Service
