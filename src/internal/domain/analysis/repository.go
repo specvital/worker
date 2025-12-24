@@ -44,6 +44,7 @@ func (p CreateAnalysisRecordParams) Validate() error {
 type SaveAnalysisInventoryParams struct {
 	AnalysisID UUID
 	Inventory  *Inventory
+	UserID     *string
 }
 
 func (p SaveAnalysisInventoryParams) Validate() error {

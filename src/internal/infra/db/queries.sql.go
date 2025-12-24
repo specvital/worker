@@ -434,6 +434,23 @@ func (q *Queries) MarkCodebaseStale(ctx context.Context, id pgtype.UUID) error {
 	return err
 }
 
+const recordUserAnalysisHistory = `-- name: RecordUserAnalysisHistory :exec
+INSERT INTO user_analysis_history (user_id, analysis_id)
+VALUES ($1, $2)
+ON CONFLICT ON CONSTRAINT uq_user_analysis_history_user_analysis
+DO UPDATE SET updated_at = now()
+`
+
+type RecordUserAnalysisHistoryParams struct {
+	UserID     pgtype.UUID `json:"user_id"`
+	AnalysisID pgtype.UUID `json:"analysis_id"`
+}
+
+func (q *Queries) RecordUserAnalysisHistory(ctx context.Context, arg RecordUserAnalysisHistoryParams) error {
+	_, err := q.db.Exec(ctx, recordUserAnalysisHistory, arg.UserID, arg.AnalysisID)
+	return err
+}
+
 const unmarkCodebaseStale = `-- name: UnmarkCodebaseStale :one
 UPDATE codebases
 SET is_stale = false, owner = $2, name = $3, updated_at = now()

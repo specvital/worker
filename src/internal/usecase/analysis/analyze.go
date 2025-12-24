@@ -168,6 +168,7 @@ func (uc *AnalyzeUseCase) Execute(ctx context.Context, req analysis.AnalyzeReque
 	saveParams := analysis.SaveAnalysisInventoryParams{
 		AnalysisID: analysisID,
 		Inventory:  inventory,
+		UserID:     req.UserID,
 	}
 	if err = saveParams.Validate(); err != nil {
 		err = fmt.Errorf("%w: %w", ErrSaveFailed, err)

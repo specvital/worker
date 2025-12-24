@@ -114,3 +114,9 @@ LEFT JOIN failure_counts fc ON c.id = fc.codebase_id
 WHERE c.last_viewed_at IS NOT NULL
   AND c.last_viewed_at > now() - interval '90 days'
   AND c.is_stale = false;
+
+-- name: RecordUserAnalysisHistory :exec
+INSERT INTO user_analysis_history (user_id, analysis_id)
+VALUES ($1, $2)
+ON CONFLICT ON CONSTRAINT uq_user_analysis_history_user_analysis
+DO UPDATE SET updated_at = now();

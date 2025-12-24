@@ -145,6 +145,21 @@ func runMigrations(ctx context.Context, pool *pgxpool.Pool) error {
 			tags jsonb DEFAULT '[]' NOT NULL,
 			modifier varchar(50)
 		);
+
+		CREATE TABLE users (
+			id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+			email varchar(255),
+			created_at timestamptz DEFAULT now() NOT NULL
+		);
+
+		CREATE TABLE user_analysis_history (
+			id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+			user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			analysis_id uuid NOT NULL REFERENCES analyses(id) ON DELETE CASCADE,
+			created_at timestamptz DEFAULT now() NOT NULL,
+			updated_at timestamptz DEFAULT now() NOT NULL,
+			CONSTRAINT uq_user_analysis_history_user_analysis UNIQUE (user_id, analysis_id)
+		);
 	`
 	_, err := pool.Exec(ctx, schema)
 	return err
@@ -950,6 +965,299 @@ func Test_maxDepthInSuites(t *testing.T) {
 		result := maxDepthInSuites(suitesByDepth)
 		if result != 5 {
 			t.Errorf("expected max depth 5, got %d", result)
+		}
+	})
+}
+
+func TestAnalysisRepository_UserAnalysisHistory(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	repo := NewAnalysisRepository(pool)
+	ctx := context.Background()
+
+	t.Run("should record history when UserID is provided", func(t *testing.T) {
+		// Create a test user
+		var userID string
+		err := pool.QueryRow(ctx, "INSERT INTO users (email) VALUES ('test@example.com') RETURNING id::text").Scan(&userID)
+		if err != nil {
+			t.Fatalf("failed to create test user: %v", err)
+		}
+
+		analysisID, err := repo.CreateAnalysisRecord(ctx, analysis.CreateAnalysisRecordParams{
+			Owner:          "history-owner",
+			Repo:           "history-repo",
+			CommitSHA:      "hist123",
+			Branch:         "main",
+			ExternalRepoID: "history-id-1",
+		})
+		if err != nil {
+			t.Fatalf("CreateAnalysisRecord failed: %v", err)
+		}
+
+		inventory := &analysis.Inventory{
+			Files: []analysis.TestFile{
+				{
+					Path:      "test.go",
+					Framework: "go-test",
+					Suites: []analysis.TestSuite{
+						{
+							Name:     "TestSuite",
+							Location: analysis.Location{StartLine: 10},
+							Tests: []analysis.Test{
+								{Name: "Test1", Location: analysis.Location{StartLine: 12}},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		err = repo.SaveAnalysisInventory(ctx, analysis.SaveAnalysisInventoryParams{
+			AnalysisID: analysisID,
+			Inventory:  inventory,
+			UserID:     &userID,
+		})
+		if err != nil {
+			t.Fatalf("SaveAnalysisInventory failed: %v", err)
+		}
+
+		var historyCount int
+		err = pool.QueryRow(ctx, "SELECT COUNT(*) FROM user_analysis_history WHERE user_id = $1", userID).Scan(&historyCount)
+		if err != nil {
+			t.Fatalf("failed to query history: %v", err)
+		}
+		if historyCount != 1 {
+			t.Errorf("expected 1 history record, got %d", historyCount)
+		}
+	})
+
+	t.Run("should not record history when UserID is nil", func(t *testing.T) {
+		_, err := pool.Exec(ctx, "TRUNCATE codebases CASCADE")
+		if err != nil {
+			t.Fatalf("failed to truncate: %v", err)
+		}
+		_, err = pool.Exec(ctx, "DELETE FROM user_analysis_history")
+		if err != nil {
+			t.Fatalf("failed to delete history: %v", err)
+		}
+
+		analysisID, err := repo.CreateAnalysisRecord(ctx, analysis.CreateAnalysisRecordParams{
+			Owner:          "anon-owner",
+			Repo:           "anon-repo",
+			CommitSHA:      "anon123",
+			Branch:         "main",
+			ExternalRepoID: "anon-id-1",
+		})
+		if err != nil {
+			t.Fatalf("CreateAnalysisRecord failed: %v", err)
+		}
+
+		inventory := &analysis.Inventory{
+			Files: []analysis.TestFile{
+				{
+					Path:      "test.go",
+					Framework: "go-test",
+					Suites: []analysis.TestSuite{
+						{
+							Name:     "TestSuite",
+							Location: analysis.Location{StartLine: 10},
+							Tests: []analysis.Test{
+								{Name: "Test1", Location: analysis.Location{StartLine: 12}},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		err = repo.SaveAnalysisInventory(ctx, analysis.SaveAnalysisInventoryParams{
+			AnalysisID: analysisID,
+			Inventory:  inventory,
+			UserID:     nil,
+		})
+		if err != nil {
+			t.Fatalf("SaveAnalysisInventory failed: %v", err)
+		}
+
+		var historyCount int
+		err = pool.QueryRow(ctx, "SELECT COUNT(*) FROM user_analysis_history").Scan(&historyCount)
+		if err != nil {
+			t.Fatalf("failed to query history: %v", err)
+		}
+		if historyCount != 0 {
+			t.Errorf("expected 0 history records for nil UserID, got %d", historyCount)
+		}
+	})
+
+	t.Run("should update updated_at on reanalysis", func(t *testing.T) {
+		_, err := pool.Exec(ctx, "TRUNCATE codebases CASCADE")
+		if err != nil {
+			t.Fatalf("failed to truncate: %v", err)
+		}
+
+		var userID string
+		err = pool.QueryRow(ctx, "INSERT INTO users (email) VALUES ('reanalysis@example.com') RETURNING id::text").Scan(&userID)
+		if err != nil {
+			t.Fatalf("failed to create test user: %v", err)
+		}
+
+		// First analysis
+		analysisID1, err := repo.CreateAnalysisRecord(ctx, analysis.CreateAnalysisRecordParams{
+			Owner:          "reanalysis-owner",
+			Repo:           "reanalysis-repo",
+			CommitSHA:      "commit1",
+			Branch:         "main",
+			ExternalRepoID: "reanalysis-id",
+		})
+		if err != nil {
+			t.Fatalf("first CreateAnalysisRecord failed: %v", err)
+		}
+
+		inventory := &analysis.Inventory{
+			Files: []analysis.TestFile{
+				{
+					Path:      "test.go",
+					Framework: "go-test",
+					Suites: []analysis.TestSuite{
+						{
+							Name:     "TestSuite",
+							Location: analysis.Location{StartLine: 10},
+							Tests: []analysis.Test{
+								{Name: "Test1", Location: analysis.Location{StartLine: 12}},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		err = repo.SaveAnalysisInventory(ctx, analysis.SaveAnalysisInventoryParams{
+			AnalysisID: analysisID1,
+			Inventory:  inventory,
+			UserID:     &userID,
+		})
+		if err != nil {
+			t.Fatalf("first SaveAnalysisInventory failed: %v", err)
+		}
+
+		var createdAt, updatedAt1 time.Time
+		err = pool.QueryRow(ctx,
+			"SELECT created_at, updated_at FROM user_analysis_history WHERE user_id = $1 AND analysis_id = $2",
+			userID, toPgUUID(analysisID1),
+		).Scan(&createdAt, &updatedAt1)
+		if err != nil {
+			t.Fatalf("failed to query first history: %v", err)
+		}
+
+		// Wait a bit to ensure time difference
+		time.Sleep(10 * time.Millisecond)
+
+		// Same user re-analyzes same analysis (trigger UPSERT)
+		// Need to use a different commit for a new analysis, then manually test UPSERT
+		// Actually, the UPSERT is on (user_id, analysis_id), so we need to call SaveAnalysisInventory again
+		// But that would fail due to ErrAlreadyCompleted. Let's test the UPSERT directly.
+
+		_, err = pool.Exec(ctx,
+			`INSERT INTO user_analysis_history (user_id, analysis_id)
+			 VALUES ($1, $2)
+			 ON CONFLICT ON CONSTRAINT uq_user_analysis_history_user_analysis
+			 DO UPDATE SET updated_at = now()`,
+			userID, toPgUUID(analysisID1),
+		)
+		if err != nil {
+			t.Fatalf("UPSERT failed: %v", err)
+		}
+
+		var updatedAt2 time.Time
+		err = pool.QueryRow(ctx,
+			"SELECT updated_at FROM user_analysis_history WHERE user_id = $1 AND analysis_id = $2",
+			userID, toPgUUID(analysisID1),
+		).Scan(&updatedAt2)
+		if err != nil {
+			t.Fatalf("failed to query updated history: %v", err)
+		}
+
+		if !updatedAt2.After(updatedAt1) {
+			t.Errorf("expected updated_at to be updated, got updatedAt1=%v, updatedAt2=%v", updatedAt1, updatedAt2)
+		}
+	})
+
+	t.Run("different users can analyze same repo", func(t *testing.T) {
+		_, err := pool.Exec(ctx, "TRUNCATE codebases CASCADE")
+		if err != nil {
+			t.Fatalf("failed to truncate: %v", err)
+		}
+
+		var userID1, userID2 string
+		err = pool.QueryRow(ctx, "INSERT INTO users (email) VALUES ('user1@example.com') RETURNING id::text").Scan(&userID1)
+		if err != nil {
+			t.Fatalf("failed to create test user1: %v", err)
+		}
+		err = pool.QueryRow(ctx, "INSERT INTO users (email) VALUES ('user2@example.com') RETURNING id::text").Scan(&userID2)
+		if err != nil {
+			t.Fatalf("failed to create test user2: %v", err)
+		}
+
+		// First user analyzes
+		analysisID, err := repo.CreateAnalysisRecord(ctx, analysis.CreateAnalysisRecordParams{
+			Owner:          "shared-owner",
+			Repo:           "shared-repo",
+			CommitSHA:      "shared123",
+			Branch:         "main",
+			ExternalRepoID: "shared-id",
+		})
+		if err != nil {
+			t.Fatalf("CreateAnalysisRecord failed: %v", err)
+		}
+
+		inventory := &analysis.Inventory{
+			Files: []analysis.TestFile{
+				{
+					Path:      "test.go",
+					Framework: "go-test",
+					Suites: []analysis.TestSuite{
+						{
+							Name:     "TestSuite",
+							Location: analysis.Location{StartLine: 10},
+							Tests: []analysis.Test{
+								{Name: "Test1", Location: analysis.Location{StartLine: 12}},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		err = repo.SaveAnalysisInventory(ctx, analysis.SaveAnalysisInventoryParams{
+			AnalysisID: analysisID,
+			Inventory:  inventory,
+			UserID:     &userID1,
+		})
+		if err != nil {
+			t.Fatalf("first user SaveAnalysisInventory failed: %v", err)
+		}
+
+		// Second user records history for same analysis
+		_, err = pool.Exec(ctx,
+			`INSERT INTO user_analysis_history (user_id, analysis_id) VALUES ($1, $2)`,
+			userID2, toPgUUID(analysisID),
+		)
+		if err != nil {
+			t.Fatalf("second user history insert failed: %v", err)
+		}
+
+		var historyCount int
+		err = pool.QueryRow(ctx, "SELECT COUNT(*) FROM user_analysis_history WHERE analysis_id = $1", toPgUUID(analysisID)).Scan(&historyCount)
+		if err != nil {
+			t.Fatalf("failed to query history: %v", err)
+		}
+		if historyCount != 2 {
+			t.Errorf("expected 2 history records (one per user), got %d", historyCount)
 		}
 	})
 }

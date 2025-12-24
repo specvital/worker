@@ -328,3 +328,18 @@ type User struct {
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
 }
+
+type UserAnalysisHistory struct {
+	UserID     pgtype.UUID        `json:"user_id"`
+	AnalysisID pgtype.UUID        `json:"analysis_id"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+	ID         pgtype.UUID        `json:"id"`
+}
+
+type UserBookmark struct {
+	UserID     pgtype.UUID        `json:"user_id"`
+	CodebaseID pgtype.UUID        `json:"codebase_id"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	ID         pgtype.UUID        `json:"id"`
+}

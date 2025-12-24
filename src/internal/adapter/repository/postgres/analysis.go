@@ -214,6 +214,23 @@ func (r *AnalysisRepository) SaveAnalysisInventory(ctx context.Context, params a
 		return fmt.Errorf("update analysis: %w", err)
 	}
 
+	if params.UserID != nil {
+		userUUID, parseErr := analysis.ParseUUID(*params.UserID)
+		if parseErr != nil {
+			slog.WarnContext(ctx, "invalid user ID format, skipping history record",
+				"user_id", *params.UserID,
+				"error", parseErr,
+			)
+		} else {
+			if err := queries.RecordUserAnalysisHistory(ctx, db.RecordUserAnalysisHistoryParams{
+				UserID:     toPgUUID(userUUID),
+				AnalysisID: pgID,
+			}); err != nil {
+				return fmt.Errorf("record user analysis history: %w", err)
+			}
+		}
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit transaction: %w", err)
 	}
