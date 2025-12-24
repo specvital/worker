@@ -231,6 +231,17 @@ type Codebasis struct {
 	IsStale        bool               `json:"is_stale"`
 }
 
+type GithubOrganization struct {
+	ID          pgtype.UUID        `json:"id"`
+	GithubOrgID int64              `json:"github_org_id"`
+	Login       string             `json:"login"`
+	AvatarUrl   pgtype.Text        `json:"avatar_url"`
+	HtmlUrl     pgtype.Text        `json:"html_url"`
+	Description pgtype.Text        `json:"description"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
 type OauthAccount struct {
 	ID               pgtype.UUID        `json:"id"`
 	UserID           pgtype.UUID        `json:"user_id"`
@@ -342,4 +353,36 @@ type UserBookmark struct {
 	CodebaseID pgtype.UUID        `json:"codebase_id"`
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 	ID         pgtype.UUID        `json:"id"`
+}
+
+type UserGithubOrgMembership struct {
+	ID        pgtype.UUID        `json:"id"`
+	UserID    pgtype.UUID        `json:"user_id"`
+	OrgID     pgtype.UUID        `json:"org_id"`
+	Role      pgtype.Text        `json:"role"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+type UserGithubRepository struct {
+	ID              pgtype.UUID        `json:"id"`
+	UserID          pgtype.UUID        `json:"user_id"`
+	GithubRepoID    int64              `json:"github_repo_id"`
+	Name            string             `json:"name"`
+	FullName        string             `json:"full_name"`
+	HtmlUrl         string             `json:"html_url"`
+	Description     pgtype.Text        `json:"description"`
+	DefaultBranch   pgtype.Text        `json:"default_branch"`
+	Language        pgtype.Text        `json:"language"`
+	Visibility      string             `json:"visibility"`
+	IsPrivate       bool               `json:"is_private"`
+	Archived        bool               `json:"archived"`
+	Disabled        bool               `json:"disabled"`
+	Fork            bool               `json:"fork"`
+	StargazersCount int32              `json:"stargazers_count"`
+	PushedAt        pgtype.Timestamptz `json:"pushed_at"`
+	SourceType      string             `json:"source_type"`
+	OrgID           pgtype.UUID        `json:"org_id"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
 }

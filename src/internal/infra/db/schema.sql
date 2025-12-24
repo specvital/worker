@@ -145,6 +145,22 @@ CREATE TABLE public.codebases (
 
 
 --
+-- Name: github_organizations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.github_organizations (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    github_org_id bigint NOT NULL,
+    login character varying(255) NOT NULL,
+    avatar_url text,
+    html_url text,
+    description text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
 -- Name: oauth_accounts; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -329,6 +345,48 @@ CREATE TABLE public.user_bookmarks (
 
 
 --
+-- Name: user_github_org_memberships; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.user_github_org_memberships (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    org_id uuid NOT NULL,
+    role character varying(50),
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: user_github_repositories; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.user_github_repositories (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    github_repo_id bigint NOT NULL,
+    name character varying(255) NOT NULL,
+    full_name character varying(500) NOT NULL,
+    html_url text NOT NULL,
+    description text,
+    default_branch character varying(100),
+    language character varying(50),
+    visibility character varying(20) DEFAULT 'public'::character varying NOT NULL,
+    is_private boolean DEFAULT false NOT NULL,
+    archived boolean DEFAULT false NOT NULL,
+    disabled boolean DEFAULT false NOT NULL,
+    fork boolean DEFAULT false NOT NULL,
+    stargazers_count integer DEFAULT 0 NOT NULL,
+    pushed_at timestamp with time zone,
+    source_type character varying(20) DEFAULT 'personal'::character varying NOT NULL,
+    org_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
 -- Name: users; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -372,6 +430,14 @@ ALTER TABLE ONLY public.atlas_schema_revisions
 
 ALTER TABLE ONLY public.codebases
     ADD CONSTRAINT codebases_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: github_organizations github_organizations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.github_organizations
+    ADD CONSTRAINT github_organizations_pkey PRIMARY KEY (id);
 
 
 --
@@ -439,6 +505,14 @@ ALTER TABLE ONLY public.test_suites
 
 
 --
+-- Name: github_organizations uq_github_organizations_github_org_id; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.github_organizations
+    ADD CONSTRAINT uq_github_organizations_github_org_id UNIQUE (github_org_id);
+
+
+--
 -- Name: oauth_accounts uq_oauth_provider_user; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -463,6 +537,22 @@ ALTER TABLE ONLY public.user_bookmarks
 
 
 --
+-- Name: user_github_org_memberships uq_user_github_org_memberships_user_org; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_github_org_memberships
+    ADD CONSTRAINT uq_user_github_org_memberships_user_org UNIQUE (user_id, org_id);
+
+
+--
+-- Name: user_github_repositories uq_user_github_repositories_user_repo; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_github_repositories
+    ADD CONSTRAINT uq_user_github_repositories_user_repo UNIQUE (user_id, github_repo_id);
+
+
+--
 -- Name: user_analysis_history user_analysis_history_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -476,6 +566,22 @@ ALTER TABLE ONLY public.user_analysis_history
 
 ALTER TABLE ONLY public.user_bookmarks
     ADD CONSTRAINT user_bookmarks_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: user_github_org_memberships user_github_org_memberships_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_github_org_memberships
+    ADD CONSTRAINT user_github_org_memberships_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: user_github_repositories user_github_repositories_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_github_repositories
+    ADD CONSTRAINT user_github_repositories_pkey PRIMARY KEY (id);
 
 
 --
@@ -526,6 +632,13 @@ CREATE INDEX idx_codebases_last_viewed ON public.codebases USING btree (last_vie
 --
 
 CREATE INDEX idx_codebases_owner_name ON public.codebases USING btree (owner, name);
+
+
+--
+-- Name: idx_github_organizations_login; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_github_organizations_login ON public.github_organizations USING btree (login);
 
 
 --
@@ -596,6 +709,48 @@ CREATE INDEX idx_user_analysis_history_user ON public.user_analysis_history USIN
 --
 
 CREATE INDEX idx_user_bookmarks_user ON public.user_bookmarks USING btree (user_id, created_at);
+
+
+--
+-- Name: idx_user_github_org_memberships_org; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_user_github_org_memberships_org ON public.user_github_org_memberships USING btree (org_id);
+
+
+--
+-- Name: idx_user_github_org_memberships_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_user_github_org_memberships_user ON public.user_github_org_memberships USING btree (user_id);
+
+
+--
+-- Name: idx_user_github_repositories_language; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_user_github_repositories_language ON public.user_github_repositories USING btree (user_id, language) WHERE (language IS NOT NULL);
+
+
+--
+-- Name: idx_user_github_repositories_org; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_user_github_repositories_org ON public.user_github_repositories USING btree (user_id, org_id) WHERE (org_id IS NOT NULL);
+
+
+--
+-- Name: idx_user_github_repositories_source; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_user_github_repositories_source ON public.user_github_repositories USING btree (user_id, source_type);
+
+
+--
+-- Name: idx_user_github_repositories_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_user_github_repositories_user ON public.user_github_repositories USING btree (user_id, updated_at);
 
 
 --
@@ -731,6 +886,38 @@ ALTER TABLE ONLY public.user_bookmarks
 
 ALTER TABLE ONLY public.user_bookmarks
     ADD CONSTRAINT fk_user_bookmarks_user FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: user_github_org_memberships fk_user_github_org_memberships_org; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_github_org_memberships
+    ADD CONSTRAINT fk_user_github_org_memberships_org FOREIGN KEY (org_id) REFERENCES public.github_organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: user_github_org_memberships fk_user_github_org_memberships_user; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_github_org_memberships
+    ADD CONSTRAINT fk_user_github_org_memberships_user FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: user_github_repositories fk_user_github_repositories_org; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_github_repositories
+    ADD CONSTRAINT fk_user_github_repositories_org FOREIGN KEY (org_id) REFERENCES public.github_organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: user_github_repositories fk_user_github_repositories_user; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_github_repositories
+    ADD CONSTRAINT fk_user_github_repositories_user FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
 
 
 --
