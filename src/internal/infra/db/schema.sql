@@ -27,6 +27,16 @@ CREATE TYPE public.analysis_status AS ENUM (
 
 
 --
+-- Name: github_account_type; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.github_account_type AS ENUM (
+    'organization',
+    'user'
+);
+
+
+--
 -- Name: oauth_provider; Type: TYPE; Schema: public; Owner: -
 --
 
@@ -102,7 +112,8 @@ CREATE TABLE public.analyses (
     completed_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     total_suites integer DEFAULT 0 NOT NULL,
-    total_tests integer DEFAULT 0 NOT NULL
+    total_tests integer DEFAULT 0 NOT NULL,
+    committed_at timestamp with time zone
 );
 
 
@@ -145,6 +156,24 @@ CREATE TABLE public.codebases (
 
 
 --
+-- Name: github_app_installations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.github_app_installations (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    installation_id bigint NOT NULL,
+    account_type public.github_account_type NOT NULL,
+    account_id bigint NOT NULL,
+    account_login character varying(255) NOT NULL,
+    account_avatar_url text,
+    installer_user_id uuid,
+    suspended_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
 -- Name: github_organizations; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -174,6 +203,22 @@ CREATE TABLE public.oauth_accounts (
     scope character varying(500),
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: refresh_tokens; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.refresh_tokens (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    token_hash text NOT NULL,
+    family_id uuid NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    revoked_at timestamp with time zone,
+    replaces uuid
 );
 
 
@@ -397,7 +442,8 @@ CREATE TABLE public.users (
     avatar_url text,
     last_login_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    token_version integer DEFAULT 1 NOT NULL
 );
 
 
@@ -433,6 +479,14 @@ ALTER TABLE ONLY public.codebases
 
 
 --
+-- Name: github_app_installations github_app_installations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.github_app_installations
+    ADD CONSTRAINT github_app_installations_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: github_organizations github_organizations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -446,6 +500,14 @@ ALTER TABLE ONLY public.github_organizations
 
 ALTER TABLE ONLY public.oauth_accounts
     ADD CONSTRAINT oauth_accounts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: refresh_tokens refresh_tokens_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.refresh_tokens
+    ADD CONSTRAINT refresh_tokens_pkey PRIMARY KEY (id);
 
 
 --
@@ -505,6 +567,22 @@ ALTER TABLE ONLY public.test_suites
 
 
 --
+-- Name: github_app_installations uq_github_app_installations_account; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.github_app_installations
+    ADD CONSTRAINT uq_github_app_installations_account UNIQUE (account_type, account_id);
+
+
+--
+-- Name: github_app_installations uq_github_app_installations_installation_id; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.github_app_installations
+    ADD CONSTRAINT uq_github_app_installations_installation_id UNIQUE (installation_id);
+
+
+--
 -- Name: github_organizations uq_github_organizations_github_org_id; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -518,6 +596,14 @@ ALTER TABLE ONLY public.github_organizations
 
 ALTER TABLE ONLY public.oauth_accounts
     ADD CONSTRAINT uq_oauth_provider_user UNIQUE (provider, provider_user_id);
+
+
+--
+-- Name: refresh_tokens uq_refresh_tokens_hash; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.refresh_tokens
+    ADD CONSTRAINT uq_refresh_tokens_hash UNIQUE (token_hash);
 
 
 --
@@ -635,6 +721,13 @@ CREATE INDEX idx_codebases_owner_name ON public.codebases USING btree (owner, na
 
 
 --
+-- Name: idx_github_app_installations_installer; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_github_app_installations_installer ON public.github_app_installations USING btree (installer_user_id) WHERE (installer_user_id IS NOT NULL);
+
+
+--
 -- Name: idx_github_organizations_login; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -653,6 +746,27 @@ CREATE INDEX idx_oauth_accounts_user_id ON public.oauth_accounts USING btree (us
 --
 
 CREATE INDEX idx_oauth_accounts_user_provider ON public.oauth_accounts USING btree (user_id, provider);
+
+
+--
+-- Name: idx_refresh_tokens_expires; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_refresh_tokens_expires ON public.refresh_tokens USING btree (expires_at) WHERE (revoked_at IS NULL);
+
+
+--
+-- Name: idx_refresh_tokens_family_active; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_refresh_tokens_family_active ON public.refresh_tokens USING btree (family_id, created_at) WHERE (revoked_at IS NULL);
+
+
+--
+-- Name: idx_refresh_tokens_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_refresh_tokens_user ON public.refresh_tokens USING btree (user_id);
 
 
 --
@@ -698,10 +812,10 @@ CREATE INDEX idx_user_analysis_history_analysis ON public.user_analysis_history 
 
 
 --
--- Name: idx_user_analysis_history_user; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_user_analysis_history_cursor; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_user_analysis_history_user ON public.user_analysis_history USING btree (user_id, updated_at);
+CREATE INDEX idx_user_analysis_history_cursor ON public.user_analysis_history USING btree (user_id, updated_at, id);
 
 
 --
@@ -825,11 +939,35 @@ ALTER TABLE ONLY public.analyses
 
 
 --
+-- Name: github_app_installations fk_github_app_installations_installer; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.github_app_installations
+    ADD CONSTRAINT fk_github_app_installations_installer FOREIGN KEY (installer_user_id) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
 -- Name: oauth_accounts fk_oauth_accounts_user; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.oauth_accounts
     ADD CONSTRAINT fk_oauth_accounts_user FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: refresh_tokens fk_refresh_tokens_replaces; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.refresh_tokens
+    ADD CONSTRAINT fk_refresh_tokens_replaces FOREIGN KEY (replaces) REFERENCES public.refresh_tokens(id) ON DELETE SET NULL;
+
+
+--
+-- Name: refresh_tokens fk_refresh_tokens_user; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.refresh_tokens
+    ADD CONSTRAINT fk_refresh_tokens_user FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
 
 
 --
