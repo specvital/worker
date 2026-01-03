@@ -21,12 +21,6 @@ func (s *Scheduler) Start() {
 	s.cron.Start()
 }
 
-// Deprecated: Use StopWithTimeout to prevent indefinite blocking.
-func (s *Scheduler) Stop() {
-	ctx := s.cron.Stop()
-	<-ctx.Done()
-}
-
 func (s *Scheduler) StopWithTimeout(timeout time.Duration) error {
 	stopCtx := s.cron.Stop()
 
