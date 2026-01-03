@@ -14,6 +14,7 @@ deps-root:
 
 dump-schema:
     PGPASSWORD=postgres pg_dump -h specvital-postgres -U postgres -d specvital --schema-only --no-owner --no-privileges -n public | grep -v '^\\\|^SET \|^SELECT ' > src/internal/infra/db/schema.sql
+    cp src/internal/infra/db/schema.sql src/internal/testutil/postgres/schema.sql
 
 enqueue mode="local" *args:
     #!/usr/bin/env bash

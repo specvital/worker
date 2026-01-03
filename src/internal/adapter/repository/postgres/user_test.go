@@ -3,16 +3,11 @@ package postgres
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
-	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/specvital/collector/internal/domain/analysis"
+	testdb "github.com/specvital/collector/internal/testutil/postgres"
 	"github.com/specvital/core/pkg/crypto"
-	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/modules/postgres"
-	"github.com/testcontainers/testcontainers-go/wait"
 )
 
 // passthroughEncryptor returns input as-is for testing without real encryption.
@@ -32,115 +27,12 @@ func (e *passthroughEncryptor) Close() error {
 
 var _ crypto.Encryptor = (*passthroughEncryptor)(nil)
 
-func setupUserTestDB(t *testing.T) (*pgxpool.Pool, func()) {
-	t.Helper()
-
-	ctx := context.Background()
-
-	container, err := postgres.Run(ctx,
-		"postgres:16-alpine",
-		postgres.WithDatabase("testdb"),
-		postgres.WithUsername("test"),
-		postgres.WithPassword("test"),
-		testcontainers.WithWaitStrategy(
-			wait.ForLog("database system is ready to accept connections").
-				WithOccurrence(2).
-				WithStartupTimeout(30*time.Second),
-		),
-		testcontainers.CustomizeRequest(testcontainers.GenericContainerRequest{
-			ContainerRequest: testcontainers.ContainerRequest{
-				Networks: []string{"specvital-network"},
-			},
-		}),
-	)
-	if err != nil {
-		t.Fatalf("failed to start postgres container: %v", err)
-	}
-
-	containerIP, err := container.ContainerIP(ctx)
-	if err != nil {
-		container.Terminate(ctx)
-		t.Fatalf("failed to get container IP: %v", err)
-	}
-
-	connStr := fmt.Sprintf("postgres://test:test@%s:5432/testdb?sslmode=disable", containerIP)
-
-	var pool *pgxpool.Pool
-	var lastErr error
-	for i := 0; i < 30; i++ {
-		pool, lastErr = pgxpool.New(ctx, connStr)
-		if lastErr == nil {
-			lastErr = pool.Ping(ctx)
-			if lastErr == nil {
-				break
-			}
-			pool.Close()
-			pool = nil
-		}
-		time.Sleep(500 * time.Millisecond)
-	}
-	if pool == nil {
-		container.Terminate(ctx)
-		t.Fatalf("failed to connect to database after retries: %v", lastErr)
-	}
-
-	if err := runUserMigrations(ctx, pool); err != nil {
-		pool.Close()
-		container.Terminate(ctx)
-		t.Fatalf("failed to run migrations: %v", err)
-	}
-
-	cleanup := func() {
-		pool.Close()
-		terminateCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		if err := container.Terminate(terminateCtx); err != nil {
-			t.Logf("warning: failed to terminate container: %v", err)
-		}
-	}
-
-	return pool, cleanup
-}
-
-func runUserMigrations(ctx context.Context, pool *pgxpool.Pool) error {
-	schema := `
-		CREATE TYPE oauth_provider AS ENUM ('github');
-
-		CREATE TABLE users (
-			id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-			email varchar(255),
-			username varchar(255) NOT NULL,
-			avatar_url text,
-			last_login_at timestamptz,
-			created_at timestamptz DEFAULT now() NOT NULL,
-			updated_at timestamptz DEFAULT now() NOT NULL
-		);
-
-		CREATE TABLE oauth_accounts (
-			id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-			user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-			provider oauth_provider NOT NULL,
-			provider_user_id varchar(255) NOT NULL,
-			provider_username varchar(255),
-			access_token text,
-			scope varchar(500),
-			created_at timestamptz DEFAULT now() NOT NULL,
-			updated_at timestamptz DEFAULT now() NOT NULL,
-			UNIQUE (provider, provider_user_id)
-		);
-
-		CREATE INDEX idx_oauth_accounts_user_provider ON oauth_accounts (user_id, provider);
-	`
-	_, err := pool.Exec(ctx, schema)
-	return err
-}
-
 func TestUserRepository_GetOAuthToken(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test")
 	}
 
-	pool, cleanup := setupUserTestDB(t)
+	pool, cleanup := testdb.SetupTestDB(t)
 	defer cleanup()
 
 	repo := NewUserRepository(pool, &passthroughEncryptor{})

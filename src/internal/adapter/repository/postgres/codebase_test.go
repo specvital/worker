@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/specvital/collector/internal/domain/analysis"
+	testdb "github.com/specvital/collector/internal/testutil/postgres"
 )
 
 func TestCodebaseRepository_FindByExternalID(t *testing.T) {
@@ -13,7 +14,7 @@ func TestCodebaseRepository_FindByExternalID(t *testing.T) {
 		t.Skip("skipping integration test")
 	}
 
-	pool, cleanup := setupTestDB(t)
+	pool, cleanup := testdb.SetupTestDB(t)
 	defer cleanup()
 
 	analysisRepo := NewAnalysisRepository(pool)
@@ -61,7 +62,7 @@ func TestCodebaseRepository_FindByOwnerName(t *testing.T) {
 		t.Skip("skipping integration test")
 	}
 
-	pool, cleanup := setupTestDB(t)
+	pool, cleanup := testdb.SetupTestDB(t)
 	defer cleanup()
 
 	analysisRepo := NewAnalysisRepository(pool)
@@ -132,7 +133,7 @@ func TestCodebaseRepository_MarkStale(t *testing.T) {
 		t.Skip("skipping integration test")
 	}
 
-	pool, cleanup := setupTestDB(t)
+	pool, cleanup := testdb.SetupTestDB(t)
 	defer cleanup()
 
 	analysisRepo := NewAnalysisRepository(pool)
@@ -181,7 +182,7 @@ func TestCodebaseRepository_MarkStaleAndUpsert(t *testing.T) {
 		t.Skip("skipping integration test")
 	}
 
-	pool, cleanup := setupTestDB(t)
+	pool, cleanup := testdb.SetupTestDB(t)
 	defer cleanup()
 
 	analysisRepo := NewAnalysisRepository(pool)
@@ -269,7 +270,7 @@ func TestCodebaseRepository_UnmarkStale(t *testing.T) {
 		t.Skip("skipping integration test")
 	}
 
-	pool, cleanup := setupTestDB(t)
+	pool, cleanup := testdb.SetupTestDB(t)
 	defer cleanup()
 
 	analysisRepo := NewAnalysisRepository(pool)
@@ -329,7 +330,7 @@ func TestCodebaseRepository_UpdateOwnerName(t *testing.T) {
 		t.Skip("skipping integration test")
 	}
 
-	pool, cleanup := setupTestDB(t)
+	pool, cleanup := testdb.SetupTestDB(t)
 	defer cleanup()
 
 	analysisRepo := NewAnalysisRepository(pool)

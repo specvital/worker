@@ -3,176 +3,21 @@ package postgres
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/specvital/collector/internal/domain/analysis"
+	testdb "github.com/specvital/collector/internal/testutil/postgres"
 	"github.com/specvital/core/pkg/domain"
 	"github.com/specvital/core/pkg/parser"
-	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/modules/postgres"
-	"github.com/testcontainers/testcontainers-go/wait"
 )
-
-func setupTestDB(t *testing.T) (*pgxpool.Pool, func()) {
-	t.Helper()
-
-	ctx := context.Background()
-
-	container, err := postgres.Run(ctx,
-		"postgres:16-alpine",
-		postgres.WithDatabase("testdb"),
-		postgres.WithUsername("test"),
-		postgres.WithPassword("test"),
-		testcontainers.WithWaitStrategy(
-			wait.ForLog("database system is ready to accept connections").
-				WithOccurrence(2).
-				WithStartupTimeout(30*time.Second),
-		),
-		// Connect to same network as devcontainer
-		testcontainers.CustomizeRequest(testcontainers.GenericContainerRequest{
-			ContainerRequest: testcontainers.ContainerRequest{
-				Networks: []string{"specvital-network"},
-			},
-		}),
-	)
-	if err != nil {
-		t.Fatalf("failed to start postgres container: %v", err)
-	}
-
-	// Get container IP on the shared network
-	containerIP, err := container.ContainerIP(ctx)
-	if err != nil {
-		container.Terminate(ctx)
-		t.Fatalf("failed to get container IP: %v", err)
-	}
-
-	connStr := fmt.Sprintf("postgres://test:test@%s:5432/testdb?sslmode=disable", containerIP)
-
-	var pool *pgxpool.Pool
-	var lastErr error
-	for i := 0; i < 30; i++ {
-		pool, lastErr = pgxpool.New(ctx, connStr)
-		if lastErr == nil {
-			lastErr = pool.Ping(ctx)
-			if lastErr == nil {
-				break
-			}
-			pool.Close()
-			pool = nil
-		}
-		time.Sleep(500 * time.Millisecond)
-	}
-	if pool == nil {
-		container.Terminate(ctx)
-		t.Fatalf("failed to connect to database after retries: %v", lastErr)
-	}
-
-	if err := runMigrations(ctx, pool); err != nil {
-		pool.Close()
-		container.Terminate(ctx)
-		t.Fatalf("failed to run migrations: %v", err)
-	}
-
-	cleanup := func() {
-		pool.Close()
-		terminateCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		if err := container.Terminate(terminateCtx); err != nil {
-			t.Logf("warning: failed to terminate container: %v", err)
-		}
-	}
-
-	return pool, cleanup
-}
-
-func runMigrations(ctx context.Context, pool *pgxpool.Pool) error {
-	schema := `
-		CREATE TYPE analysis_status AS ENUM ('pending', 'running', 'completed', 'failed');
-		CREATE TYPE test_status AS ENUM ('active', 'skipped', 'todo', 'focused', 'xfail');
-
-		CREATE TABLE codebases (
-			id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-			host varchar(255) DEFAULT 'github.com' NOT NULL,
-			owner varchar(255) NOT NULL,
-			name varchar(255) NOT NULL,
-			default_branch varchar(100),
-			created_at timestamptz DEFAULT now() NOT NULL,
-			updated_at timestamptz DEFAULT now() NOT NULL,
-			last_viewed_at timestamptz,
-			external_repo_id varchar(64) NOT NULL,
-			is_stale boolean DEFAULT false NOT NULL,
-			is_private boolean DEFAULT false NOT NULL
-		);
-
-		CREATE UNIQUE INDEX idx_codebases_external_repo_id ON codebases (host, external_repo_id);
-		CREATE UNIQUE INDEX idx_codebases_identity ON codebases (host, owner, name) WHERE (is_stale = false);
-
-		CREATE TABLE analyses (
-			id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-			codebase_id uuid NOT NULL REFERENCES codebases(id) ON DELETE CASCADE,
-			commit_sha varchar(40) NOT NULL,
-			branch_name varchar(255),
-			status analysis_status DEFAULT 'pending' NOT NULL,
-			error_message text,
-			started_at timestamptz,
-			completed_at timestamptz,
-			created_at timestamptz DEFAULT now() NOT NULL,
-			total_suites integer DEFAULT 0 NOT NULL,
-			total_tests integer DEFAULT 0 NOT NULL,
-			committed_at timestamptz,
-			UNIQUE (codebase_id, commit_sha)
-		);
-
-		CREATE TABLE test_suites (
-			id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-			analysis_id uuid NOT NULL REFERENCES analyses(id) ON DELETE CASCADE,
-			parent_id uuid REFERENCES test_suites(id) ON DELETE CASCADE,
-			name varchar(500) NOT NULL,
-			file_path varchar(1000) NOT NULL,
-			line_number integer,
-			framework varchar(50),
-			depth integer DEFAULT 0 NOT NULL,
-			CONSTRAINT chk_no_self_reference CHECK (id <> parent_id)
-		);
-
-		CREATE TABLE test_cases (
-			id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-			suite_id uuid NOT NULL REFERENCES test_suites(id) ON DELETE CASCADE,
-			name varchar(500) NOT NULL,
-			line_number integer,
-			status test_status DEFAULT 'active' NOT NULL,
-			tags jsonb DEFAULT '[]' NOT NULL,
-			modifier varchar(50)
-		);
-
-		CREATE TABLE users (
-			id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-			email varchar(255),
-			created_at timestamptz DEFAULT now() NOT NULL
-		);
-
-		CREATE TABLE user_analysis_history (
-			id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-			user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-			analysis_id uuid NOT NULL REFERENCES analyses(id) ON DELETE CASCADE,
-			created_at timestamptz DEFAULT now() NOT NULL,
-			updated_at timestamptz DEFAULT now() NOT NULL,
-			CONSTRAINT uq_user_analysis_history_user_analysis UNIQUE (user_id, analysis_id)
-		);
-	`
-	_, err := pool.Exec(ctx, schema)
-	return err
-}
 
 func TestAnalysisRepository_SaveAnalysisResult(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test")
 	}
 
-	pool, cleanup := setupTestDB(t)
+	pool, cleanup := testdb.SetupTestDB(t)
 	defer cleanup()
 
 	repo := NewAnalysisRepository(pool)
@@ -428,7 +273,7 @@ func TestAnalysisRepository_TransactionRollback(t *testing.T) {
 		t.Skip("skipping integration test")
 	}
 
-	pool, cleanup := setupTestDB(t)
+	pool, cleanup := testdb.SetupTestDB(t)
 	defer cleanup()
 
 	repo := NewAnalysisRepository(pool)
@@ -470,7 +315,7 @@ func TestAnalysisRepository_RecordFailure(t *testing.T) {
 		t.Skip("skipping integration test")
 	}
 
-	pool, cleanup := setupTestDB(t)
+	pool, cleanup := testdb.SetupTestDB(t)
 	defer cleanup()
 
 	repo := NewAnalysisRepository(pool)
@@ -536,7 +381,7 @@ func TestAnalysisRepository_CreateAnalysisRecord(t *testing.T) {
 		t.Skip("skipping integration test")
 	}
 
-	pool, cleanup := setupTestDB(t)
+	pool, cleanup := testdb.SetupTestDB(t)
 	defer cleanup()
 
 	repo := NewAnalysisRepository(pool)
@@ -576,7 +421,7 @@ func TestAnalysisRepository_SaveAnalysisInventory(t *testing.T) {
 		t.Skip("skipping integration test")
 	}
 
-	pool, cleanup := setupTestDB(t)
+	pool, cleanup := testdb.SetupTestDB(t)
 	defer cleanup()
 
 	repo := NewAnalysisRepository(pool)
@@ -976,7 +821,7 @@ func TestAnalysisRepository_UserAnalysisHistory(t *testing.T) {
 		t.Skip("skipping integration test")
 	}
 
-	pool, cleanup := setupTestDB(t)
+	pool, cleanup := testdb.SetupTestDB(t)
 	defer cleanup()
 
 	repo := NewAnalysisRepository(pool)
@@ -985,7 +830,7 @@ func TestAnalysisRepository_UserAnalysisHistory(t *testing.T) {
 	t.Run("should record history when UserID is provided", func(t *testing.T) {
 		// Create a test user
 		var userID string
-		err := pool.QueryRow(ctx, "INSERT INTO users (email) VALUES ('test@example.com') RETURNING id::text").Scan(&userID)
+		err := pool.QueryRow(ctx, "INSERT INTO users (email, username) VALUES ('test@example.com', 'testuser') RETURNING id::text").Scan(&userID)
 		if err != nil {
 			t.Fatalf("failed to create test user: %v", err)
 		}
@@ -1103,7 +948,7 @@ func TestAnalysisRepository_UserAnalysisHistory(t *testing.T) {
 		}
 
 		var userID string
-		err = pool.QueryRow(ctx, "INSERT INTO users (email) VALUES ('reanalysis@example.com') RETURNING id::text").Scan(&userID)
+		err = pool.QueryRow(ctx, "INSERT INTO users (email, username) VALUES ('reanalysis@example.com', 'reanalysisuser') RETURNING id::text").Scan(&userID)
 		if err != nil {
 			t.Fatalf("failed to create test user: %v", err)
 		}
@@ -1196,11 +1041,11 @@ func TestAnalysisRepository_UserAnalysisHistory(t *testing.T) {
 		}
 
 		var userID1, userID2 string
-		err = pool.QueryRow(ctx, "INSERT INTO users (email) VALUES ('user1@example.com') RETURNING id::text").Scan(&userID1)
+		err = pool.QueryRow(ctx, "INSERT INTO users (email, username) VALUES ('user1@example.com', 'user1') RETURNING id::text").Scan(&userID1)
 		if err != nil {
 			t.Fatalf("failed to create test user1: %v", err)
 		}
-		err = pool.QueryRow(ctx, "INSERT INTO users (email) VALUES ('user2@example.com') RETURNING id::text").Scan(&userID2)
+		err = pool.QueryRow(ctx, "INSERT INTO users (email, username) VALUES ('user2@example.com', 'user2') RETURNING id::text").Scan(&userID2)
 		if err != nil {
 			t.Fatalf("failed to create test user2: %v", err)
 		}
