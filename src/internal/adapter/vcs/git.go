@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -79,6 +80,12 @@ func (v *GitVCS) lsRemote(ctx context.Context, url string, token *string) (strin
 	}
 
 	cmd := exec.CommandContext(ctx, "git", "ls-remote", targetURL, "HEAD")
+	cmd.Env = []string{
+		"PATH=" + os.Getenv("PATH"),
+		"GIT_TERMINAL_PROMPT=0",
+		"GIT_ASKPASS=",
+		"HOME=/nonexistent",
+	}
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
