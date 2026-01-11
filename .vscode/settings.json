@@ -172,18 +172,18 @@
       "group": [
         {
           "color": "",
-          "command": "just run local",
-          "name": "local",
+          "command": "just run-analyzer local",
+          "name": "analyzer local",
           "shortcut": "l",
-          "terminalName": "run local",
+          "terminalName": "analyzer local",
           "useVsCodeApi": false
         },
         {
           "color": "",
-          "command": "just run integration",
-          "name": "integration",
+          "command": "just run-analyzer integration",
+          "name": "analyzer integration",
           "shortcut": "i",
-          "terminalName": "run integration",
+          "terminalName": "analyzer integration",
           "useVsCodeApi": false
         },
         {
