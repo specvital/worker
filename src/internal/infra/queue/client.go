@@ -7,7 +7,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
-	adapterqueue "github.com/specvital/worker/internal/adapter/queue"
+	"github.com/specvital/worker/internal/adapter/queue/analyze"
 )
 
 // Client is insert-only (no worker).
@@ -32,7 +32,7 @@ func (c *Client) Close() error {
 }
 
 func (c *Client) EnqueueAnalysis(ctx context.Context, owner, repo, commitSHA string) error {
-	_, err := c.client.Insert(ctx, adapterqueue.AnalyzeArgs{
+	_, err := c.client.Insert(ctx, analyze.AnalyzeArgs{
 		Owner:     owner,
 		Repo:      repo,
 		CommitSHA: commitSHA,
@@ -45,7 +45,7 @@ func (c *Client) EnqueueAnalysis(ctx context.Context, owner, repo, commitSHA str
 }
 
 func (c *Client) EnqueueAnalysisWithUser(ctx context.Context, owner, repo, commitSHA string, userID *string) error {
-	_, err := c.client.Insert(ctx, adapterqueue.AnalyzeArgs{
+	_, err := c.client.Insert(ctx, analyze.AnalyzeArgs{
 		Owner:     owner,
 		Repo:      repo,
 		CommitSHA: commitSHA,

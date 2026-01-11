@@ -8,7 +8,7 @@ import (
 	"github.com/riverqueue/river"
 	"github.com/specvital/core/pkg/crypto"
 	"github.com/specvital/worker/internal/adapter/parser"
-	"github.com/specvital/worker/internal/adapter/queue"
+	"github.com/specvital/worker/internal/adapter/queue/analyze"
 	"github.com/specvital/worker/internal/adapter/repository/postgres"
 	"github.com/specvital/worker/internal/adapter/vcs"
 	handlerscheduler "github.com/specvital/worker/internal/handler/scheduler"
@@ -43,7 +43,7 @@ func (c ContainerConfig) ValidateWorker() error {
 }
 
 type WorkerContainer struct {
-	AnalyzeWorker *queue.AnalyzeWorker
+	AnalyzeWorker *analyze.AnalyzeWorker
 	Workers       *river.Workers
 	QueueClient   *infraqueue.Client
 }
@@ -65,7 +65,7 @@ func NewWorkerContainer(ctx context.Context, cfg ContainerConfig) (*WorkerContai
 	githubAPIClient := vcs.NewGitHubAPIClient(nil)
 	coreParser := parser.NewCoreParser()
 	analyzeUC := uc.NewAnalyzeUseCase(analysisRepo, codebaseRepo, gitVCS, githubAPIClient, coreParser, userRepo)
-	analyzeWorker := queue.NewAnalyzeWorker(analyzeUC)
+	analyzeWorker := analyze.NewAnalyzeWorker(analyzeUC)
 
 	workers := river.NewWorkers()
 	river.AddWorker(workers, analyzeWorker)
