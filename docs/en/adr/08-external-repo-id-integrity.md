@@ -305,6 +305,6 @@ if existingCodebase.Owner != req.Owner || existingCodebase.Name != req.Name {
 
 ## References
 
-- [ADR-05: Repository Pattern](./collector/07-repository-pattern.md) - Data access abstraction
-- [ADR-03: Worker-Scheduler Separation](./collector/05-worker-scheduler-separation.md) - Process architecture
+- [ADR-05: Repository Pattern](./worker/07-repository-pattern.md) - Data access abstraction
+- [ADR-03: Worker-Scheduler Separation](./worker/05-worker-scheduler-separation.md) - Process architecture
 - [GitHub API Rate Limits](https://docs.github.com/en/rest/rate-limit)

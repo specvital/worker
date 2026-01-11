@@ -17,7 +17,7 @@ description: ADR on extracting core library as independent Go module for reuse
 
 The core library is a shared capability that multiple services need to consume:
 
-1. **Worker Service (collector)**: Processes analysis jobs from queue
+1. **Worker Service (worker)**: Processes analysis jobs from queue
 2. **API Service (web)**: May need direct access for sync operations
 3. **CLI Tool**: Developers want to run locally
 4. **Docker Image**: CI/CD pipelines need containerized execution
@@ -58,7 +58,7 @@ Separate repository with the core as a reusable Go module.
 
 ### Option B: Service-Internal Module
 
-Core code lives inside a consuming service (e.g., collector).
+Core code lives inside a consuming service (e.g., worker).
 
 **Pros:**
 
@@ -128,8 +128,8 @@ Share core code via Git submodule across repositories.
 
 ### Affected Repositories
 
-| Repository    | Role         | Impact                         |
-| ------------- | ------------ | ------------------------------ |
-| **core**      | Core library | Primary - defines public API   |
-| **collector** | Consumer     | Imports core as dependency     |
-| **web**       | Consumer     | May import for sync operations |
+| Repository | Role         | Impact                         |
+| ---------- | ------------ | ------------------------------ |
+| **core**   | Core library | Primary - defines public API   |
+| **worker** | Consumer     | Imports core as dependency     |
+| **web**    | Consumer     | May import for sync operations |

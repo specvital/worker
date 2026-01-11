@@ -17,7 +17,7 @@ description: ADR on choosing Go for backend to share infrastructure with existin
 
 The web platform requires a backend language choice. Two primary candidates emerged:
 
-1. **Go**: Aligns with existing collector and core services
+1. **Go**: Aligns with existing worker and core services
 2. **NestJS (TypeScript)**: Aligns with Next.js frontend
 
 ### Existing Architecture
@@ -25,15 +25,15 @@ The web platform requires a backend language choice. Two primary candidates emer
 The system already uses Go for:
 
 - **Core Library**: Parser engine, crypto utilities, domain models
-- **Collector Service**: Background worker processing analysis jobs via River
+- **Worker Service**: Background worker processing analysis jobs via River
 - **Shared Infrastructure**: PostgreSQL-based task queue (River)
 
 ### Key Consideration
 
 The web backend needs to:
 
-- Enqueue analysis tasks for collector processing
-- Share cryptographic operations with collector (OAuth token encryption)
+- Enqueue analysis tasks for worker processing
+- Share cryptographic operations with worker (OAuth token encryption)
 - Access core library functionality when needed
 
 ## Decision
@@ -42,7 +42,7 @@ The web backend needs to:
 
 Core principles:
 
-1. **Single Queue System**: Share River with collector (no separate BullMQ)
+1. **Single Queue System**: Share River with worker (no separate BullMQ)
 2. **Direct Library Access**: Import core library without RPC overhead
 3. **Unified Tooling**: Single language CI/CD, monitoring, deployment
 4. **Shared Cryptography**: Same encryption/decryption for OAuth tokens
@@ -56,7 +56,7 @@ Core principles:
 - Go HTTP server (Chi/Gin/Echo) serves REST API
 - Direct import of `github.com/specvital/core` packages
 - Shared River client for task enqueueing
-- Same PostgreSQL instance as collector
+- Same PostgreSQL instance as worker
 
 **Pros:**
 
@@ -89,7 +89,7 @@ Core principles:
 **Cons:**
 
 - **Core Library Incompatibility**: Cannot directly use Go core
-- **Dual Queue Systems**: BullMQ (web) + River (collector) = complex bridging
+- **Dual Queue Systems**: BullMQ (web) + River (worker) = complex bridging
 - **Cryptography Reimplementation**: Must rewrite NaCl encryption in TypeScript
 - **Operational Complexity**: Two language runtimes, separate CI/CD
 
@@ -113,7 +113,7 @@ Core principles:
 ### Core Library Integration
 
 ```
-Web Service (Go)                    Collector (Go)
+Web Service (Go)                    Worker (Go)
       │                                   │
       └─── import core/pkg/crypto ────────┘
       │                                   │
@@ -128,7 +128,7 @@ Key packages shared:
 ### Queue Architecture
 
 ```
-Web (Producer)       PostgreSQL (NeonDB)      Collector (Consumer)
+Web (Producer)       PostgreSQL (NeonDB)      Worker (Consumer)
       │                       │                        │
       ├─ river.Insert() ────→ task_queue ────→ river.Work()
       │                       │                        │
@@ -146,7 +146,7 @@ Benefits:
 OAuth flow requires:
 
 1. Web encrypts GitHub token before DB storage
-2. Collector decrypts token when accessing GitHub API
+2. Worker decrypts token when accessing GitHub API
 
 With Go:
 
@@ -166,7 +166,7 @@ With NestJS:
 
 **Infrastructure Efficiency:**
 
-- Single PostgreSQL instance serves both web and collector
+- Single PostgreSQL instance serves both web and worker
 - Unified monitoring and alerting
 - Shared deployment patterns
 

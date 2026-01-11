@@ -7,9 +7,9 @@ description: ADR on separating API and worker services for independent scaling a
 
 > [한국어 버전](/ko/adr/03-api-worker-service-separation.md)
 
-| Date       | Author       | Repos          |
-| ---------- | ------------ | -------------- |
-| 2024-12-17 | @KubrickCode | web, collector |
+| Date       | Author       | Repos       |
+| ---------- | ------------ | ----------- |
+| 2024-12-17 | @KubrickCode | web, worker |
 
 ## Context
 

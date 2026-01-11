@@ -7,9 +7,9 @@ description: ADR document template for Specvital architecture decisions
 
 > 🇰🇷 [한국어 버전](/ko/adr/XX-decision-title.md)
 
-| Date       | Author    | Repos                       |
-| ---------- | --------- | --------------------------- |
-| YYYY-MM-DD | @username | core, web, collector, infra |
+| Date       | Author    | Repos                    |
+| ---------- | --------- | ------------------------ |
+| YYYY-MM-DD | @username | core, web, worker, infra |
 
 ## Context
 

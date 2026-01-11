@@ -305,6 +305,6 @@ if existingCodebase.Owner != req.Owner || existingCodebase.Name != req.Name {
 
 ## References
 
-- [ADR-07: Repository 패턴](./collector/07-repository-pattern.md) - 데이터 접근 추상화
-- [ADR-05: Worker-Scheduler 분리](./collector/05-worker-scheduler-separation.md) - 프로세스 아키텍처
+- [ADR-07: Repository 패턴](./worker/07-repository-pattern.md) - 데이터 접근 추상화
+- [ADR-05: Worker-Scheduler 분리](./worker/05-worker-scheduler-separation.md) - 프로세스 아키텍처
 - [GitHub API Rate Limits](https://docs.github.com/en/rest/rate-limit)

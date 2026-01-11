@@ -7,9 +7,9 @@ description: ADR on queue-based async processing for long-running analysis tasks
 
 > 🇰🇷 [한국어 버전](/ko/adr/04-queue-based-async-processing.md)
 
-| Date       | Author       | Repos          |
-| ---------- | ------------ | -------------- |
-| 2024-12-17 | @KubrickCode | web, collector |
+| Date       | Author       | Repos       |
+| ---------- | ------------ | ----------- |
+| 2024-12-17 | @KubrickCode | web, worker |
 
 ## Context
 

@@ -17,28 +17,27 @@ SpecVital is a platform for analyzing and visualizing test files in GitHub repos
 ├─────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                  │
 │   ┌──────────────────────────────────────────────────────────────────────────┐  │
-│   │                            Web Service                                    │  │
-│   │                                                                           │  │
-│   │   ┌─────────┐                                 ┌─────────────────────┐   │  │
-│   │   │   web   │                                 │      collector      │   │  │
-│   │   │         │                                 │                     │   │  │
-│   │   │  API +  │                                 │  ┌───────┐ ┌──────┐ │   │  │
-│   │   │Dashboard│                                 │  │Worker │ │Sched │ │   │  │
-│   │   └────┬────┘                                 │  └───┬───┘ └──────┘ │   │  │
-│   │        │                                      │      │               │   │  │
-│   │        │                                      │      ▼               │   │  │
-│   │        │                                      │  ┌───────┐           │   │  │
-│   │        │                                      │  │ core  │ (Library)│   │  │
-│   │        │                                      │  └───────┘           │   │  │
-│   │        │                                      └──────┬───────────────┘   │  │
-│   │        │                                             │                   │  │
-│   │        └──────────────────┬──────────────────────────┘                   │  │
-│   │                           │                                              │  │
-│   │                           ▼                                              │  │
-│   │                   ┌──────────────────────┐                               │  │
-│   │                   │     PostgreSQL       │                               │  │
-│   │                   │ (Data + River Queue) │                               │  │
-│   │                   └──────────────────────┘                               │  │
+│   │                                                                          │  │
+│   │   ┌─────────┐                          ┌────────────────────────────┐   │  │
+│   │   │   web   │                          │     worker (repository)    │   │  │
+│   │   │         │                          │                            │   │  │
+│   │   │  API +  │                          │  ┌──────────┐ ┌─────────┐  │   │  │
+│   │   │Dashboard│                          │  │ Analyzer │ │Scheduler│  │   │  │
+│   │   └────┬────┘                          │  └────┬─────┘ └─────────┘  │   │  │
+│   │        │                               │       │                    │   │  │
+│   │        │                               │       ▼                    │   │  │
+│   │        │                               │  ┌────────┐                │   │  │
+│   │        │                               │  │  core  │ (Library)     │   │  │
+│   │        │                               │  └────────┘                │   │  │
+│   │        │                               └───────┬────────────────────┘   │  │
+│   │        │                                       │                        │  │
+│   │        └───────────────────┬───────────────────┘                        │  │
+│   │                            │                                            │  │
+│   │                            ▼                                            │  │
+│   │                    ┌──────────────────────┐                             │  │
+│   │                    │     PostgreSQL       │                             │  │
+│   │                    │ (Data + River Queue) │                             │  │
+│   │                    └──────────────────────┘                             │  │
 │   └──────────────────────────────────────────────────────────────────────────┘  │
 │                                                                                  │
 └─────────────────────────────────────────────────────────────────────────────────┘
@@ -54,11 +53,11 @@ SpecVital is a platform for analyzing and visualizing test files in GitHub repos
 | -------- | ----------- |
 | Language | Go          |
 | Type     | Library     |
-| Consumer | collector   |
+| Consumer | worker      |
 
-### collector
+### worker
 
-**Role**: Analysis worker
+**Role**: Analysis workers (analyzer, spec-generator)
 
 | Item         | Description              |
 | ------------ | ------------------------ |
@@ -77,8 +76,8 @@ SpecVital is a platform for analyzing and visualizing test files in GitHub repos
 │                              Web Service                                     │
 │                                                                              │
 │  ┌─────────┐    2. Enqueue                        3. Consume    ┌───────────┐  │
-│  │   web   │──────────────────────────────────────────────────▶│ collector │  │
-│  │  (API)  │                                                    │  (Worker) │  │
+│  │   web   │──────────────────────────────────────────────────▶│  worker   │  │
+│  │  (API)  │                                                    │ (Analyzer)│  │
 │  └────┬────┘                                                    └─────┬─────┘  │
 │       │                                                               │        │
 │       │ 5. Read Results                              4. Parse (core) │        │
@@ -95,8 +94,8 @@ SpecVital is a platform for analyzing and visualizing test files in GitHub repos
 
 1. User requests analysis with GitHub URL
 2. web enqueues job to River queue (PostgreSQL)
-3. collector worker consumes job from River
-4. collector parses tests via core and stores results
+3. worker (analyzer) consumes job from River
+4. worker parses tests via core and stores results
 5. web reads results from DB
 6. User views visualized results
 
@@ -104,18 +103,18 @@ SpecVital is a platform for analyzing and visualizing test files in GitHub repos
 
 ### Platforms
 
-| Service             | Platform |
-| ------------------- | -------- |
-| PostgreSQL          | Neon     |
-| web-backend         | Railway  |
-| web-frontend        | Vercel   |
-| collector-worker    | Railway  |
-| collector-scheduler | Railway  |
+| Service          | Platform |
+| ---------------- | -------- |
+| PostgreSQL       | Neon     |
+| web-backend      | Railway  |
+| web-frontend     | Vercel   |
+| worker-analyzer  | Railway  |
+| worker-scheduler | Railway  |
 
 ### Scalability
 
-| Service               | Scalability     | Note                           |
-| --------------------- | --------------- | ------------------------------ |
-| web                   | Horizontal      | Stateless                      |
-| collector (Worker)    | Horizontal      | Stateless, parallel processing |
-| collector (Scheduler) | Single instance | Cron jobs                      |
+| Service            | Scalability     | Note                           |
+| ------------------ | --------------- | ------------------------------ |
+| web                | Horizontal      | Stateless                      |
+| worker (Analyzer)  | Horizontal      | Stateless, parallel processing |
+| worker (Scheduler) | Single instance | Cron jobs                      |

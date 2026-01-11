@@ -41,14 +41,14 @@ Domain terminology used across the Specvital platform.
 
 ## Architecture
 
-| Term          | Definition                                                             |
-| ------------- | ---------------------------------------------------------------------- |
-| **Core**      | Test parser library (Go) - parses source code into test inventory      |
-| **Collector** | Background worker service - orchestrates analysis jobs via queue       |
-| **Web**       | Frontend (Next.js) + Backend API (Go Chi)                              |
-| **Infra**     | Database schema and local development infrastructure                   |
-| **Worker**    | River-based process that consumes analysis tasks from PostgreSQL queue |
-| **Scheduler** | Cron-based process that enqueues periodic refresh tasks                |
+| Term          | Definition                                                                |
+| ------------- | ------------------------------------------------------------------------- |
+| **Core**      | Test parser library (Go) - parses source code into test inventory         |
+| **Worker**    | Worker repository - contains analyzer, scheduler, spec-generator binaries |
+| **Web**       | Frontend (Next.js) + Backend API (Go Chi)                                 |
+| **Infra**     | Database schema and local development infrastructure                      |
+| **Analyzer**  | River-based process that consumes analysis tasks from PostgreSQL queue    |
+| **Scheduler** | Cron-based process that enqueues periodic refresh tasks                   |
 
 ## Technical Terms
 

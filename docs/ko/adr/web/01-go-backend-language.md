@@ -17,7 +17,7 @@ description: 기존 서비스와의 기술 스택 통합을 위한 Go 백엔드 
 
 웹 플랫폼은 백엔드 언어 선택이 필요했음. 두 가지 주요 후보가 있었음:
 
-1. **Go**: 기존 collector와 core 서비스와 일치
+1. **Go**: 기존 worker와 core 서비스와 일치
 2. **NestJS (TypeScript)**: Next.js 프론트엔드와 일치
 
 ### 기존 아키텍처
@@ -25,15 +25,15 @@ description: 기존 서비스와의 기술 스택 통합을 위한 Go 백엔드 
 시스템은 이미 다음에서 Go를 사용 중이었음:
 
 - **Core 라이브러리**: 파서 엔진, crypto 유틸리티, 도메인 모델
-- **Collector 서비스**: River를 통한 분석 작업 처리 백그라운드 워커
+- **Worker 서비스**: River를 통한 분석 작업 처리 백그라운드 워커
 - **공유 인프라**: PostgreSQL 기반 태스크 큐 (River)
 
 ### 핵심 고려사항
 
 웹 백엔드는 다음이 필요했음:
 
-- collector 처리를 위한 분석 태스크 enqueue
-- collector와의 암호화 작업 공유 (OAuth 토큰 암호화)
+- worker 처리를 위한 분석 태스크 enqueue
+- worker와의 암호화 작업 공유 (OAuth 토큰 암호화)
 - 필요시 core 라이브러리 기능 접근
 
 ## Decision
@@ -42,7 +42,7 @@ description: 기존 서비스와의 기술 스택 통합을 위한 Go 백엔드 
 
 핵심 원칙:
 
-1. **단일 큐 시스템**: collector와 River 공유 (별도 BullMQ 불필요)
+1. **단일 큐 시스템**: worker와 River 공유 (별도 BullMQ 불필요)
 2. **직접 라이브러리 접근**: RPC 오버헤드 없이 core 라이브러리 import
 3. **통합 도구**: 단일 언어 CI/CD, 모니터링, 배포
 4. **암호화 공유**: OAuth 토큰에 대해 동일한 암호화/복호화
@@ -56,7 +56,7 @@ description: 기존 서비스와의 기술 스택 통합을 위한 Go 백엔드 
 - Go HTTP 서버 (Chi/Gin/Echo)가 REST API 제공
 - `github.com/specvital/core` 패키지 직접 import
 - 태스크 enqueue를 위한 공유 River 클라이언트
-- collector와 동일한 PostgreSQL 인스턴스
+- worker와 동일한 PostgreSQL 인스턴스
 
 **장점:**
 
@@ -89,7 +89,7 @@ description: 기존 서비스와의 기술 스택 통합을 위한 Go 백엔드 
 **단점:**
 
 - **Core 라이브러리 비호환**: Go core를 직접 사용 불가
-- **이중 큐 시스템**: BullMQ (web) + River (collector) = 복잡한 브릿징
+- **이중 큐 시스템**: BullMQ (web) + River (worker) = 복잡한 브릿징
 - **암호화 재구현**: NaCl 암호화를 TypeScript로 재작성 필요
 - **운영 복잡성**: 두 언어 런타임, 별도 CI/CD
 
@@ -113,7 +113,7 @@ description: 기존 서비스와의 기술 스택 통합을 위한 Go 백엔드 
 ### Core 라이브러리 통합
 
 ```
-Web Service (Go)                    Collector (Go)
+Web Service (Go)                    Worker (Go)
       │                                   │
       └─── import core/pkg/crypto ────────┘
       │                                   │
@@ -128,7 +128,7 @@ Web Service (Go)                    Collector (Go)
 ### 큐 아키텍처
 
 ```
-Web (Producer)    PostgreSQL (NeonDB)      Collector (Consumer)
+Web (Producer)    PostgreSQL (NeonDB)      Worker (Consumer)
       │                       │                        │
       ├─ river.Insert() ────→ task_queue ────→ river.Work()
       │                       │                        │
@@ -146,7 +146,7 @@ Web (Producer)    PostgreSQL (NeonDB)      Collector (Consumer)
 OAuth 플로우 요구사항:
 
 1. Web이 DB 저장 전 GitHub 토큰 암호화
-2. Collector가 GitHub API 접근 시 토큰 복호화
+2. Worker가 GitHub API 접근 시 토큰 복호화
 
 Go 사용 시:
 
@@ -166,7 +166,7 @@ NestJS 사용 시:
 
 **인프라 효율성:**
 
-- 단일 PostgreSQL 인스턴스가 web과 collector 모두 지원
+- 단일 PostgreSQL 인스턴스가 web과 worker 모두 지원
 - 통합 모니터링 및 알림
 - 공유 배포 패턴
 

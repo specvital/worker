@@ -7,9 +7,9 @@ description: ADR on choosing NaCl SecretBox for OAuth token encryption shared ac
 
 > 🇰🇷 [한국어 버전](/ko/adr/core/13-nacl-secretbox-encryption.md)
 
-| Date       | Author       | Repos                |
-| ---------- | ------------ | -------------------- |
-| 2025-12-23 | @KubrickCode | core, web, collector |
+| Date       | Author       | Repos             |
+| ---------- | ------------ | ----------------- |
+| 2025-12-23 | @KubrickCode | core, web, worker |
 
 ## Context
 
@@ -18,7 +18,7 @@ description: ADR on choosing NaCl SecretBox for OAuth token encryption shared ac
 OAuth tokens stored in the database require encryption at rest. Multiple services need to encrypt/decrypt these tokens:
 
 1. **Web Service**: Encrypts tokens when storing user OAuth credentials
-2. **Collector Service**: Decrypts tokens when accessing GitHub API
+2. **Worker Service**: Decrypts tokens when accessing GitHub API
 
 ### Requirements
 
@@ -27,7 +27,7 @@ OAuth tokens stored in the database require encryption at rest. Multiple service
 | Authenticated encryption | Prevent tampering and ensure data integrity      |
 | Symmetric key            | Same key encrypts and decrypts                   |
 | Thread-safe              | Concurrent encryption in multi-goroutine context |
-| Cross-service sharing    | Same codebase usable by web and collector        |
+| Cross-service sharing    | Same codebase usable by web and worker           |
 | Key rotation support     | Ability to rotate keys without data loss         |
 
 ## Decision

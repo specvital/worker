@@ -11,12 +11,12 @@ description: 서비스별 릴리즈 노트 및 버저닝 정보
 
 ## 서비스
 
-| 서비스    | 설명                  | 릴리즈                                                      |
-| --------- | --------------------- | ----------------------------------------------------------- |
-| Core      | 테스트 파서 엔진      | [Releases](https://github.com/specvital/core/releases)      |
-| Collector | 백그라운드 워커       | [Releases](https://github.com/specvital/collector/releases) |
-| Web       | 대시보드 & API        | [Releases](https://github.com/specvital/web/releases)       |
-| Infra     | 스키마 & 마이그레이션 | [Releases](https://github.com/specvital/infra/releases)     |
+| 서비스 | 설명                  | 릴리즈                                                   |
+| ------ | --------------------- | -------------------------------------------------------- |
+| Core   | 테스트 파서 엔진      | [Releases](https://github.com/specvital/core/releases)   |
+| Worker | 백그라운드 워커       | [Releases](https://github.com/specvital/worker/releases) |
+| Web    | 대시보드 & API        | [Releases](https://github.com/specvital/web/releases)    |
+| Infra  | 스키마 & 마이그레이션 | [Releases](https://github.com/specvital/infra/releases)  |
 
 ## 버저닝
 
@@ -31,6 +31,6 @@ description: 서비스별 릴리즈 노트 및 버저닝 정보
 각 리포지토리에 상세 커밋 히스토리 기록:
 
 - [Core CHANGELOG](https://github.com/specvital/core/blob/main/CHANGELOG.md)
-- [Collector CHANGELOG](https://github.com/specvital/collector/blob/main/CHANGELOG.md)
+- [Worker CHANGELOG](https://github.com/specvital/worker/blob/main/CHANGELOG.md)
 - [Web CHANGELOG](https://github.com/specvital/web/blob/main/CHANGELOG.md)
 - [Infra CHANGELOG](https://github.com/specvital/infra/blob/main/CHANGELOG.md)

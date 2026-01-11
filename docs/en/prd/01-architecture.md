@@ -11,8 +11,8 @@ description: Specvital system architecture and service composition
 
 ```
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   Frontend  │────▶│   Backend   │────▶│  Collector  │
-│             │     │             │     │   (Worker)  │
+│   Frontend  │────▶│   Backend   │────▶│   Worker   │
+│             │     │             │     │ (Analyzer)  │
 └─────────────┘     └──────┬──────┘     └──────┬──────┘
                            │                   │
                     ┌──────▼──────┐     ┌──────▼──────┐
@@ -23,12 +23,12 @@ description: Specvital system architecture and service composition
 
 ## Service Roles
 
-| Service       | Role                  |
-| ------------- | --------------------- |
-| **Frontend**  | Web dashboard         |
-| **Backend**   | REST API, OAuth       |
-| **Collector** | Async analysis worker |
-| **Core**      | Test parser library   |
+| Service      | Role                  |
+| ------------ | --------------------- |
+| **Frontend** | Web dashboard         |
+| **Backend**  | REST API, OAuth       |
+| **Worker**   | Async analysis worker |
+| **Core**     | Test parser library   |
 
 ## Data Flow
 
@@ -36,7 +36,7 @@ description: Specvital system architecture and service composition
 User → Enter GitHub URL
     → Backend: Analysis request
     → PostgreSQL (River): Task queue
-    → Collector: git clone + parsing
+    → Worker: git clone + parsing
     → PostgreSQL: Store results
     → Frontend: View results
 ```
@@ -46,10 +46,10 @@ User → Enter GitHub URL
 | Path                | Method        |
 | ------------------- | ------------- |
 | Frontend ↔ Backend | REST/HTTP     |
-| Backend → Collector | Message queue |
-| Collector → Core    | Library call  |
+| Backend → Worker    | Message queue |
+| Worker → Core       | Library call  |
 
 ## Scaling Strategy
 
-- Horizontal scaling of Collectors
+- Horizontal scaling of Workers
 - Analysis result caching

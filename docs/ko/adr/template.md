@@ -7,9 +7,9 @@ description: Specvital 아키텍처 의사결정 기록(ADR) 문서 템플릿
 
 > 🇺🇸 [English Version](/en/adr/XX-decision-title.md)
 
-| 날짜       | 작성자    | 리포지토리                  |
-| ---------- | --------- | --------------------------- |
-| YYYY-MM-DD | @username | core, web, collector, infra |
+| 날짜       | 작성자    | 리포지토리               |
+| ---------- | --------- | ------------------------ |
+| YYYY-MM-DD | @username | core, web, worker, infra |
 
 ## 배경
 

@@ -7,9 +7,9 @@ description: 독립적 스케일링과 장애 격리를 위한 API와 Worker 서
 
 > [English Version](/en/adr/03-api-worker-service-separation.md)
 
-| Date       | Author       | Repos          |
-| ---------- | ------------ | -------------- |
-| 2024-12-17 | @KubrickCode | web, collector |
+| Date       | Author       | Repos       |
+| ---------- | ------------ | ----------- |
+| 2024-12-17 | @KubrickCode | web, worker |
 
 ## Context
 
