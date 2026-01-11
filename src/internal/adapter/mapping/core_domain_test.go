@@ -106,6 +106,82 @@ func TestConvertCoreTestFile(t *testing.T) {
 	}
 }
 
+func TestConvertCoreTestFile_WithDomainHints(t *testing.T) {
+	coreFile := domain.TestFile{
+		Path:      "auth.test.ts",
+		Framework: "jest",
+		Language:  domain.LanguageTypeScript,
+		DomainHints: &domain.DomainHints{
+			Calls:   []string{"authService.validateToken", "userRepo.findById"},
+			Imports: []string{"@nestjs/jwt", "@nestjs/testing"},
+		},
+		Suites: []domain.TestSuite{},
+		Tests:  []domain.Test{},
+	}
+
+	result := convertCoreTestFile(coreFile)
+
+	if result.DomainHints == nil {
+		t.Fatal("expected DomainHints to be non-nil")
+	}
+	if len(result.DomainHints.Calls) != 2 {
+		t.Errorf("expected 2 calls, got %d", len(result.DomainHints.Calls))
+	}
+	if result.DomainHints.Calls[0] != "authService.validateToken" {
+		t.Errorf("expected first call 'authService.validateToken', got %s", result.DomainHints.Calls[0])
+	}
+	if len(result.DomainHints.Imports) != 2 {
+		t.Errorf("expected 2 imports, got %d", len(result.DomainHints.Imports))
+	}
+}
+
+func TestConvertDomainHints(t *testing.T) {
+	t.Run("nil input returns nil", func(t *testing.T) {
+		result := convertDomainHints(nil)
+		if result != nil {
+			t.Errorf("expected nil for nil input, got %v", result)
+		}
+	})
+
+	t.Run("converts hints correctly", func(t *testing.T) {
+		hints := &domain.DomainHints{
+			Calls:   []string{"service.method"},
+			Imports: []string{"package/module"},
+		}
+
+		result := convertDomainHints(hints)
+
+		if result == nil {
+			t.Fatal("expected non-nil result")
+		}
+		if len(result.Calls) != 1 || result.Calls[0] != "service.method" {
+			t.Errorf("unexpected Calls: %v", result.Calls)
+		}
+		if len(result.Imports) != 1 || result.Imports[0] != "package/module" {
+			t.Errorf("unexpected Imports: %v", result.Imports)
+		}
+	})
+
+	t.Run("empty slices", func(t *testing.T) {
+		hints := &domain.DomainHints{
+			Calls:   []string{},
+			Imports: []string{},
+		}
+
+		result := convertDomainHints(hints)
+
+		if result == nil {
+			t.Fatal("expected non-nil result")
+		}
+		if len(result.Calls) != 0 {
+			t.Errorf("expected empty Calls, got %v", result.Calls)
+		}
+		if len(result.Imports) != 0 {
+			t.Errorf("expected empty Imports, got %v", result.Imports)
+		}
+	})
+}
+
 func TestConvertCoreTestSuite(t *testing.T) {
 	coreSuite := domain.TestSuite{
 		Name: "suite 1",

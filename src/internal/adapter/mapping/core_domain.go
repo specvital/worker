@@ -33,10 +33,21 @@ func convertCoreTestFile(coreFile domain.TestFile) analysis.TestFile {
 	}
 
 	return analysis.TestFile{
-		Path:      coreFile.Path,
-		Framework: coreFile.Framework,
-		Suites:    domainSuites,
-		Tests:     domainTests,
+		DomainHints: convertDomainHints(coreFile.DomainHints),
+		Framework:   coreFile.Framework,
+		Path:        coreFile.Path,
+		Suites:      domainSuites,
+		Tests:       domainTests,
+	}
+}
+
+func convertDomainHints(coreHints *domain.DomainHints) *analysis.DomainHints {
+	if coreHints == nil {
+		return nil
+	}
+	return &analysis.DomainHints{
+		Calls:   coreHints.Calls,
+		Imports: coreHints.Imports,
 	}
 }
 
