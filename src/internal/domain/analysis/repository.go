@@ -19,6 +19,7 @@ type CreateAnalysisRecordParams struct {
 	CommitSHA      string
 	ExternalRepoID string
 	Owner          string
+	ParserVersion  string
 	Repo           string
 }
 
@@ -38,6 +39,9 @@ func (p CreateAnalysisRecordParams) Validate() error {
 	// ExternalRepoID: allows legacy placeholder for now, add required validation after GitHub API integration
 	if p.AnalysisID != nil && *p.AnalysisID == NilUUID {
 		return fmt.Errorf("%w: analysis ID cannot be nil UUID", ErrInvalidInput)
+	}
+	if p.ParserVersion == "" {
+		return fmt.Errorf("%w: parser version is required", ErrInvalidInput)
 	}
 	return nil
 }

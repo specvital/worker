@@ -24,20 +24,22 @@ const (
 
 // AnalyzeUseCase orchestrates repository analysis workflow.
 type AnalyzeUseCase struct {
-	cloneSem     *semaphore.Weighted
-	codebaseRepo analysis.CodebaseRepository
-	parser       analysis.Parser
-	repository   analysis.Repository
-	timeout      time.Duration
-	tokenLookup  analysis.TokenLookup
-	vcs          analysis.VCS
-	vcsAPIClient analysis.VCSAPIClient
+	cloneSem      *semaphore.Weighted
+	codebaseRepo  analysis.CodebaseRepository
+	parser        analysis.Parser
+	parserVersion string
+	repository    analysis.Repository
+	timeout       time.Duration
+	tokenLookup   analysis.TokenLookup
+	vcs           analysis.VCS
+	vcsAPIClient  analysis.VCSAPIClient
 }
 
 // Config holds configuration for AnalyzeUseCase.
 type Config struct {
 	AnalysisTimeout     time.Duration
 	MaxConcurrentClones int64
+	ParserVersion       string
 }
 
 // Option is a functional option for configuring AnalyzeUseCase.
@@ -63,6 +65,14 @@ func WithMaxConcurrentClones(n int64) Option {
 	}
 }
 
+// WithParserVersion sets the parser version to be recorded with each analysis.
+// This should be set to the core module version extracted at startup.
+func WithParserVersion(v string) Option {
+	return func(cfg *Config) {
+		cfg.ParserVersion = v
+	}
+}
+
 // NewAnalyzeUseCase creates a new AnalyzeUseCase with given dependencies.
 // tokenLookup is optional - if nil, all clones use public access (token=nil).
 func NewAnalyzeUseCase(
@@ -84,14 +94,15 @@ func NewAnalyzeUseCase(
 	}
 
 	return &AnalyzeUseCase{
-		cloneSem:     semaphore.NewWeighted(cfg.MaxConcurrentClones),
-		codebaseRepo: codebaseRepo,
-		parser:       parser,
-		repository:   repository,
-		timeout:      cfg.AnalysisTimeout,
-		tokenLookup:  tokenLookup,
-		vcs:          vcs,
-		vcsAPIClient: vcsAPIClient,
+		cloneSem:      semaphore.NewWeighted(cfg.MaxConcurrentClones),
+		codebaseRepo:  codebaseRepo,
+		parser:        parser,
+		parserVersion: cfg.ParserVersion,
+		repository:    repository,
+		timeout:       cfg.AnalysisTimeout,
+		tokenLookup:   tokenLookup,
+		vcs:           vcs,
+		vcsAPIClient:  vcsAPIClient,
 	}
 }
 
@@ -132,6 +143,7 @@ func (uc *AnalyzeUseCase) Execute(ctx context.Context, req analysis.AnalyzeReque
 		CommitSHA:      src.CommitSHA(),
 		ExternalRepoID: codebase.ExternalRepoID,
 		Owner:          codebase.Owner,
+		ParserVersion:  uc.parserVersion,
 		Repo:           codebase.Name,
 	}
 	if err = createParams.Validate(); err != nil {

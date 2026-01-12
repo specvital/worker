@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/specvital/worker/internal/app"
+	"github.com/specvital/worker/internal/infra/buildinfo"
 	"github.com/specvital/worker/internal/infra/db"
 	infraqueue "github.com/specvital/worker/internal/infra/queue"
 )
@@ -70,12 +71,14 @@ func StartAnalyzer(cfg AnalyzerConfig) error {
 
 	slog.Info("postgres connected")
 
-	if err := registerParserVersion(ctx, pool); err != nil {
+	parserVersion := buildinfo.ExtractCoreVersion()
+	if err := registerParserVersion(ctx, pool, parserVersion); err != nil {
 		return fmt.Errorf("register parser version: %w", err)
 	}
 
 	container, err := app.NewAnalyzerContainer(ctx, app.ContainerConfig{
 		EncryptionKey: cfg.EncryptionKey,
+		ParserVersion: parserVersion,
 		Pool:          pool,
 	})
 	if err != nil {

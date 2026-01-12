@@ -23,8 +23,8 @@ WHERE host = $1 AND owner = $2 AND name = $3 AND is_stale = false;
 SELECT * FROM codebases WHERE id = $1;
 
 -- name: CreateAnalysis :one
-INSERT INTO analyses (id, codebase_id, commit_sha, branch_name, status, started_at)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO analyses (id, codebase_id, commit_sha, branch_name, status, started_at, parser_version)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING *;
 
 -- name: UpdateAnalysisCompleted :exec
@@ -89,7 +89,8 @@ WITH latest_completions AS (
     SELECT DISTINCT ON (codebase_id)
         codebase_id,
         completed_at,
-        commit_sha
+        commit_sha,
+        parser_version
     FROM analyses
     WHERE status = 'completed'
     ORDER BY codebase_id, completed_at DESC
@@ -108,6 +109,7 @@ SELECT
     c.id, c.host, c.owner, c.name, c.last_viewed_at,
     lc.completed_at as last_completed_at,
     lc.commit_sha as last_commit_sha,
+    COALESCE(lc.parser_version, 'legacy') as last_parser_version,
     COALESCE(fc.failure_count, 0)::int as consecutive_failures
 FROM codebases c
 LEFT JOIN latest_completions lc ON c.id = lc.codebase_id

@@ -12,18 +12,19 @@ import (
 )
 
 const createAnalysis = `-- name: CreateAnalysis :one
-INSERT INTO analyses (id, codebase_id, commit_sha, branch_name, status, started_at)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO analyses (id, codebase_id, commit_sha, branch_name, status, started_at, parser_version)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING id, codebase_id, commit_sha, branch_name, status, error_message, started_at, completed_at, created_at, total_suites, total_tests, committed_at, parser_version
 `
 
 type CreateAnalysisParams struct {
-	ID         pgtype.UUID        `json:"id"`
-	CodebaseID pgtype.UUID        `json:"codebase_id"`
-	CommitSha  string             `json:"commit_sha"`
-	BranchName pgtype.Text        `json:"branch_name"`
-	Status     AnalysisStatus     `json:"status"`
-	StartedAt  pgtype.Timestamptz `json:"started_at"`
+	ID            pgtype.UUID        `json:"id"`
+	CodebaseID    pgtype.UUID        `json:"codebase_id"`
+	CommitSha     string             `json:"commit_sha"`
+	BranchName    pgtype.Text        `json:"branch_name"`
+	Status        AnalysisStatus     `json:"status"`
+	StartedAt     pgtype.Timestamptz `json:"started_at"`
+	ParserVersion string             `json:"parser_version"`
 }
 
 func (q *Queries) CreateAnalysis(ctx context.Context, arg CreateAnalysisParams) (Analysis, error) {
@@ -34,6 +35,7 @@ func (q *Queries) CreateAnalysis(ctx context.Context, arg CreateAnalysisParams) 
 		arg.BranchName,
 		arg.Status,
 		arg.StartedAt,
+		arg.ParserVersion,
 	)
 	var i Analysis
 	err := row.Scan(
@@ -233,7 +235,8 @@ WITH latest_completions AS (
     SELECT DISTINCT ON (codebase_id)
         codebase_id,
         completed_at,
-        commit_sha
+        commit_sha,
+        parser_version
     FROM analyses
     WHERE status = 'completed'
     ORDER BY codebase_id, completed_at DESC
@@ -252,6 +255,7 @@ SELECT
     c.id, c.host, c.owner, c.name, c.last_viewed_at,
     lc.completed_at as last_completed_at,
     lc.commit_sha as last_commit_sha,
+    COALESCE(lc.parser_version, 'legacy') as last_parser_version,
     COALESCE(fc.failure_count, 0)::int as consecutive_failures
 FROM codebases c
 LEFT JOIN latest_completions lc ON c.id = lc.codebase_id
@@ -270,6 +274,7 @@ type GetCodebasesForAutoRefreshRow struct {
 	LastViewedAt        pgtype.Timestamptz `json:"last_viewed_at"`
 	LastCompletedAt     pgtype.Timestamptz `json:"last_completed_at"`
 	LastCommitSha       pgtype.Text        `json:"last_commit_sha"`
+	LastParserVersion   string             `json:"last_parser_version"`
 	ConsecutiveFailures int32              `json:"consecutive_failures"`
 }
 
@@ -290,6 +295,7 @@ func (q *Queries) GetCodebasesForAutoRefresh(ctx context.Context) ([]GetCodebase
 			&i.LastViewedAt,
 			&i.LastCompletedAt,
 			&i.LastCommitSha,
+			&i.LastParserVersion,
 			&i.ConsecutiveFailures,
 		); err != nil {
 			return nil, err

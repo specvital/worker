@@ -2,7 +2,6 @@ package bootstrap
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/specvital/worker/internal/adapter/repository/postgres"
@@ -20,41 +19,43 @@ func TestRegisterParserVersion(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("should register parser version to system_config", func(t *testing.T) {
-		err := registerParserVersion(ctx, pool)
+		testVersion := "v1.0.0-0.20260112121406-abc123def456"
+		err := registerParserVersion(ctx, pool, testVersion)
 		if err != nil {
 			t.Fatalf("registerParserVersion failed: %v", err)
 		}
 
 		repo := postgres.NewSystemConfigRepository(pool)
 		value, err := repo.Get(ctx, postgres.ConfigKeyParserVersion)
-
-		// In test environment, version may be "unknown" and registration skipped
 		if err != nil {
-			if errors.Is(err, postgres.ErrConfigNotFound) {
-				// This is expected when running with "go test" (version = "unknown")
-				t.Log("parser version unknown (expected in test environment), skipping verification")
-				return
-			}
 			t.Fatalf("Get parser_version failed: %v", err)
 		}
 
-		if value == "" {
-			t.Error("expected non-empty parser version")
+		if value != testVersion {
+			t.Errorf("expected %q, got %q", testVersion, value)
 		}
-		t.Logf("registered parser version: %s", value)
 	})
 
 	t.Run("should be idempotent (multiple calls succeed)", func(t *testing.T) {
+		testVersion := "v1.0.0-0.20260112121406-abc123def456"
 		// First call
-		err := registerParserVersion(ctx, pool)
+		err := registerParserVersion(ctx, pool, testVersion)
 		if err != nil {
 			t.Fatalf("first registerParserVersion failed: %v", err)
 		}
 
 		// Second call should also succeed (upsert)
-		err = registerParserVersion(ctx, pool)
+		err = registerParserVersion(ctx, pool, testVersion)
 		if err != nil {
 			t.Fatalf("second registerParserVersion failed: %v", err)
 		}
+	})
+
+	t.Run("should skip registration when version is unknown", func(t *testing.T) {
+		err := registerParserVersion(ctx, pool, "unknown")
+		if err != nil {
+			t.Fatalf("registerParserVersion failed: %v", err)
+		}
+		// No error means it successfully skipped
 	})
 }

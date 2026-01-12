@@ -12,6 +12,8 @@ import (
 	uc "github.com/specvital/worker/internal/usecase/analysis"
 )
 
+const testParserVersion = "v1.0.0-test"
+
 // Mock implementations for testing
 
 type mockVCS struct {
@@ -218,7 +220,7 @@ func TestNewAnalyzeWorker(t *testing.T) {
 	repo, vcs, parser := newSuccessfulMocks()
 	codebaseRepo := &mockCodebaseRepository{}
 	vcsAPI := &mockVCSAPIClient{}
-	analyzeUC := uc.NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil)
+	analyzeUC := uc.NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil, uc.WithParserVersion(testParserVersion))
 
 	worker := NewAnalyzeWorker(analyzeUC)
 
@@ -352,7 +354,7 @@ func TestAnalyzeWorker_Work(t *testing.T) {
 			repo, vcs, parser := tt.setupMocks()
 			codebaseRepo := &mockCodebaseRepository{}
 			vcsAPI := &mockVCSAPIClient{}
-			analyzeUC := uc.NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil)
+			analyzeUC := uc.NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil, uc.WithParserVersion(testParserVersion))
 			worker := NewAnalyzeWorker(analyzeUC)
 
 			job := newTestJob(tt.args)
@@ -395,7 +397,7 @@ func TestAnalyzeWorker_Work_ContextPropagation(t *testing.T) {
 
 		codebaseRepo := &mockCodebaseRepository{}
 		vcsAPI := &mockVCSAPIClient{}
-		analyzeUC := uc.NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil)
+		analyzeUC := uc.NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil, uc.WithParserVersion(testParserVersion))
 		worker := NewAnalyzeWorker(analyzeUC)
 
 		job := newTestJob(AnalyzeArgs{Owner: "owner", Repo: "repo", CommitSHA: "abc123"})
@@ -424,7 +426,7 @@ func TestAnalyzeWorker_Work_ContextPropagation(t *testing.T) {
 
 		codebaseRepo := &mockCodebaseRepository{}
 		vcsAPI := &mockVCSAPIClient{}
-		analyzeUC := uc.NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil)
+		analyzeUC := uc.NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil, uc.WithParserVersion(testParserVersion))
 		worker := NewAnalyzeWorker(analyzeUC)
 
 		job := newTestJob(AnalyzeArgs{Owner: "owner", Repo: "repo", CommitSHA: "abc123"})
@@ -523,7 +525,7 @@ func TestAnalyzeWorker_Work_ErrorPropagation(t *testing.T) {
 			repo, vcs, parser := tt.setupMock()
 			codebaseRepo := &mockCodebaseRepository{}
 			vcsAPI := &mockVCSAPIClient{}
-			analyzeUC := uc.NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil)
+			analyzeUC := uc.NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil, uc.WithParserVersion(testParserVersion))
 			worker := NewAnalyzeWorker(analyzeUC)
 
 			job := newTestJob(tt.args)
@@ -565,7 +567,7 @@ func TestAnalyzeWorker_Work_AlreadyCompleted(t *testing.T) {
 
 		codebaseRepo := &mockCodebaseRepository{}
 		vcsAPI := &mockVCSAPIClient{}
-		analyzeUC := uc.NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil)
+		analyzeUC := uc.NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil, uc.WithParserVersion(testParserVersion))
 		worker := NewAnalyzeWorker(analyzeUC)
 
 		job := newTestJob(AnalyzeArgs{Owner: "owner", Repo: "repo", CommitSHA: "abc123"})

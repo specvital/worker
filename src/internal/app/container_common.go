@@ -11,6 +11,7 @@ const schedulerLockKey = "scheduler:auto-refresh:lock"
 // ContainerConfig holds common configuration for dependency injection containers.
 type ContainerConfig struct {
 	EncryptionKey string
+	ParserVersion string
 	Pool          *pgxpool.Pool
 }
 
@@ -29,6 +30,9 @@ func (c ContainerConfig) ValidateAnalyzer() error {
 	}
 	if c.EncryptionKey == "" {
 		return fmt.Errorf("encryption key is required")
+	}
+	if c.ParserVersion == "" {
+		return fmt.Errorf("parser version is required")
 	}
 	return nil
 }

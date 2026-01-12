@@ -14,6 +14,8 @@ import (
 	testdb "github.com/specvital/worker/internal/testutil/postgres"
 )
 
+const testParserVersion = "v1.0.0-test"
+
 func TestAnalysisRepository_SaveAnalysisResult(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test")
@@ -31,7 +33,8 @@ func TestAnalysisRepository_SaveAnalysisResult(t *testing.T) {
 			Repo:           "testrepo",
 			CommitSHA:      "abc123def456",
 			Branch:         "main",
-			ExternalRepoID: "12345",
+			ExternalRepoID:  "12345",
+			ParserVersion:  testParserVersion,
 			Result: &parser.ScanResult{
 				Inventory: &domain.Inventory{
 					Files: []domain.TestFile{
@@ -121,7 +124,8 @@ func TestAnalysisRepository_SaveAnalysisResult(t *testing.T) {
 			Repo:           "repo2",
 			CommitSHA:      "def789",
 			Branch:         "develop",
-			ExternalRepoID: "22222",
+			ExternalRepoID:  "22222",
+			ParserVersion:  testParserVersion,
 			Result: &parser.ScanResult{
 				Inventory: &domain.Inventory{
 					Files: []domain.TestFile{
@@ -204,7 +208,8 @@ func TestAnalysisRepository_SaveAnalysisResult(t *testing.T) {
 			Repo:           "repo3",
 			CommitSHA:      "ghi012",
 			Branch:         "main",
-			ExternalRepoID: "33333",
+			ExternalRepoID:  "33333",
+			ParserVersion:  testParserVersion,
 			Result: &parser.ScanResult{
 				Inventory: &domain.Inventory{
 					Files: []domain.TestFile{
@@ -250,7 +255,8 @@ func TestAnalysisRepository_SaveAnalysisResult(t *testing.T) {
 			Repo:           "repo4",
 			CommitSHA:      "jkl345",
 			Branch:         "main",
-			ExternalRepoID: "44444",
+			ExternalRepoID:  "44444",
+			ParserVersion:  testParserVersion,
 			Result:         &parser.ScanResult{Inventory: nil},
 		}
 
@@ -287,7 +293,8 @@ func TestAnalysisRepository_TransactionRollback(t *testing.T) {
 			Repo:           "rollback-repo",
 			CommitSHA:      "same-commit-sha",
 			Branch:         "main",
-			ExternalRepoID: "rollback-id",
+			ExternalRepoID:  "rollback-id",
+			ParserVersion:  testParserVersion,
 			Result:         &parser.ScanResult{Inventory: nil},
 		}
 
@@ -329,7 +336,8 @@ func TestAnalysisRepository_RecordFailure(t *testing.T) {
 			Repo:           "test-repo",
 			CommitSHA:      "abc123",
 			Branch:         "main",
-			ExternalRepoID: "failure-test-1",
+			ExternalRepoID:  "failure-test-1",
+			ParserVersion:  testParserVersion,
 		})
 		if err != nil {
 			t.Fatalf("CreateAnalysisRecord failed: %v", err)
@@ -369,7 +377,8 @@ func TestAnalysisRepository_RecordFailure(t *testing.T) {
 			Repo:           "empty-err-repo",
 			CommitSHA:      "empty123",
 			Branch:         "main",
-			ExternalRepoID: "empty-err-id",
+			ExternalRepoID:  "empty-err-id",
+			ParserVersion:  testParserVersion,
 		})
 		err := repo.RecordFailure(ctx, analysisID, "")
 		if !errors.Is(err, analysis.ErrInvalidInput) {
@@ -395,7 +404,8 @@ func TestAnalysisRepository_CreateAnalysisRecord(t *testing.T) {
 			Repo:           "create-repo",
 			CommitSHA:      "def456",
 			Branch:         "develop",
-			ExternalRepoID: "create-id",
+			ExternalRepoID:  "create-id",
+			ParserVersion:  testParserVersion,
 		})
 		if err != nil {
 			t.Fatalf("CreateAnalysisRecord failed: %v", err)
@@ -435,7 +445,8 @@ func TestAnalysisRepository_SaveAnalysisInventory(t *testing.T) {
 			Repo:           "domain-repo",
 			CommitSHA:      "xyz789",
 			Branch:         "main",
-			ExternalRepoID: "domain-id",
+			ExternalRepoID:  "domain-id",
+			ParserVersion:  testParserVersion,
 		})
 		if err != nil {
 			t.Fatalf("CreateAnalysisRecord failed: %v", err)
@@ -608,13 +619,25 @@ func TestSaveAnalysisResultParams_Validate(t *testing.T) {
 		{
 			name: "valid",
 			params: SaveAnalysisResultParams{
+				Owner:         "owner",
+				Repo:          "repo",
+				CommitSHA:     "abc123",
+				Branch:        "main",
+				ParserVersion: testParserVersion,
+				Result:        &parser.ScanResult{},
+			},
+			wantErr: false,
+		},
+		{
+			name: "missing parser version",
+			params: SaveAnalysisResultParams{
 				Owner:     "owner",
 				Repo:      "repo",
 				CommitSHA: "abc123",
 				Branch:    "main",
 				Result:    &parser.ScanResult{},
 			},
-			wantErr: false,
+			wantErr: true,
 		},
 		{
 			name: "missing owner",
@@ -842,7 +865,8 @@ func TestAnalysisRepository_DomainHints(t *testing.T) {
 			Repo:           "hints-repo",
 			CommitSHA:      "hints123",
 			Branch:         "main",
-			ExternalRepoID: "hints-id-1",
+			ExternalRepoID:  "hints-id-1",
+			ParserVersion:  testParserVersion,
 		})
 		if err != nil {
 			t.Fatalf("CreateAnalysisRecord failed: %v", err)
@@ -929,7 +953,8 @@ func TestAnalysisRepository_DomainHints(t *testing.T) {
 			Repo:           "nil-hints-repo",
 			CommitSHA:      "nilhints123",
 			Branch:         "main",
-			ExternalRepoID: "nil-hints-id",
+			ExternalRepoID:  "nil-hints-id",
+			ParserVersion:  testParserVersion,
 		})
 		if err != nil {
 			t.Fatalf("CreateAnalysisRecord failed: %v", err)
@@ -988,7 +1013,8 @@ func TestAnalysisRepository_DomainHints(t *testing.T) {
 			Repo:           "empty-hints-repo",
 			CommitSHA:      "emptyhints123",
 			Branch:         "main",
-			ExternalRepoID: "empty-hints-id",
+			ExternalRepoID:  "empty-hints-id",
+			ParserVersion:  testParserVersion,
 		})
 		if err != nil {
 			t.Fatalf("CreateAnalysisRecord failed: %v", err)
@@ -1076,7 +1102,8 @@ func TestAnalysisRepository_FileIdRelationship(t *testing.T) {
 			Repo:           "fileid-repo",
 			CommitSHA:      "fileid123",
 			Branch:         "main",
-			ExternalRepoID: "fileid-id-1",
+			ExternalRepoID:  "fileid-id-1",
+			ParserVersion:  testParserVersion,
 		})
 		if err != nil {
 			t.Fatalf("CreateAnalysisRecord failed: %v", err)
@@ -1189,7 +1216,8 @@ func TestAnalysisRepository_FileIdRelationship(t *testing.T) {
 			Repo:           "cascade-repo",
 			CommitSHA:      "cascade123",
 			Branch:         "main",
-			ExternalRepoID: "cascade-id-1",
+			ExternalRepoID:  "cascade-id-1",
+			ParserVersion:  testParserVersion,
 		})
 		if err != nil {
 			t.Fatalf("CreateAnalysisRecord failed: %v", err)
@@ -1298,7 +1326,8 @@ func TestAnalysisRepository_FileIdRelationship(t *testing.T) {
 			Repo:           "reverse-repo",
 			CommitSHA:      "reverse123",
 			Branch:         "main",
-			ExternalRepoID: "reverse-id-1",
+			ExternalRepoID:  "reverse-id-1",
+			ParserVersion:  testParserVersion,
 		})
 		if err != nil {
 			t.Fatalf("CreateAnalysisRecord failed: %v", err)
@@ -1410,7 +1439,8 @@ func TestAnalysisRepository_UserAnalysisHistory(t *testing.T) {
 			Repo:           "history-repo",
 			CommitSHA:      "hist123",
 			Branch:         "main",
-			ExternalRepoID: "history-id-1",
+			ExternalRepoID:  "history-id-1",
+			ParserVersion:  testParserVersion,
 		})
 		if err != nil {
 			t.Fatalf("CreateAnalysisRecord failed: %v", err)
@@ -1468,7 +1498,8 @@ func TestAnalysisRepository_UserAnalysisHistory(t *testing.T) {
 			Repo:           "anon-repo",
 			CommitSHA:      "anon123",
 			Branch:         "main",
-			ExternalRepoID: "anon-id-1",
+			ExternalRepoID:  "anon-id-1",
+			ParserVersion:  testParserVersion,
 		})
 		if err != nil {
 			t.Fatalf("CreateAnalysisRecord failed: %v", err)
@@ -1529,7 +1560,8 @@ func TestAnalysisRepository_UserAnalysisHistory(t *testing.T) {
 			Repo:           "reanalysis-repo",
 			CommitSHA:      "commit1",
 			Branch:         "main",
-			ExternalRepoID: "reanalysis-id",
+			ExternalRepoID:  "reanalysis-id",
+			ParserVersion:  testParserVersion,
 		})
 		if err != nil {
 			t.Fatalf("first CreateAnalysisRecord failed: %v", err)
@@ -1626,7 +1658,8 @@ func TestAnalysisRepository_UserAnalysisHistory(t *testing.T) {
 			Repo:           "shared-repo",
 			CommitSHA:      "shared123",
 			Branch:         "main",
-			ExternalRepoID: "shared-id",
+			ExternalRepoID:  "shared-id",
+			ParserVersion:  testParserVersion,
 		})
 		if err != nil {
 			t.Fatalf("CreateAnalysisRecord failed: %v", err)

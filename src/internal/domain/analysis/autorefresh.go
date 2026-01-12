@@ -15,6 +15,7 @@ type CodebaseRefreshInfo struct {
 	ID                  UUID
 	LastCommitSHA       string
 	LastCompletedAt     *time.Time
+	LastParserVersion   string
 	LastViewedAt        time.Time
 	Name                string
 	Owner               string

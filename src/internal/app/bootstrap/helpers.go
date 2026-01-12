@@ -33,10 +33,9 @@ func maskURL(rawURL string) string {
 	return fmt.Sprintf("%s://%s%s/...", parsed.Scheme, userPart, host)
 }
 
-// registerParserVersion writes the current core module version to system_config.
+// registerParserVersion writes the given core module version to system_config.
 // This allows tracking which parser version produced each analysis.
-func registerParserVersion(ctx context.Context, pool *pgxpool.Pool) error {
-	version := buildinfo.ExtractCoreVersion()
+func registerParserVersion(ctx context.Context, pool *pgxpool.Pool, version string) error {
 	if version == "unknown" {
 		slog.Warn("parser version unknown, skipping registration")
 		return nil

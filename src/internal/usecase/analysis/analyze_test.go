@@ -9,6 +9,8 @@ import (
 	"github.com/specvital/worker/internal/domain/analysis"
 )
 
+const testParserVersion = "v1.0.0-test"
+
 // Mock implementations
 
 type mockVCS struct {
@@ -512,7 +514,7 @@ func TestAnalyzeUseCase_Execute(t *testing.T) {
 			vcs, parser, repo := tt.setupMocks()
 			codebaseRepo := newSuccessfulCodebaseRepository()
 			vcsAPI := newSuccessfulVCSAPIClient()
-			uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil)
+			uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil, WithParserVersion(testParserVersion))
 
 			err := uc.Execute(context.Background(), tt.request)
 
@@ -556,7 +558,7 @@ func TestAnalyzeUseCase_Execute_Timeout(t *testing.T) {
 		vcsAPI := newSuccessfulVCSAPIClient()
 		parser := &mockParser{}
 
-		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil, WithAnalysisTimeout(50*time.Millisecond))
+		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil, WithAnalysisTimeout(50*time.Millisecond), WithParserVersion(testParserVersion))
 
 		err := uc.Execute(context.Background(), newValidRequest())
 
@@ -609,7 +611,7 @@ func TestAnalyzeUseCase_Options(t *testing.T) {
 			vcsAPI := newSuccessfulVCSAPIClient()
 			parser := &mockParser{}
 
-			uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil, tt.opts...)
+			uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil, append(tt.opts, WithParserVersion(testParserVersion))...)
 
 			if uc.timeout != tt.expectedTimeout {
 				t.Errorf("expected timeout %v, got %v", tt.expectedTimeout, uc.timeout)
@@ -626,7 +628,7 @@ func TestAnalyzeUseCase_MaxConcurrentClones(t *testing.T) {
 		vcsAPI := newSuccessfulVCSAPIClient()
 		parser := &mockParser{}
 
-		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil, WithMaxConcurrentClones(5))
+		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil, WithMaxConcurrentClones(5), WithParserVersion(testParserVersion))
 
 		if uc.cloneSem == nil {
 			t.Error("expected cloneSem to be initialized")
@@ -640,7 +642,7 @@ func TestAnalyzeUseCase_MaxConcurrentClones(t *testing.T) {
 		vcsAPI := newSuccessfulVCSAPIClient()
 		parser := &mockParser{}
 
-		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil, WithMaxConcurrentClones(0))
+		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil, WithMaxConcurrentClones(0), WithParserVersion(testParserVersion))
 
 		if uc.cloneSem == nil {
 			t.Error("expected cloneSem to be initialized with default")
@@ -654,7 +656,7 @@ func TestAnalyzeUseCase_MaxConcurrentClones(t *testing.T) {
 		vcsAPI := newSuccessfulVCSAPIClient()
 		parser := &mockParser{}
 
-		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil, WithMaxConcurrentClones(-1))
+		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil, WithMaxConcurrentClones(-1), WithParserVersion(testParserVersion))
 
 		if uc.cloneSem == nil {
 			t.Error("expected cloneSem to be initialized with default")
@@ -677,7 +679,7 @@ func TestAnalyzeUseCase_SourceCleanup(t *testing.T) {
 		repo := newSuccessfulRepository()
 		parser := newSuccessfulParser()
 
-		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil)
+		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil, WithParserVersion(testParserVersion))
 
 		err := uc.Execute(context.Background(), newValidRequest())
 
@@ -717,7 +719,7 @@ func TestAnalyzeUseCase_SourceCleanup(t *testing.T) {
 			},
 		}
 
-		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil)
+		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil, WithParserVersion(testParserVersion))
 
 		err := uc.Execute(context.Background(), newValidRequest())
 
@@ -759,7 +761,7 @@ func TestAnalyzeUseCase_TokenLookup(t *testing.T) {
 			},
 		}
 
-		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, tokenLookup)
+		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, tokenLookup, WithParserVersion(testParserVersion))
 
 		userID := "user-123"
 		req := analysis.AnalyzeRequest{
@@ -804,7 +806,7 @@ func TestAnalyzeUseCase_TokenLookup(t *testing.T) {
 			},
 		}
 
-		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, tokenLookup)
+		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, tokenLookup, WithParserVersion(testParserVersion))
 
 		req := analysis.AnalyzeRequest{
 			Owner:     "testowner",
@@ -847,7 +849,7 @@ func TestAnalyzeUseCase_TokenLookup(t *testing.T) {
 			},
 		}
 
-		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, tokenLookup)
+		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, tokenLookup, WithParserVersion(testParserVersion))
 
 		userID := "user-123"
 		req := analysis.AnalyzeRequest{
@@ -886,7 +888,7 @@ func TestAnalyzeUseCase_TokenLookup(t *testing.T) {
 			},
 		}
 
-		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, tokenLookup)
+		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, tokenLookup, WithParserVersion(testParserVersion))
 
 		userID := "user-123"
 		req := analysis.AnalyzeRequest{
@@ -927,7 +929,7 @@ func TestAnalyzeUseCase_TokenLookup(t *testing.T) {
 			},
 		}
 
-		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, tokenLookup)
+		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, tokenLookup, WithParserVersion(testParserVersion))
 
 		userID := "user-123"
 		req := analysis.AnalyzeRequest{
@@ -962,7 +964,7 @@ func TestAnalyzeUseCase_TokenLookup(t *testing.T) {
 		repo := newSuccessfulRepository()
 		parser := newSuccessfulParser()
 
-		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil)
+		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil, WithParserVersion(testParserVersion))
 
 		userID := "user-123"
 		req := analysis.AnalyzeRequest{
@@ -1014,7 +1016,7 @@ func TestResolveCodebase(t *testing.T) {
 		}
 		vcsAPI := newSuccessfulVCSAPIClient()
 
-		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil)
+		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil, WithParserVersion(testParserVersion))
 		err := uc.Execute(context.Background(), newValidRequest())
 
 		if err != nil {
@@ -1063,7 +1065,7 @@ func TestResolveCodebase(t *testing.T) {
 			},
 		}
 
-		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil)
+		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil, WithParserVersion(testParserVersion))
 		err := uc.Execute(context.Background(), newValidRequest())
 
 		if err != nil {
@@ -1111,7 +1113,7 @@ func TestResolveCodebase(t *testing.T) {
 		}
 		vcsAPI := newSuccessfulVCSAPIClient()
 
-		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil)
+		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil, WithParserVersion(testParserVersion))
 		err := uc.Execute(context.Background(), newValidRequest())
 
 		if err != nil {
@@ -1173,7 +1175,7 @@ func TestResolveCodebase(t *testing.T) {
 			},
 		}
 
-		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil)
+		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil, WithParserVersion(testParserVersion))
 		err := uc.Execute(context.Background(), newValidRequest())
 
 		if err != nil {
@@ -1221,7 +1223,7 @@ func TestResolveCodebase(t *testing.T) {
 		}
 		vcsAPI := newSuccessfulVCSAPIClient()
 
-		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil)
+		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil, WithParserVersion(testParserVersion))
 		err := uc.Execute(context.Background(), newValidRequest())
 
 		if err != nil {
@@ -1247,7 +1249,7 @@ func TestResolveCodebase(t *testing.T) {
 			},
 		}
 
-		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil)
+		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil, WithParserVersion(testParserVersion))
 		err := uc.Execute(context.Background(), newValidRequest())
 
 		if err == nil {
@@ -1280,7 +1282,7 @@ func TestResolveCodebase(t *testing.T) {
 			},
 		}
 
-		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil)
+		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil, WithParserVersion(testParserVersion))
 		err := uc.Execute(context.Background(), newValidRequest())
 
 		if err == nil {
@@ -1313,7 +1315,7 @@ func TestResolveCodebase(t *testing.T) {
 			},
 		}
 
-		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil)
+		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil, WithParserVersion(testParserVersion))
 		err := uc.Execute(context.Background(), newValidRequest())
 
 		if err == nil {
@@ -1346,7 +1348,7 @@ func TestResolveCodebase(t *testing.T) {
 			},
 		}
 
-		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil)
+		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil, WithParserVersion(testParserVersion))
 		err := uc.Execute(context.Background(), newValidRequest())
 
 		if err == nil {
@@ -1385,7 +1387,7 @@ func TestResolveCodebase(t *testing.T) {
 			},
 		}
 
-		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil)
+		uc := NewAnalyzeUseCase(repo, codebaseRepo, vcs, vcsAPI, parser, nil, WithParserVersion(testParserVersion))
 		err := uc.Execute(context.Background(), newValidRequest())
 
 		if errors.Is(err, ErrRaceConditionDetected) {

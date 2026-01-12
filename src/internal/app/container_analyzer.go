@@ -38,7 +38,10 @@ func NewAnalyzerContainer(ctx context.Context, cfg ContainerConfig) (*AnalyzerCo
 	gitVCS := vcs.NewGitVCS()
 	githubAPIClient := vcs.NewGitHubAPIClient(nil)
 	coreParser := parser.NewCoreParser()
-	analyzeUC := uc.NewAnalyzeUseCase(analysisRepo, codebaseRepo, gitVCS, githubAPIClient, coreParser, userRepo)
+	analyzeUC := uc.NewAnalyzeUseCase(
+		analysisRepo, codebaseRepo, gitVCS, githubAPIClient, coreParser, userRepo,
+		uc.WithParserVersion(cfg.ParserVersion),
+	)
 	analyzeWorker := analyze.NewAnalyzeWorker(analyzeUC)
 
 	workers := river.NewWorkers()

@@ -37,6 +37,7 @@ type SaveAnalysisResultParams struct {
 	CommitSHA      string
 	ExternalRepoID string
 	Owner          string
+	ParserVersion  string
 	Repo           string
 	Result         *parser.ScanResult
 }
@@ -47,6 +48,7 @@ func (p SaveAnalysisResultParams) Validate() error {
 		CommitSHA:      p.CommitSHA,
 		ExternalRepoID: p.ExternalRepoID,
 		Owner:          p.Owner,
+		ParserVersion:  p.ParserVersion,
 		Repo:           p.Repo,
 	}
 	if err := domainParams.Validate(); err != nil {
@@ -112,12 +114,13 @@ func (r *AnalysisRepository) CreateAnalysisRecord(ctx context.Context, params an
 	}
 
 	dbAnalysis, err := queries.CreateAnalysis(ctx, db.CreateAnalysisParams{
-		ID:         toPgUUID(analysisID),
-		CodebaseID: codebaseID,
-		CommitSha:  params.CommitSHA,
-		BranchName: pgtype.Text{String: params.Branch, Valid: params.Branch != ""},
-		Status:     db.AnalysisStatusRunning,
-		StartedAt:  pgtype.Timestamptz{Time: startedAt, Valid: true},
+		ID:            toPgUUID(analysisID),
+		CodebaseID:    codebaseID,
+		CommitSha:     params.CommitSHA,
+		BranchName:    pgtype.Text{String: params.Branch, Valid: params.Branch != ""},
+		Status:        db.AnalysisStatusRunning,
+		StartedAt:     pgtype.Timestamptz{Time: startedAt, Valid: true},
+		ParserVersion: params.ParserVersion,
 	})
 	if err != nil {
 		var pgErr *pgconn.PgError
@@ -279,12 +282,13 @@ func (r *AnalysisRepository) SaveAnalysisResult(ctx context.Context, params Save
 
 	analysisID := analysis.NewUUID()
 	dbAnalysis, err := queries.CreateAnalysis(ctx, db.CreateAnalysisParams{
-		ID:         toPgUUID(analysisID),
-		CodebaseID: codebase.ID,
-		CommitSha:  params.CommitSHA,
-		BranchName: pgtype.Text{String: params.Branch, Valid: params.Branch != ""},
-		Status:     db.AnalysisStatusRunning,
-		StartedAt:  pgtype.Timestamptz{Time: startedAt, Valid: true},
+		ID:            toPgUUID(analysisID),
+		CodebaseID:    codebase.ID,
+		CommitSha:     params.CommitSHA,
+		BranchName:    pgtype.Text{String: params.Branch, Valid: params.Branch != ""},
+		Status:        db.AnalysisStatusRunning,
+		StartedAt:     pgtype.Timestamptz{Time: startedAt, Valid: true},
+		ParserVersion: params.ParserVersion,
 	})
 	if err != nil {
 		return fmt.Errorf("create analysis: %w", err)
@@ -361,6 +365,7 @@ func (r *AnalysisRepository) GetCodebasesForAutoRefresh(ctx context.Context) ([]
 			ConsecutiveFailures: int(row.ConsecutiveFailures),
 			Host:                row.Host,
 			ID:                  fromPgUUID(row.ID),
+			LastParserVersion:   row.LastParserVersion,
 			LastViewedAt:        row.LastViewedAt.Time,
 			Name:                row.Name,
 			Owner:               row.Owner,

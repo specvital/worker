@@ -9,6 +9,8 @@ import (
 	testdb "github.com/specvital/worker/internal/testutil/postgres"
 )
 
+const codebaseTestParserVersion = "v1.0.0-test"
+
 func TestCodebaseRepository_FindByExternalID(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test")
@@ -27,7 +29,8 @@ func TestCodebaseRepository_FindByExternalID(t *testing.T) {
 			Repo:           "find-ext-repo",
 			CommitSHA:      "find-ext-sha",
 			Branch:         "main",
-			ExternalRepoID: "ext-id-12345",
+			ExternalRepoID:  "ext-id-12345",
+			ParserVersion:  codebaseTestParserVersion,
 		})
 		if err != nil {
 			t.Fatalf("CreateAnalysisRecord failed: %v", err)
@@ -75,7 +78,8 @@ func TestCodebaseRepository_FindByOwnerName(t *testing.T) {
 			Repo:           "find-repo",
 			CommitSHA:      "find-sha",
 			Branch:         "main",
-			ExternalRepoID: "owner-name-id-1",
+			ExternalRepoID:  "owner-name-id-1",
+			ParserVersion:  codebaseTestParserVersion,
 		})
 		if err != nil {
 			t.Fatalf("CreateAnalysisRecord failed: %v", err)
@@ -110,7 +114,8 @@ func TestCodebaseRepository_FindByOwnerName(t *testing.T) {
 			Repo:           "stale-repo",
 			CommitSHA:      "stale-sha",
 			Branch:         "main",
-			ExternalRepoID: "stale-ext-id",
+			ExternalRepoID:  "stale-ext-id",
+			ParserVersion:  codebaseTestParserVersion,
 		})
 		if err != nil {
 			t.Fatalf("CreateAnalysisRecord failed: %v", err)
@@ -146,7 +151,8 @@ func TestCodebaseRepository_MarkStale(t *testing.T) {
 			Repo:           "mark-stale-repo",
 			CommitSHA:      "mark-stale-sha",
 			Branch:         "main",
-			ExternalRepoID: "mark-stale-ext-id",
+			ExternalRepoID:  "mark-stale-ext-id",
+			ParserVersion:  codebaseTestParserVersion,
 		})
 		if err != nil {
 			t.Fatalf("CreateAnalysisRecord failed: %v", err)
@@ -195,7 +201,8 @@ func TestCodebaseRepository_MarkStaleAndUpsert(t *testing.T) {
 			Repo:           "atomic-old-repo",
 			CommitSHA:      "atomic-sha",
 			Branch:         "main",
-			ExternalRepoID: "old-ext-id-atomic",
+			ExternalRepoID:  "old-ext-id-atomic",
+			ParserVersion:  codebaseTestParserVersion,
 		})
 		if err != nil {
 			t.Fatalf("CreateAnalysisRecord failed: %v", err)
@@ -283,7 +290,8 @@ func TestCodebaseRepository_UnmarkStale(t *testing.T) {
 			Repo:           "unmark-old-repo",
 			CommitSHA:      "unmark-sha",
 			Branch:         "main",
-			ExternalRepoID: "unmark-stale-ext-id",
+			ExternalRepoID:  "unmark-stale-ext-id",
+			ParserVersion:  codebaseTestParserVersion,
 		})
 		if err != nil {
 			t.Fatalf("CreateAnalysisRecord failed: %v", err)
@@ -343,7 +351,8 @@ func TestCodebaseRepository_UpdateOwnerName(t *testing.T) {
 			Repo:           "update-old-repo",
 			CommitSHA:      "update-sha",
 			Branch:         "main",
-			ExternalRepoID: "update-ext-id",
+			ExternalRepoID:  "update-ext-id",
+			ParserVersion:  codebaseTestParserVersion,
 		})
 		if err != nil {
 			t.Fatalf("CreateAnalysisRecord failed: %v", err)
