@@ -70,6 +70,10 @@ func StartAnalyzer(cfg AnalyzerConfig) error {
 
 	slog.Info("postgres connected")
 
+	if err := registerParserVersion(ctx, pool); err != nil {
+		return fmt.Errorf("register parser version: %w", err)
+	}
+
 	container, err := app.NewAnalyzerContainer(ctx, app.ContainerConfig{
 		EncryptionKey: cfg.EncryptionKey,
 		Pool:          pool,
