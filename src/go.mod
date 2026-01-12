@@ -9,7 +9,7 @@ require (
 	github.com/riverqueue/river/riverdriver/riverpgxv5 v0.26.0
 	github.com/riverqueue/river/rivertype v0.28.0
 	github.com/robfig/cron/v3 v3.0.1
-	github.com/specvital/core v1.5.1-0.20260111154233-334919612218
+	github.com/specvital/core v1.5.1-0.20260112121406-deacdda09e17
 	github.com/testcontainers/testcontainers-go v0.35.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.35.0
 	golang.org/x/sync v0.19.0

@@ -125,8 +125,8 @@ github.com/sirupsen/logrus v1.9.3 h1:dueUQJ1C2q9oE3F7wvmSGAaVtTmUizReu6fjN8uqzbQ
 github.com/sirupsen/logrus v1.9.3/go.mod h1:naHLuLoDiP4jHNo9R0sCBMtWGeIprob74mVsIT4qYEQ=
 github.com/smacker/go-tree-sitter v0.0.0-20240827094217-dd81d9e9be82 h1:6C8qej6f1bStuePVkLSFxoU22XBS165D3klxlzRg8F4=
 github.com/smacker/go-tree-sitter v0.0.0-20240827094217-dd81d9e9be82/go.mod h1:xe4pgH49k4SsmkQq5OT8abwhWmnzkhpgnXeekbx2efw=
-github.com/specvital/core v1.5.1-0.20260111154233-334919612218 h1:Kf1v4v4eY7qJkCkT1WjmWolbEYrZZM4G6rt9qn0y+kk=
-github.com/specvital/core v1.5.1-0.20260111154233-334919612218/go.mod h1:oHVlWPRkfowibB4ocyuGaytOoSjBOYTauj8IlYnGDp0=
+github.com/specvital/core v1.5.1-0.20260112121406-deacdda09e17 h1:nFqWIJSNHkCzLM+ohk83YoxgsDDYkjni1BSbTd26I5o=
+github.com/specvital/core v1.5.1-0.20260112121406-deacdda09e17/go.mod h1:oHVlWPRkfowibB4ocyuGaytOoSjBOYTauj8IlYnGDp0=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.5.2 h1:xuMeJ0Sdp5ZMRXx/aWO6RZxdr3beISkG5/G/aIRr3pY=
 github.com/stretchr/objx v0.5.2/go.mod h1:FRsXN1f5AsAjCGJKqEizvkpNtU+EGNCLh3NxZ/8L+MA=
