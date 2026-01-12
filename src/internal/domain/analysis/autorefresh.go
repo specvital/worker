@@ -21,6 +21,10 @@ type CodebaseRefreshInfo struct {
 	Owner               string
 }
 
+type ParserVersionProvider interface {
+	GetCurrentParserVersion(ctx context.Context) (string, error)
+}
+
 type TaskQueue interface {
 	EnqueueAnalysis(ctx context.Context, owner, repo, commitSHA string) error
 }

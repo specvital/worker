@@ -55,11 +55,21 @@ func (m *mockVCS) GetHeadCommit(ctx context.Context, url string, token *string) 
 	return analysis.CommitInfo{SHA: m.commitSHA, IsPrivate: false}, nil
 }
 
+type mockParserVersionProvider struct {
+	version string
+	err     error
+}
+
+func (m *mockParserVersionProvider) GetCurrentParserVersion(ctx context.Context) (string, error) {
+	return m.version, m.err
+}
+
 func TestAutoRefreshUseCase_Execute_NoCodebases(t *testing.T) {
 	repo := &mockAutoRefreshRepository{codebases: nil}
 	queue := &mockTaskQueue{}
 	vcs := &mockVCS{commitSHA: "abc123"}
-	uc := NewAutoRefreshUseCase(repo, queue, vcs)
+	pvp := &mockParserVersionProvider{version: "v1.0.0"}
+	uc := NewAutoRefreshUseCase(repo, queue, vcs, pvp)
 
 	err := uc.Execute(context.Background())
 
@@ -76,7 +86,8 @@ func TestAutoRefreshUseCase_Execute_RepositoryError(t *testing.T) {
 	repo := &mockAutoRefreshRepository{err: expectedErr}
 	queue := &mockTaskQueue{}
 	vcs := &mockVCS{commitSHA: "abc123"}
-	uc := NewAutoRefreshUseCase(repo, queue, vcs)
+	pvp := &mockParserVersionProvider{version: "v1.0.0"}
+	uc := NewAutoRefreshUseCase(repo, queue, vcs, pvp)
 
 	err := uc.Execute(context.Background())
 
@@ -113,7 +124,8 @@ func TestAutoRefreshUseCase_Execute_EnqueuesEligibleCodebases(t *testing.T) {
 	}
 	queue := &mockTaskQueue{}
 	vcs := &mockVCS{commitSHA: "abc123"}
-	uc := NewAutoRefreshUseCase(repo, queue, vcs)
+	pvp := &mockParserVersionProvider{version: "v1.0.0"}
+	uc := NewAutoRefreshUseCase(repo, queue, vcs, pvp)
 
 	err := uc.Execute(context.Background())
 
@@ -144,7 +156,8 @@ func TestAutoRefreshUseCase_Execute_SkipsRecentlyCompleted(t *testing.T) {
 	}
 	queue := &mockTaskQueue{}
 	vcs := &mockVCS{commitSHA: "abc123"}
-	uc := NewAutoRefreshUseCase(repo, queue, vcs)
+	pvp := &mockParserVersionProvider{version: "v1.0.0"}
+	uc := NewAutoRefreshUseCase(repo, queue, vcs, pvp)
 
 	err := uc.Execute(context.Background())
 
@@ -175,7 +188,8 @@ func TestAutoRefreshUseCase_Execute_SkipsExcessiveFailures(t *testing.T) {
 	}
 	queue := &mockTaskQueue{}
 	vcs := &mockVCS{commitSHA: "abc123"}
-	uc := NewAutoRefreshUseCase(repo, queue, vcs)
+	pvp := &mockParserVersionProvider{version: "v1.0.0"}
+	uc := NewAutoRefreshUseCase(repo, queue, vcs, pvp)
 
 	err := uc.Execute(context.Background())
 
@@ -187,7 +201,7 @@ func TestAutoRefreshUseCase_Execute_SkipsExcessiveFailures(t *testing.T) {
 	}
 }
 
-func TestAutoRefreshUseCase_Execute_SkipsSameCommit(t *testing.T) {
+func TestAutoRefreshUseCase_Execute_SkipsSameCommitAndParserVersion(t *testing.T) {
 	now := time.Now()
 	completedAt := now.Add(-7 * time.Hour)
 
@@ -201,13 +215,15 @@ func TestAutoRefreshUseCase_Execute_SkipsSameCommit(t *testing.T) {
 				LastViewedAt:        now.Add(-1 * 24 * time.Hour),
 				LastCompletedAt:     &completedAt,
 				LastCommitSHA:       "abc123",
+				LastParserVersion:   "v1.0.0",
 				ConsecutiveFailures: 0,
 			},
 		},
 	}
 	queue := &mockTaskQueue{}
 	vcs := &mockVCS{commitSHA: "abc123"}
-	uc := NewAutoRefreshUseCase(repo, queue, vcs)
+	pvp := &mockParserVersionProvider{version: "v1.0.0"}
+	uc := NewAutoRefreshUseCase(repo, queue, vcs, pvp)
 
 	err := uc.Execute(context.Background())
 
@@ -215,7 +231,7 @@ func TestAutoRefreshUseCase_Execute_SkipsSameCommit(t *testing.T) {
 		t.Errorf("expected no error, got %v", err)
 	}
 	if len(queue.enqueuedTasks) != 0 {
-		t.Errorf("expected 0 tasks enqueued (same commit), got %d", len(queue.enqueuedTasks))
+		t.Errorf("expected 0 tasks enqueued (same commit and parser version), got %d", len(queue.enqueuedTasks))
 	}
 }
 
@@ -233,13 +249,15 @@ func TestAutoRefreshUseCase_Execute_EnqueuesWhenCommitDiffers(t *testing.T) {
 				LastViewedAt:        now.Add(-1 * 24 * time.Hour),
 				LastCompletedAt:     &completedAt,
 				LastCommitSHA:       "old-commit",
+				LastParserVersion:   "v1.0.0",
 				ConsecutiveFailures: 0,
 			},
 		},
 	}
 	queue := &mockTaskQueue{}
 	vcs := &mockVCS{commitSHA: "new-commit"}
-	uc := NewAutoRefreshUseCase(repo, queue, vcs)
+	pvp := &mockParserVersionProvider{version: "v1.0.0"}
+	uc := NewAutoRefreshUseCase(repo, queue, vcs, pvp)
 
 	err := uc.Execute(context.Background())
 
@@ -305,7 +323,8 @@ func TestAutoRefreshUseCase_Execute_ContinuesOnEnqueueError(t *testing.T) {
 
 	queue := &errorOnFirstTaskQueue{}
 	vcs := &mockVCS{commitSHA: "abc123"}
-	uc := NewAutoRefreshUseCase(repo, queue, vcs)
+	pvp := &mockParserVersionProvider{version: "v1.0.0"}
+	uc := NewAutoRefreshUseCase(repo, queue, vcs, pvp)
 	err := uc.Execute(context.Background())
 
 	if err != nil {
@@ -341,7 +360,8 @@ func TestAutoRefreshUseCase_Execute_CircuitBreakerTriggered(t *testing.T) {
 
 	queue := &alwaysFailingTaskQueue{}
 	vcs := &mockVCS{commitSHA: "abc123"}
-	uc := NewAutoRefreshUseCase(repo, queue, vcs)
+	pvp := &mockParserVersionProvider{version: "v1.0.0"}
+	uc := NewAutoRefreshUseCase(repo, queue, vcs, pvp)
 	err := uc.Execute(context.Background())
 
 	if err == nil {
@@ -352,5 +372,107 @@ func TestAutoRefreshUseCase_Execute_CircuitBreakerTriggered(t *testing.T) {
 	}
 	if queue.callCount != 3 {
 		t.Errorf("expected 3 attempts before circuit breaker, got %d", queue.callCount)
+	}
+}
+
+func TestAutoRefreshUseCase_Execute_EnqueuesWhenParserVersionDiffers(t *testing.T) {
+	now := time.Now()
+	completedAt := now.Add(-7 * time.Hour)
+
+	repo := &mockAutoRefreshRepository{
+		codebases: []analysis.CodebaseRefreshInfo{
+			{
+				ID:                  analysis.UUID{},
+				Host:                "github.com",
+				Owner:               "owner1",
+				Name:                "repo1",
+				LastViewedAt:        now.Add(-1 * 24 * time.Hour),
+				LastCompletedAt:     &completedAt,
+				LastCommitSHA:       "abc123",
+				LastParserVersion:   "v1.0.0",
+				ConsecutiveFailures: 0,
+			},
+		},
+	}
+	queue := &mockTaskQueue{}
+	vcs := &mockVCS{commitSHA: "abc123"}
+	pvp := &mockParserVersionProvider{version: "v2.0.0"}
+	uc := NewAutoRefreshUseCase(repo, queue, vcs, pvp)
+
+	err := uc.Execute(context.Background())
+
+	if err != nil {
+		t.Errorf("expected no error, got %v", err)
+	}
+	if len(queue.enqueuedTasks) != 1 {
+		t.Errorf("expected 1 task enqueued (parser version changed), got %d", len(queue.enqueuedTasks))
+	}
+}
+
+func TestAutoRefreshUseCase_Execute_SkipsWhenParserVersionProviderFails(t *testing.T) {
+	now := time.Now()
+	completedAt := now.Add(-7 * time.Hour)
+
+	repo := &mockAutoRefreshRepository{
+		codebases: []analysis.CodebaseRefreshInfo{
+			{
+				ID:                  analysis.UUID{},
+				Host:                "github.com",
+				Owner:               "owner1",
+				Name:                "repo1",
+				LastViewedAt:        now.Add(-1 * 24 * time.Hour),
+				LastCompletedAt:     &completedAt,
+				LastCommitSHA:       "abc123",
+				LastParserVersion:   "v1.0.0",
+				ConsecutiveFailures: 0,
+			},
+		},
+	}
+	queue := &mockTaskQueue{}
+	vcs := &mockVCS{commitSHA: "abc123"}
+	pvp := &mockParserVersionProvider{err: errors.New("config not found")}
+	uc := NewAutoRefreshUseCase(repo, queue, vcs, pvp)
+
+	err := uc.Execute(context.Background())
+
+	if err != nil {
+		t.Errorf("expected no error, got %v", err)
+	}
+	if len(queue.enqueuedTasks) != 0 {
+		t.Errorf("expected 0 tasks enqueued (parser version check skipped), got %d", len(queue.enqueuedTasks))
+	}
+}
+
+func TestAutoRefreshUseCase_Execute_EnqueuesLegacyAnalysisWhenVersionChanged(t *testing.T) {
+	now := time.Now()
+	completedAt := now.Add(-7 * time.Hour)
+
+	repo := &mockAutoRefreshRepository{
+		codebases: []analysis.CodebaseRefreshInfo{
+			{
+				ID:                  analysis.UUID{},
+				Host:                "github.com",
+				Owner:               "owner1",
+				Name:                "repo1",
+				LastViewedAt:        now.Add(-1 * 24 * time.Hour),
+				LastCompletedAt:     &completedAt,
+				LastCommitSHA:       "abc123",
+				LastParserVersion:   "legacy",
+				ConsecutiveFailures: 0,
+			},
+		},
+	}
+	queue := &mockTaskQueue{}
+	vcs := &mockVCS{commitSHA: "abc123"}
+	pvp := &mockParserVersionProvider{version: "v2.0.0"}
+	uc := NewAutoRefreshUseCase(repo, queue, vcs, pvp)
+
+	err := uc.Execute(context.Background())
+
+	if err != nil {
+		t.Errorf("expected no error, got %v", err)
+	}
+	if len(queue.enqueuedTasks) != 1 {
+		t.Errorf("expected 1 task enqueued (legacy analysis re-analyzed), got %d", len(queue.enqueuedTasks))
 	}
 }

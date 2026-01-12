@@ -19,20 +19,23 @@ const maxConsecutiveEnqueueFailures = 3
 var ErrCircuitBreakerOpen = errors.New("circuit breaker: too many consecutive enqueue failures")
 
 type AutoRefreshUseCase struct {
-	repository analysis.AutoRefreshRepository
-	taskQueue  analysis.TaskQueue
-	vcs        analysis.VCS
+	parserVersionProvider analysis.ParserVersionProvider
+	repository            analysis.AutoRefreshRepository
+	taskQueue             analysis.TaskQueue
+	vcs                   analysis.VCS
 }
 
 func NewAutoRefreshUseCase(
 	repository analysis.AutoRefreshRepository,
 	taskQueue analysis.TaskQueue,
 	vcs analysis.VCS,
+	parserVersionProvider analysis.ParserVersionProvider,
 ) *AutoRefreshUseCase {
 	return &AutoRefreshUseCase{
-		repository: repository,
-		taskQueue:  taskQueue,
-		vcs:        vcs,
+		parserVersionProvider: parserVersionProvider,
+		repository:            repository,
+		taskQueue:             taskQueue,
+		vcs:                   vcs,
 	}
 }
 
@@ -46,6 +49,14 @@ func (uc *AutoRefreshUseCase) Execute(ctx context.Context) error {
 	if len(codebases) == 0 {
 		slog.InfoContext(ctx, "no codebases eligible for auto-refresh")
 		return nil
+	}
+
+	currentParserVersion, err := uc.parserVersionProvider.GetCurrentParserVersion(ctx)
+	if err != nil {
+		slog.WarnContext(ctx, "failed to get current parser version, skipping version-based refresh",
+			"error", err,
+		)
+		currentParserVersion = ""
 	}
 
 	now := time.Now()
@@ -83,11 +94,14 @@ func (uc *AutoRefreshUseCase) Execute(ctx context.Context) error {
 			continue
 		}
 
-		if codebase.LastCommitSHA == commitInfo.SHA {
-			slog.DebugContext(ctx, "skipping auto-refresh: no new commits",
+		shouldEnqueue := uc.shouldEnqueueRefresh(codebase, commitInfo.SHA, currentParserVersion)
+		if !shouldEnqueue {
+			slog.DebugContext(ctx, "skipping auto-refresh: no changes detected",
 				"owner", codebase.Owner,
 				"repo", codebase.Name,
 				"commit", commitInfo.SHA,
+				"last_parser_version", codebase.LastParserVersion,
+				"current_parser_version", currentParserVersion,
 			)
 			continue
 		}
@@ -108,6 +122,7 @@ func (uc *AutoRefreshUseCase) Execute(ctx context.Context) error {
 		slog.DebugContext(ctx, "enqueued auto-refresh task",
 			"owner", codebase.Owner,
 			"repo", codebase.Name,
+			"reason", uc.refreshReason(codebase, commitInfo.SHA, currentParserVersion),
 		)
 	}
 
@@ -117,4 +132,34 @@ func (uc *AutoRefreshUseCase) Execute(ctx context.Context) error {
 	)
 
 	return nil
+}
+
+func (uc *AutoRefreshUseCase) shouldEnqueueRefresh(
+	codebase analysis.CodebaseRefreshInfo,
+	headCommitSHA string,
+	currentParserVersion string,
+) bool {
+	if codebase.LastCommitSHA != headCommitSHA {
+		return true
+	}
+
+	if currentParserVersion != "" && codebase.LastParserVersion != currentParserVersion {
+		return true
+	}
+
+	return false
+}
+
+func (uc *AutoRefreshUseCase) refreshReason(
+	codebase analysis.CodebaseRefreshInfo,
+	headCommitSHA string,
+	currentParserVersion string,
+) string {
+	if codebase.LastCommitSHA != headCommitSHA {
+		return "new_commit"
+	}
+	if currentParserVersion != "" && codebase.LastParserVersion != currentParserVersion {
+		return "parser_version_changed"
+	}
+	return "unknown"
 }

@@ -44,6 +44,12 @@ func (r *SystemConfigRepository) Get(ctx context.Context, key string) (string, e
 	return value, nil
 }
 
+// GetCurrentParserVersion retrieves the current parser version from system_config.
+// Implements analysis.ParserVersionProvider interface.
+func (r *SystemConfigRepository) GetCurrentParserVersion(ctx context.Context) (string, error) {
+	return r.Get(ctx, ConfigKeyParserVersion)
+}
+
 // Upsert inserts or updates a config value.
 func (r *SystemConfigRepository) Upsert(ctx context.Context, key, value string) error {
 	if key == "" {

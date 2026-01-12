@@ -27,6 +27,7 @@ func NewSchedulerContainer(ctx context.Context, cfg ContainerConfig) (*Scheduler
 	}
 
 	analysisRepo := postgres.NewAnalysisRepository(cfg.Pool)
+	systemConfigRepo := postgres.NewSystemConfigRepository(cfg.Pool)
 
 	queueClient, err := infraqueue.NewClient(ctx, cfg.Pool)
 	if err != nil {
@@ -36,7 +37,7 @@ func NewSchedulerContainer(ctx context.Context, cfg ContainerConfig) (*Scheduler
 	schedulerLock := infrascheduler.NewDistributedLock(cfg.Pool, schedulerLockKey)
 
 	gitVCS := vcs.NewGitVCS()
-	autoRefreshUC := autorefresh.NewAutoRefreshUseCase(analysisRepo, queueClient, gitVCS)
+	autoRefreshUC := autorefresh.NewAutoRefreshUseCase(analysisRepo, queueClient, gitVCS, systemConfigRepo)
 	autoRefreshHandler := handlerscheduler.NewAutoRefreshHandler(autoRefreshUC, schedulerLock)
 
 	scheduler := infrascheduler.New()
