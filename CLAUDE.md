@@ -10,6 +10,28 @@ SpecVital Worker - Background job processing service for analyzing test files in
 - Dual-binary: Worker (scalable) + Scheduler (singleton)
 - External parser: `github.com/specvital/core`
 
+### Workers
+
+| Worker         | Kind                | Description                                    |
+| -------------- | ------------------- | ---------------------------------------------- |
+| AnalyzeWorker  | `analysis:analyze`  | Parse test files from GitHub repos             |
+| SpecViewWorker | `specview:generate` | AI-powered test spec documentation (see below) |
+
+### SpecView Worker
+
+Generates human-readable spec documents from test files using Gemini AI.
+
+- **Phase 1**: Domain/feature classification (gemini-2.5-flash)
+- **Phase 2**: Test name → behavior conversion (gemini-2.5-flash-lite, parallel)
+- **Cache**: Content hash-based deduplication
+- **Reliability**: Circuit breaker, rate limiting, exponential backoff
+
+Required env vars:
+
+- `GEMINI_API_KEY`: Gemini API key
+- `GEMINI_PHASE1_MODEL`: Phase 1 model (default: gemini-2.5-flash)
+- `GEMINI_PHASE2_MODEL`: Phase 2 model (default: gemini-2.5-flash-lite)
+
 ## Documentation Map
 
 | Context                         | Reference        |
