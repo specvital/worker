@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/specvital/worker/internal/adapter/queue/analyze"
 	"github.com/specvital/worker/internal/app"
 	"github.com/specvital/worker/internal/infra/buildinfo"
 	"github.com/specvital/worker/internal/infra/db"
@@ -93,6 +94,7 @@ func StartAnalyzer(cfg AnalyzerConfig) error {
 	srv, err := infraqueue.NewServer(ctx, infraqueue.ServerConfig{
 		Pool:            pool,
 		Concurrency:     cfg.Concurrency,
+		QueueName:       analyze.QueueName,
 		ShutdownTimeout: cfg.ShutdownTimeout,
 		Workers:         container.Workers,
 	})

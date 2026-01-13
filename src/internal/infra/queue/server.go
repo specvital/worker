@@ -18,6 +18,7 @@ const (
 type ServerConfig struct {
 	Pool            *pgxpool.Pool
 	Concurrency     int
+	QueueName       string
 	ShutdownTimeout time.Duration
 	Workers         *river.Workers
 }
@@ -38,9 +39,14 @@ func NewServer(ctx context.Context, cfg ServerConfig) (*Server, error) {
 		shutdownTimeout = DefaultShutdownTimeout
 	}
 
+	queueName := cfg.QueueName
+	if queueName == "" {
+		queueName = river.QueueDefault
+	}
+
 	client, err := river.NewClient(riverpgxv5.New(cfg.Pool), &river.Config{
 		Queues: map[string]river.QueueConfig{
-			river.QueueDefault: {MaxWorkers: concurrency},
+			queueName: {MaxWorkers: concurrency},
 		},
 		Workers: cfg.Workers,
 	})

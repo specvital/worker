@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/specvital/worker/internal/adapter/queue/specview"
 	"github.com/specvital/worker/internal/app"
 	"github.com/specvital/worker/internal/infra/db"
 	infraqueue "github.com/specvital/worker/internal/infra/queue"
@@ -89,6 +90,7 @@ func StartSpecGenerator(cfg SpecGeneratorConfig) error {
 	srv, err := infraqueue.NewServer(ctx, infraqueue.ServerConfig{
 		Pool:            pool,
 		Concurrency:     cfg.Concurrency,
+		QueueName:       specview.QueueName,
 		ShutdownTimeout: cfg.ShutdownTimeout,
 		Workers:         container.Workers,
 	})

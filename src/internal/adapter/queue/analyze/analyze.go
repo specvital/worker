@@ -11,7 +11,10 @@ import (
 	uc "github.com/specvital/worker/internal/usecase/analysis"
 )
 
-const maxRetryAttempts = 3
+const (
+	QueueName        = "analysis"
+	maxRetryAttempts = 3
+)
 
 type AnalyzeArgs struct {
 	CommitSHA string  `json:"commit_sha" river:"unique"`
@@ -24,6 +27,7 @@ func (AnalyzeArgs) Kind() string { return "analysis:analyze" }
 
 func (AnalyzeArgs) InsertOpts() river.InsertOpts {
 	return river.InsertOpts{
+		Queue:       QueueName,
 		MaxAttempts: maxRetryAttempts,
 		UniqueOpts: river.UniqueOpts{
 			ByArgs: true,

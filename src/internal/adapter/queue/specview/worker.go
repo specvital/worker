@@ -13,6 +13,7 @@ import (
 )
 
 const (
+	QueueName        = "specview"
 	jobKind          = "specview:generate"
 	maxRetryAttempts = 3
 	jobTimeout       = 10 * time.Minute
@@ -32,6 +33,7 @@ func (Args) Kind() string { return jobKind }
 // InsertOpts returns the River insert options for this job type.
 func (Args) InsertOpts() river.InsertOpts {
 	return river.InsertOpts{
+		Queue:       QueueName,
 		MaxAttempts: maxRetryAttempts,
 		UniqueOpts: river.UniqueOpts{
 			ByArgs: true,
