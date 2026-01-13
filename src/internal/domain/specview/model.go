@@ -5,14 +5,9 @@ import (
 	"time"
 )
 
-// Language represents supported languages for spec-view generation.
+// Language represents the target language for spec-view generation.
+// Any language name is accepted (e.g., "Korean", "English", "Chinese", "Spanish").
 type Language string
-
-const (
-	LanguageEN Language = "en"
-	LanguageJA Language = "ja"
-	LanguageKO Language = "ko"
-)
 
 // SpecViewRequest represents a request to generate a spec-view document.
 type SpecViewRequest struct {
@@ -34,14 +29,9 @@ func (r SpecViewRequest) Validate() error {
 	return nil
 }
 
-// IsValid checks if the language is one of the supported values.
+// IsValid checks if the language is not empty.
 func (l Language) IsValid() bool {
-	switch l {
-	case LanguageEN, LanguageJA, LanguageKO:
-		return true
-	default:
-		return false
-	}
+	return l != ""
 }
 
 // SpecViewResult represents the result of spec-view generation.

@@ -22,9 +22,9 @@ func TestBuildPhase1UserPrompt_BasicFormat(t *testing.T) {
 		},
 	}
 
-	prompt := BuildPhase1UserPrompt(input, specview.LanguageEN)
+	prompt := BuildPhase1UserPrompt(input, "English")
 
-	if !strings.Contains(prompt, "Target Language: en") {
+	if !strings.Contains(prompt, "Target Language: English") {
 		t.Error("prompt should contain target language")
 	}
 	if !strings.Contains(prompt, "[0] src/auth/login_test.go (go)") {
@@ -55,7 +55,7 @@ func TestBuildPhase1UserPrompt_WithDomainHints(t *testing.T) {
 		},
 	}
 
-	prompt := BuildPhase1UserPrompt(input, specview.LanguageKO)
+	prompt := BuildPhase1UserPrompt(input, "Korean")
 
 	if !strings.Contains(prompt, "imports: AuthService, UserRepository") {
 		t.Error("prompt should contain imports")
@@ -77,7 +77,7 @@ func TestBuildPhase1UserPrompt_WithSuitePath(t *testing.T) {
 		},
 	}
 
-	prompt := BuildPhase1UserPrompt(input, specview.LanguageKO)
+	prompt := BuildPhase1UserPrompt(input, "Korean")
 
 	if !strings.Contains(prompt, "0|Auth > Login|should login") {
 		t.Error("prompt should contain suite path when present")
@@ -103,7 +103,7 @@ func TestBuildPhase1UserPrompt_MultipleFiles(t *testing.T) {
 		},
 	}
 
-	prompt := BuildPhase1UserPrompt(input, specview.LanguageEN)
+	prompt := BuildPhase1UserPrompt(input, "English")
 
 	if !strings.Contains(prompt, "[0] auth_test.go") {
 		t.Error("prompt should contain first file")
@@ -129,9 +129,9 @@ func TestBuildPhase1UserPrompt_LanguageVariants(t *testing.T) {
 	}
 
 	languages := []specview.Language{
-		specview.LanguageEN,
-		specview.LanguageKO,
-		specview.LanguageJA,
+		"English",
+		"Korean",
+		"Japanese",
 	}
 
 	for _, lang := range languages {

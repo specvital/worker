@@ -12,19 +12,27 @@ func TestSpecViewRequest_Validate(t *testing.T) {
 		wantErr error
 	}{
 		{
-			name: "valid request",
+			name: "valid request with English",
 			req: SpecViewRequest{
 				AnalysisID: "analysis-123",
-				Language:   LanguageEN,
+				Language:   "English",
 			},
 			wantErr: nil,
 		},
 		{
-			name: "valid request with model ID",
+			name: "valid request with Korean",
 			req: SpecViewRequest{
 				AnalysisID: "analysis-123",
-				Language:   LanguageKO,
+				Language:   "Korean",
 				ModelID:    "gemini-2.5-flash",
+			},
+			wantErr: nil,
+		},
+		{
+			name: "valid request with any language",
+			req: SpecViewRequest{
+				AnalysisID: "analysis-123",
+				Language:   "Chinese",
 			},
 			wantErr: nil,
 		},
@@ -32,7 +40,7 @@ func TestSpecViewRequest_Validate(t *testing.T) {
 			name: "empty analysis ID",
 			req: SpecViewRequest{
 				AnalysisID: "",
-				Language:   LanguageEN,
+				Language:   "English",
 			},
 			wantErr: ErrInvalidInput,
 		},
@@ -41,22 +49,6 @@ func TestSpecViewRequest_Validate(t *testing.T) {
 			req: SpecViewRequest{
 				AnalysisID: "analysis-123",
 				Language:   "",
-			},
-			wantErr: ErrInvalidInput,
-		},
-		{
-			name: "unsupported language",
-			req: SpecViewRequest{
-				AnalysisID: "analysis-123",
-				Language:   "fr",
-			},
-			wantErr: ErrInvalidInput,
-		},
-		{
-			name: "language case sensitive - uppercase invalid",
-			req: SpecViewRequest{
-				AnalysisID: "analysis-123",
-				Language:   "EN",
 			},
 			wantErr: ErrInvalidInput,
 		},
@@ -81,14 +73,13 @@ func TestLanguage_IsValid(t *testing.T) {
 		language Language
 		want     bool
 	}{
-		{name: "english valid", language: LanguageEN, want: true},
-		{name: "korean valid", language: LanguageKO, want: true},
-		{name: "japanese valid", language: LanguageJA, want: true},
+		{name: "English valid", language: "English", want: true},
+		{name: "Korean valid", language: "Korean", want: true},
+		{name: "Japanese valid", language: "Japanese", want: true},
+		{name: "Chinese valid", language: "Chinese", want: true},
+		{name: "Spanish valid", language: "Spanish", want: true},
+		{name: "any string valid", language: "AnyLanguage", want: true},
 		{name: "empty invalid", language: "", want: false},
-		{name: "french invalid", language: "fr", want: false},
-		{name: "uppercase EN invalid", language: "EN", want: false},
-		{name: "mixed case invalid", language: "En", want: false},
-		{name: "chinese invalid", language: "zh", want: false},
 	}
 
 	for _, tt := range tests {

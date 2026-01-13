@@ -119,7 +119,7 @@ func newPhase1Output() *specview.Phase1Output {
 func newValidRequest() specview.SpecViewRequest {
 	return specview.SpecViewRequest{
 		AnalysisID: "550e8400-e29b-41d4-a716-446655440000",
-		Language:   specview.LanguageKO,
+		Language:   "Korean",
 	}
 }
 
@@ -180,7 +180,7 @@ func TestGenerateSpecViewUseCase_Execute(t *testing.T) {
 		if len(savedDoc.Domains) != 2 {
 			t.Errorf("expected 2 domains, got %d", len(savedDoc.Domains))
 		}
-		if savedDoc.Language != specview.LanguageKO {
+		if savedDoc.Language != "Korean" {
 			t.Errorf("expected language KO, got %s", savedDoc.Language)
 		}
 	})
@@ -189,7 +189,7 @@ func TestGenerateSpecViewUseCase_Execute(t *testing.T) {
 		files := newTestFiles()
 		cachedDoc := &specview.SpecDocument{
 			ID:       "cached-doc-001",
-			Language: specview.LanguageKO,
+			Language: "Korean",
 		}
 
 		classifyDomainsCalled := false
@@ -235,7 +235,7 @@ func TestGenerateSpecViewUseCase_Execute(t *testing.T) {
 
 		req := specview.SpecViewRequest{
 			AnalysisID: "",
-			Language:   specview.LanguageKO,
+			Language:   "Korean",
 		}
 
 		_, err := uc.Execute(context.Background(), req)
@@ -477,7 +477,7 @@ func TestGenerateSpecViewUseCase_Execute(t *testing.T) {
 
 		req := specview.SpecViewRequest{
 			AnalysisID: "550e8400-e29b-41d4-a716-446655440000",
-			Language:   specview.LanguageKO,
+			Language:   "Korean",
 			ModelID:    "custom-model",
 		}
 
@@ -619,7 +619,7 @@ func TestAssembleDocument(t *testing.T) {
 
 	req := specview.SpecViewRequest{
 		AnalysisID: "analysis-001",
-		Language:   specview.LanguageEN,
+		Language:   "English",
 	}
 
 	phase1Output := &specview.Phase1Output{
@@ -662,7 +662,7 @@ func TestAssembleDocument(t *testing.T) {
 	if doc.AnalysisID != "analysis-001" {
 		t.Errorf("expected analysis ID 'analysis-001', got '%s'", doc.AnalysisID)
 	}
-	if doc.Language != specview.LanguageEN {
+	if doc.Language != "English" {
 		t.Errorf("expected language EN, got %s", doc.Language)
 	}
 	if doc.ModelID != "gemini-2.5-flash" {

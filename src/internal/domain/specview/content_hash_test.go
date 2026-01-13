@@ -22,8 +22,8 @@ func TestGenerateContentHash_Deterministic(t *testing.T) {
 		},
 	}
 
-	hash1 := GenerateContentHash(files, LanguageEN)
-	hash2 := GenerateContentHash(files, LanguageEN)
+	hash1 := GenerateContentHash(files, "English")
+	hash2 := GenerateContentHash(files, "English")
 
 	if !bytes.Equal(hash1, hash2) {
 		t.Errorf("hash should be deterministic: got different hashes for same input")
@@ -45,8 +45,8 @@ func TestGenerateContentHash_OrderIndependent(t *testing.T) {
 		{Path: "src/a_test.ts", Tests: []TestInfo{{Index: 0, Name: "test a"}}},
 	}
 
-	hashA := GenerateContentHash(filesOrderA, LanguageEN)
-	hashB := GenerateContentHash(filesOrderB, LanguageEN)
+	hashA := GenerateContentHash(filesOrderA, "English")
+	hashB := GenerateContentHash(filesOrderB, "English")
 
 	if !bytes.Equal(hashA, hashB) {
 		t.Errorf("hash should be order-independent: different file order produced different hash")
@@ -74,8 +74,8 @@ func TestGenerateContentHash_TestOrderIndependent(t *testing.T) {
 		},
 	}
 
-	hashA := GenerateContentHash(filesOrderA, LanguageEN)
-	hashB := GenerateContentHash(filesOrderB, LanguageEN)
+	hashA := GenerateContentHash(filesOrderA, "English")
+	hashB := GenerateContentHash(filesOrderB, "English")
 
 	if !bytes.Equal(hashA, hashB) {
 		t.Errorf("hash should be order-independent: different test order produced different hash")
@@ -87,9 +87,9 @@ func TestGenerateContentHash_LanguageDifferent(t *testing.T) {
 		{Path: "src/test.ts", Tests: []TestInfo{{Index: 0, Name: "test"}}},
 	}
 
-	hashEN := GenerateContentHash(files, LanguageEN)
-	hashKO := GenerateContentHash(files, LanguageKO)
-	hashJA := GenerateContentHash(files, LanguageJA)
+	hashEN := GenerateContentHash(files, "English")
+	hashKO := GenerateContentHash(files, "Korean")
+	hashJA := GenerateContentHash(files, "Japanese")
 
 	if bytes.Equal(hashEN, hashKO) {
 		t.Error("different languages should produce different hashes: EN == KO")
@@ -110,8 +110,8 @@ func TestGenerateContentHash_FileNameChangeDifferent(t *testing.T) {
 		{Path: "src/new_test.ts", Tests: []TestInfo{{Index: 0, Name: "test"}}},
 	}
 
-	hashA := GenerateContentHash(filesA, LanguageEN)
-	hashB := GenerateContentHash(filesB, LanguageEN)
+	hashA := GenerateContentHash(filesA, "English")
+	hashB := GenerateContentHash(filesB, "English")
 
 	if bytes.Equal(hashA, hashB) {
 		t.Error("different file paths should produce different hashes")
@@ -126,8 +126,8 @@ func TestGenerateContentHash_TestNameChangeDifferent(t *testing.T) {
 		{Path: "src/test.ts", Tests: []TestInfo{{Index: 0, Name: "should do Y"}}},
 	}
 
-	hashA := GenerateContentHash(filesA, LanguageEN)
-	hashB := GenerateContentHash(filesB, LanguageEN)
+	hashA := GenerateContentHash(filesA, "English")
+	hashB := GenerateContentHash(filesB, "English")
 
 	if bytes.Equal(hashA, hashB) {
 		t.Error("different test names should produce different hashes")
@@ -148,8 +148,8 @@ func TestGenerateContentHash_TestAddedDifferent(t *testing.T) {
 		},
 	}
 
-	hashA := GenerateContentHash(filesA, LanguageEN)
-	hashB := GenerateContentHash(filesB, LanguageEN)
+	hashA := GenerateContentHash(filesA, "English")
+	hashB := GenerateContentHash(filesB, "English")
 
 	if bytes.Equal(hashA, hashB) {
 		t.Error("adding a test should produce different hash")
@@ -159,7 +159,7 @@ func TestGenerateContentHash_TestAddedDifferent(t *testing.T) {
 func TestGenerateContentHash_EmptyFiles(t *testing.T) {
 	var emptyFiles []FileInfo
 
-	hash := GenerateContentHash(emptyFiles, LanguageEN)
+	hash := GenerateContentHash(emptyFiles, "English")
 
 	if len(hash) != 32 {
 		t.Errorf("expected SHA256 hash length 32 for empty input, got %d", len(hash))
@@ -171,7 +171,7 @@ func TestGenerateContentHash_EmptyTests(t *testing.T) {
 		{Path: "src/test.ts", Tests: []TestInfo{}},
 	}
 
-	hash := GenerateContentHash(files, LanguageEN)
+	hash := GenerateContentHash(files, "English")
 
 	if len(hash) != 32 {
 		t.Errorf("expected SHA256 hash length 32 for empty tests, got %d", len(hash))
@@ -287,8 +287,8 @@ func TestGenerateContentHash_PathNormalization(t *testing.T) {
 		{Path: "src\\auth\\login_test.ts", Tests: []TestInfo{{Index: 0, Name: "test"}}},
 	}
 
-	hashUnix := GenerateContentHash(filesUnix, LanguageEN)
-	hashWindows := GenerateContentHash(filesWindows, LanguageEN)
+	hashUnix := GenerateContentHash(filesUnix, "English")
+	hashWindows := GenerateContentHash(filesWindows, "English")
 
 	if !bytes.Equal(hashUnix, hashWindows) {
 		t.Error("path normalization should produce same hash for unix and windows paths")
@@ -303,8 +303,8 @@ func TestGenerateContentHash_TestNameNormalization(t *testing.T) {
 		{Path: "src/test.ts", Tests: []TestInfo{{Index: 0, Name: "  should  login  "}}},
 	}
 
-	hashNormal := GenerateContentHash(filesNormal, LanguageEN)
-	hashWhitespace := GenerateContentHash(filesWhitespace, LanguageEN)
+	hashNormal := GenerateContentHash(filesNormal, "English")
+	hashWhitespace := GenerateContentHash(filesWhitespace, "English")
 
 	if !bytes.Equal(hashNormal, hashWhitespace) {
 		t.Error("test name normalization should produce same hash for equivalent names")
@@ -319,8 +319,8 @@ func TestGenerateContentHash_SuitePathAffectsHash(t *testing.T) {
 		{Path: "src/test.ts", Tests: []TestInfo{{Index: 0, Name: "should do X", SuitePath: "SuiteA"}}},
 	}
 
-	hashWithout := GenerateContentHash(filesWithoutSuite, LanguageEN)
-	hashWith := GenerateContentHash(filesWithSuite, LanguageEN)
+	hashWithout := GenerateContentHash(filesWithoutSuite, "English")
+	hashWith := GenerateContentHash(filesWithSuite, "English")
 
 	if bytes.Equal(hashWithout, hashWith) {
 		t.Error("different suite paths should produce different hashes")
@@ -335,8 +335,8 @@ func TestGenerateContentHash_DifferentSuitePathsDifferent(t *testing.T) {
 		{Path: "src/test.ts", Tests: []TestInfo{{Index: 0, Name: "test", SuitePath: "SuiteB"}}},
 	}
 
-	hashA := GenerateContentHash(filesA, LanguageEN)
-	hashB := GenerateContentHash(filesB, LanguageEN)
+	hashA := GenerateContentHash(filesA, "English")
+	hashB := GenerateContentHash(filesB, "English")
 
 	if bytes.Equal(hashA, hashB) {
 		t.Error("different suite paths should produce different hashes")

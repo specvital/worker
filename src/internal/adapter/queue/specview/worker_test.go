@@ -231,7 +231,7 @@ func TestWorker_Work(t *testing.T) {
 			wantCancel: true,
 		},
 		{
-			name: "invalid args - empty language",
+			name: "empty language defaults to English",
 			args: Args{
 				AnalysisID: "valid-id",
 				Language:   "",
@@ -239,20 +239,8 @@ func TestWorker_Work(t *testing.T) {
 			setupMocks: func() (*mockRepository, *mockAIProvider) {
 				return newSuccessfulMocks()
 			},
-			wantErr:    true,
-			wantCancel: true,
-		},
-		{
-			name: "invalid args - unsupported language",
-			args: Args{
-				AnalysisID: "valid-id",
-				Language:   "fr",
-			},
-			setupMocks: func() (*mockRepository, *mockAIProvider) {
-				return newSuccessfulMocks()
-			},
-			wantErr:    true,
-			wantCancel: true,
+			wantErr:    false,
+			wantCancel: false,
 		},
 		{
 			name: "analysis not found - permanent error",
@@ -400,42 +388,6 @@ func TestWorker_Work_ContextPropagation(t *testing.T) {
 			t.Error("expected error from cancelled context, got nil")
 		}
 	})
-}
-
-func TestValidateArgs(t *testing.T) {
-	tests := []struct {
-		name    string
-		args    Args
-		wantErr bool
-	}{
-		{
-			name:    "valid args",
-			args:    Args{AnalysisID: "test-id", Language: "en"},
-			wantErr: false,
-		},
-		{
-			name:    "empty analysis ID",
-			args:    Args{AnalysisID: "", Language: "en"},
-			wantErr: true,
-		},
-		{
-			name:    "empty language",
-			args:    Args{AnalysisID: "test-id", Language: ""},
-			wantErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := validateArgs(tt.args)
-			if tt.wantErr && err == nil {
-				t.Error("expected error, got nil")
-			}
-			if !tt.wantErr && err != nil {
-				t.Errorf("expected no error, got %v", err)
-			}
-		})
-	}
 }
 
 func TestIsPermanentError(t *testing.T) {

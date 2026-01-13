@@ -47,7 +47,7 @@ func BenchmarkSpecView_500Behaviors(b *testing.B) {
 		// Each iteration needs a unique language to avoid cache hits
 		lang := specview.Language("en")
 		if i%2 == 1 {
-			lang = specview.LanguageKO
+			lang = "Korean"
 		}
 
 		// Clean up previous documents to test fresh generation
@@ -92,7 +92,7 @@ func BenchmarkSpecView_4WayJoin(b *testing.B) {
 
 	req := specview.SpecViewRequest{
 		AnalysisID: analysisID,
-		Language:   specview.LanguageKO,
+		Language:   "Korean",
 	}
 
 	result, err := uc.Execute(ctx, req)
@@ -155,7 +155,7 @@ func BenchmarkSpecView_BulkInsert(b *testing.B) {
 		uc := specviewuc.NewGenerateSpecViewUseCase(specRepo, aiProvider, "benchmark-model")
 		req := specview.SpecViewRequest{
 			AnalysisID: analysisID,
-			Language:   specview.LanguageEN,
+			Language:   "English",
 		}
 
 		_, err := uc.Execute(ctx, req)
@@ -172,7 +172,7 @@ func BenchmarkSpecView_ContentHashCalculation(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		hash := specview.GenerateContentHash(files, specview.LanguageKO)
+		hash := specview.GenerateContentHash(files, "Korean")
 		if len(hash) == 0 {
 			b.Fatal("expected non-empty hash")
 		}

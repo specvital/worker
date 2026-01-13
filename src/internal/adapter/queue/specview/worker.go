@@ -22,7 +22,7 @@ const (
 // Args represents the arguments for a spec-view generation job.
 type Args struct {
 	AnalysisID string `json:"analysis_id" river:"unique"`
-	Language   string `json:"language" river:"unique"`
+	Language   string `json:"language" river:"unique"` // optional, defaults to "English"
 	ModelID    string `json:"model_id,omitempty"`
 }
 
@@ -67,15 +67,22 @@ func (w *Worker) NextRetry(job *river.Job[Args]) time.Time {
 func (w *Worker) Work(ctx context.Context, job *river.Job[Args]) error {
 	args := job.Args
 
+	// Default language to English if not specified
+	language := args.Language
+	if language == "" {
+		language = "English"
+	}
+
 	slog.InfoContext(ctx, "processing specview generation task",
 		"job_id", job.ID,
 		"analysis_id", args.AnalysisID,
-		"language", args.Language,
+		"language", language,
 		"model_id", args.ModelID,
 		"attempt", job.Attempt,
 	)
 
-	if err := validateArgs(args); err != nil {
+	if args.AnalysisID == "" {
+		err := errors.New("analysis_id is required")
 		slog.WarnContext(ctx, "invalid job arguments, cancelling",
 			"job_id", job.ID,
 			"error", err,
@@ -83,15 +90,7 @@ func (w *Worker) Work(ctx context.Context, job *river.Job[Args]) error {
 		return river.JobCancel(err)
 	}
 
-	lang := specview.Language(args.Language)
-	if !lang.IsValid() {
-		err := errors.New("unsupported language: " + args.Language)
-		slog.WarnContext(ctx, "invalid language, cancelling",
-			"job_id", job.ID,
-			"language", args.Language,
-		)
-		return river.JobCancel(err)
-	}
+	lang := specview.Language(language)
 
 	req := specview.SpecViewRequest{
 		AnalysisID: args.AnalysisID,
@@ -116,15 +115,6 @@ func (w *Worker) Work(ctx context.Context, job *river.Job[Args]) error {
 	return nil
 }
 
-func validateArgs(args Args) error {
-	if args.AnalysisID == "" {
-		return errors.New("analysis_id is required")
-	}
-	if args.Language == "" {
-		return errors.New("language is required")
-	}
-	return nil
-}
 
 func (w *Worker) handleError(ctx context.Context, job *river.Job[Args], err error) error {
 	args := job.Args

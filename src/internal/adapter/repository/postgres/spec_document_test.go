@@ -101,7 +101,7 @@ func TestSpecDocumentRepository_SaveDocument(t *testing.T) {
 		doc := &specview.SpecDocument{
 			AnalysisID:  analysisID.String(),
 			ContentHash: []byte("test-hash-123"),
-			Language:    specview.LanguageEN,
+			Language:    "English",
 			ModelID:     "gemini-2.5-flash",
 			Domains: []specview.Domain{
 				{
@@ -162,7 +162,7 @@ func TestSpecDocumentRepository_SaveDocument(t *testing.T) {
 	})
 
 	t.Run("should return nil for non-existent content hash", func(t *testing.T) {
-		doc, err := specRepo.FindDocumentByContentHash(ctx, []byte("non-existent"), specview.LanguageEN, "model")
+		doc, err := specRepo.FindDocumentByContentHash(ctx, []byte("non-existent"), "English", "model")
 		if err != nil {
 			t.Fatalf("FindDocumentByContentHash failed: %v", err)
 		}
@@ -191,7 +191,7 @@ func TestSpecDocumentRepository_FindDocumentByContentHash(t *testing.T) {
 		doc := &specview.SpecDocument{
 			AnalysisID:  analysisID.String(),
 			ContentHash: contentHash,
-			Language:    specview.LanguageKO,
+			Language:    "Korean",
 			ModelID:     "gemini-2.5-flash",
 			Domains:     []specview.Domain{},
 		}
@@ -201,7 +201,7 @@ func TestSpecDocumentRepository_FindDocumentByContentHash(t *testing.T) {
 			t.Fatalf("SaveDocument failed: %v", err)
 		}
 
-		found, err := specRepo.FindDocumentByContentHash(ctx, contentHash, specview.LanguageKO, "gemini-2.5-flash")
+		found, err := specRepo.FindDocumentByContentHash(ctx, contentHash, "Korean", "gemini-2.5-flash")
 		if err != nil {
 			t.Fatalf("FindDocumentByContentHash failed: %v", err)
 		}
@@ -222,7 +222,7 @@ func TestSpecDocumentRepository_FindDocumentByContentHash(t *testing.T) {
 		doc := &specview.SpecDocument{
 			AnalysisID:  analysisID.String(),
 			ContentHash: contentHash,
-			Language:    specview.LanguageEN,
+			Language:    "English",
 			ModelID:     "gemini-2.5-flash",
 			Domains:     []specview.Domain{},
 		}
@@ -232,7 +232,7 @@ func TestSpecDocumentRepository_FindDocumentByContentHash(t *testing.T) {
 			t.Fatalf("SaveDocument failed: %v", err)
 		}
 
-		found, err := specRepo.FindDocumentByContentHash(ctx, contentHash, specview.LanguageKO, "gemini-2.5-flash")
+		found, err := specRepo.FindDocumentByContentHash(ctx, contentHash, "Korean", "gemini-2.5-flash")
 		if err != nil {
 			t.Fatalf("FindDocumentByContentHash failed: %v", err)
 		}

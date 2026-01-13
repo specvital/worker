@@ -18,7 +18,7 @@ func TestBuildPhase2UserPrompt_BasicFormat(t *testing.T) {
 		},
 	}
 
-	prompt := BuildPhase2UserPrompt(input, specview.LanguageEN)
+	prompt := BuildPhase2UserPrompt(input, "English")
 
 	// Check context
 	if !strings.Contains(prompt, "Domain: Authentication") {
@@ -27,7 +27,7 @@ func TestBuildPhase2UserPrompt_BasicFormat(t *testing.T) {
 	if !strings.Contains(prompt, "Feature: Login") {
 		t.Error("prompt should contain feature name")
 	}
-	if !strings.Contains(prompt, "Target Language: en") {
+	if !strings.Contains(prompt, "Target Language: English") {
 		t.Error("prompt should contain target language")
 	}
 
@@ -51,7 +51,7 @@ func TestBuildPhase2UserPrompt_MultipleTests(t *testing.T) {
 		},
 	}
 
-	prompt := BuildPhase2UserPrompt(input, specview.LanguageKO)
+	prompt := BuildPhase2UserPrompt(input, "Korean")
 
 	// Check test indices are preserved
 	if !strings.Contains(prompt, "5|TestRegister_Success") {
@@ -75,9 +75,9 @@ func TestBuildPhase2UserPrompt_LanguageVariants(t *testing.T) {
 	}
 
 	languages := []specview.Language{
-		specview.LanguageEN,
-		specview.LanguageKO,
-		specview.LanguageJA,
+		"English",
+		"Korean",
+		"Japanese",
 	}
 
 	for _, lang := range languages {

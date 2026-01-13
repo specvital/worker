@@ -83,23 +83,13 @@ func NewProvider(ctx context.Context, config Config) (*Provider, error) {
 }
 
 // ClassifyDomains performs Phase 1: domain and feature classification.
-// Uses input.Language for output language (defaults to Korean if not set).
 func (p *Provider) ClassifyDomains(ctx context.Context, input specview.Phase1Input) (*specview.Phase1Output, error) {
-	lang := input.Language
-	if lang == "" {
-		lang = specview.LanguageKO
-	}
-	return p.classifyDomains(ctx, input, lang)
+	return p.classifyDomains(ctx, input, input.Language)
 }
 
 // ConvertTestNames performs Phase 2: test name to behavior conversion.
-// Uses input.Language for output language (defaults to Korean if not set).
 func (p *Provider) ConvertTestNames(ctx context.Context, input specview.Phase2Input) (*specview.Phase2Output, error) {
-	lang := input.Language
-	if lang == "" {
-		lang = specview.LanguageKO
-	}
-	return p.convertTestNames(ctx, input, lang)
+	return p.convertTestNames(ctx, input, input.Language)
 }
 
 // Close releases resources held by the provider.

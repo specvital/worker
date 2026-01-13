@@ -97,7 +97,7 @@ func TestSpecViewIntegration_SmallRepo(t *testing.T) {
 
 	req := specview.SpecViewRequest{
 		AnalysisID: analysisID,
-		Language:   specview.LanguageKO,
+		Language:   "Korean",
 	}
 
 	result, err := uc.Execute(ctx, req)
@@ -149,7 +149,7 @@ func TestSpecViewIntegration_MediumRepo(t *testing.T) {
 
 	req := specview.SpecViewRequest{
 		AnalysisID: analysisID,
-		Language:   specview.LanguageEN,
+		Language:   "English",
 	}
 
 	start := time.Now()
@@ -204,7 +204,7 @@ func TestSpecViewIntegration_CacheHit(t *testing.T) {
 
 	req := specview.SpecViewRequest{
 		AnalysisID: analysisID,
-		Language:   specview.LanguageKO,
+		Language:   "Korean",
 	}
 
 	// First execution
@@ -272,7 +272,7 @@ func TestSpecViewIntegration_AIFailureWithFallback(t *testing.T) {
 
 	req := specview.SpecViewRequest{
 		AnalysisID: analysisID,
-		Language:   specview.LanguageKO,
+		Language:   "Korean",
 	}
 
 	result, err := uc.Execute(ctx, req)
@@ -320,7 +320,7 @@ func TestSpecViewIntegration_PartialPhase2Failure(t *testing.T) {
 
 	req := specview.SpecViewRequest{
 		AnalysisID: analysisID,
-		Language:   specview.LanguageKO,
+		Language:   "Korean",
 	}
 
 	_, err := uc.Execute(ctx, req)
@@ -365,7 +365,7 @@ func TestSpecViewIntegration_Phase1Failure(t *testing.T) {
 
 	req := specview.SpecViewRequest{
 		AnalysisID: analysisID,
-		Language:   specview.LanguageKO,
+		Language:   "Korean",
 	}
 
 	_, err := uc.Execute(ctx, req)
@@ -395,7 +395,7 @@ func TestSpecViewIntegration_AnalysisNotFound(t *testing.T) {
 
 	req := specview.SpecViewRequest{
 		AnalysisID: "00000000-0000-0000-0000-000000000000",
-		Language:   specview.LanguageKO,
+		Language:   "Korean",
 	}
 
 	_, err := uc.Execute(ctx, req)
@@ -429,7 +429,7 @@ func TestSpecViewIntegration_DifferentLanguages(t *testing.T) {
 	// Execute with Korean
 	reqKO := specview.SpecViewRequest{
 		AnalysisID: analysisID,
-		Language:   specview.LanguageKO,
+		Language:   "Korean",
 	}
 	resultKO, err := uc.Execute(ctx, reqKO)
 	if err != nil {
@@ -439,7 +439,7 @@ func TestSpecViewIntegration_DifferentLanguages(t *testing.T) {
 	// Execute with English - should create new document
 	reqEN := specview.SpecViewRequest{
 		AnalysisID: analysisID,
-		Language:   specview.LanguageEN,
+		Language:   "English",
 	}
 	resultEN, err := uc.Execute(ctx, reqEN)
 	if err != nil {
