@@ -6,8 +6,11 @@ import (
 )
 
 type Config struct {
-	DatabaseURL   string
-	EncryptionKey string
+	DatabaseURL       string
+	EncryptionKey     string
+	GeminiAPIKey      string
+	GeminiPhase1Model string
+	GeminiPhase2Model string
 }
 
 func Load() (*Config, error) {
@@ -21,8 +24,16 @@ func Load() (*Config, error) {
 		return nil, errors.New("ENCRYPTION_KEY is required")
 	}
 
+	geminiAPIKey := os.Getenv("GEMINI_API_KEY")
+	if geminiAPIKey == "" {
+		return nil, errors.New("GEMINI_API_KEY is required")
+	}
+
 	return &Config{
-		DatabaseURL:   databaseURL,
-		EncryptionKey: encryptionKey,
+		DatabaseURL:       databaseURL,
+		EncryptionKey:     encryptionKey,
+		GeminiAPIKey:      geminiAPIKey,
+		GeminiPhase1Model: os.Getenv("GEMINI_PHASE1_MODEL"),
+		GeminiPhase2Model: os.Getenv("GEMINI_PHASE2_MODEL"),
 	}, nil
 }

@@ -18,11 +18,14 @@ import (
 
 // AnalyzerConfig holds configuration for the analyzer service.
 type AnalyzerConfig struct {
-	ServiceName     string
-	Concurrency     int
-	ShutdownTimeout time.Duration
-	DatabaseURL     string
-	EncryptionKey   string
+	ServiceName       string
+	Concurrency       int
+	ShutdownTimeout   time.Duration
+	DatabaseURL       string
+	EncryptionKey     string
+	GeminiAPIKey      string
+	GeminiPhase1Model string
+	GeminiPhase2Model string
 }
 
 // Validate checks that required analyzer configuration fields are set.
@@ -35,6 +38,9 @@ func (c *AnalyzerConfig) Validate() error {
 	}
 	if c.EncryptionKey == "" {
 		return fmt.Errorf("encryption key is required")
+	}
+	if c.GeminiAPIKey == "" {
+		return fmt.Errorf("gemini API key is required")
 	}
 	return nil
 }
@@ -77,9 +83,12 @@ func StartAnalyzer(cfg AnalyzerConfig) error {
 	}
 
 	container, err := app.NewAnalyzerContainer(ctx, app.ContainerConfig{
-		EncryptionKey: cfg.EncryptionKey,
-		ParserVersion: parserVersion,
-		Pool:          pool,
+		EncryptionKey:     cfg.EncryptionKey,
+		GeminiAPIKey:      cfg.GeminiAPIKey,
+		GeminiPhase1Model: cfg.GeminiPhase1Model,
+		GeminiPhase2Model: cfg.GeminiPhase2Model,
+		ParserVersion:     parserVersion,
+		Pool:              pool,
 	})
 	if err != nil {
 		return fmt.Errorf("container: %w", err)

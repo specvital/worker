@@ -21,9 +21,12 @@ func main() {
 	}
 
 	if err := bootstrap.StartAnalyzer(bootstrap.AnalyzerConfig{
-		ServiceName:   "analyzer",
-		DatabaseURL:   cfg.DatabaseURL,
-		EncryptionKey: cfg.EncryptionKey,
+		ServiceName:       "analyzer",
+		DatabaseURL:       cfg.DatabaseURL,
+		EncryptionKey:     cfg.EncryptionKey,
+		GeminiAPIKey:      cfg.GeminiAPIKey,
+		GeminiPhase1Model: cfg.GeminiPhase1Model,
+		GeminiPhase2Model: cfg.GeminiPhase2Model,
 	}); err != nil {
 		slog.Error("analyzer failed", "error", err)
 		os.Exit(1)
