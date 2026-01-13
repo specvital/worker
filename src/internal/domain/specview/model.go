@@ -73,9 +73,10 @@ type DomainHints struct {
 
 // TestInfo represents a single test within a file.
 type TestInfo struct {
-	Index     int    // unique identifier for cross-referencing in Phase1Output.FeatureGroup.TestIndices
-	Name      string
-	SuitePath string // nested suite path (e.g., "SuiteA > SuiteB")
+	Index      int    // unique identifier for cross-referencing in Phase1Output.FeatureGroup.TestIndices
+	Name       string
+	SuitePath  string // nested suite path (e.g., "SuiteA > SuiteB")
+	TestCaseID string // FK to test_cases table
 }
 
 // Phase1Output represents the result of domain classification.
@@ -156,8 +157,9 @@ type Feature struct {
 
 // Behavior represents a behavior (converted test) within a feature.
 type Behavior struct {
-	Confidence  float64
-	Description string
-	ID          string
-	TestCaseID  string // FK to test_cases table
+	Confidence   float64
+	Description  string
+	ID           string
+	OriginalName string // original test name before conversion
+	TestCaseID   string // FK to test_cases table
 }

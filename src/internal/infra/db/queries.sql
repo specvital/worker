@@ -143,3 +143,47 @@ DO UPDATE SET value = EXCLUDED.value, updated_at = now();
 
 -- name: GetSystemConfig :one
 SELECT value FROM system_config WHERE key = $1;
+
+-- =============================================================================
+-- SPEC DOCUMENTS
+-- =============================================================================
+
+-- name: FindSpecDocumentByContentHash :one
+SELECT * FROM spec_documents
+WHERE content_hash = $1 AND language = $2 AND model_id = $3;
+
+-- name: InsertSpecDocument :one
+INSERT INTO spec_documents (analysis_id, content_hash, language, model_id)
+VALUES ($1, $2, $3, $4)
+RETURNING id;
+
+-- name: InsertSpecDomain :one
+INSERT INTO spec_domains (document_id, name, description, sort_order, classification_confidence)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id;
+
+-- name: InsertSpecFeature :one
+INSERT INTO spec_features (domain_id, name, description, sort_order)
+VALUES ($1, $2, $3, $4)
+RETURNING id;
+
+-- name: GetTestDataByAnalysisID :many
+SELECT
+    tf.id as file_id,
+    tf.file_path,
+    tf.framework,
+    tf.domain_hints,
+    ts.id as suite_id,
+    ts.parent_id as suite_parent_id,
+    ts.name as suite_name,
+    ts.depth as suite_depth,
+    tc.id as test_case_id,
+    tc.name as test_name
+FROM test_files tf
+JOIN test_suites ts ON ts.file_id = tf.id
+JOIN test_cases tc ON tc.suite_id = ts.id
+WHERE tf.analysis_id = $1
+ORDER BY tf.file_path, ts.depth, ts.name, tc.name;
+
+-- name: CheckAnalysisExists :one
+SELECT EXISTS(SELECT 1 FROM analyses WHERE id = $1) as exists;

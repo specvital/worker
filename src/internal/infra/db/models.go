@@ -378,18 +378,46 @@ type RiverQueue struct {
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }
 
-type SpecViewCache struct {
-	ID             pgtype.UUID        `json:"id"`
-	CacheKeyHash   []byte             `json:"cache_key_hash"`
-	CodebaseID     pgtype.UUID        `json:"codebase_id"`
-	FilePath       string             `json:"file_path"`
-	Framework      string             `json:"framework"`
-	SuiteHierarchy string             `json:"suite_hierarchy"`
-	OriginalName   string             `json:"original_name"`
-	ConvertedName  string             `json:"converted_name"`
-	Language       string             `json:"language"`
-	ModelID        string             `json:"model_id"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+type SpecBehavior struct {
+	ID                   pgtype.UUID        `json:"id"`
+	FeatureID            pgtype.UUID        `json:"feature_id"`
+	SourceTestCaseID     pgtype.UUID        `json:"source_test_case_id"`
+	OriginalName         string             `json:"original_name"`
+	ConvertedDescription string             `json:"converted_description"`
+	SortOrder            int32              `json:"sort_order"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+}
+
+type SpecDocument struct {
+	ID               pgtype.UUID        `json:"id"`
+	AnalysisID       pgtype.UUID        `json:"analysis_id"`
+	ContentHash      []byte             `json:"content_hash"`
+	Language         string             `json:"language"`
+	ExecutiveSummary pgtype.Text        `json:"executive_summary"`
+	ModelID          string             `json:"model_id"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+}
+
+type SpecDomain struct {
+	ID                       pgtype.UUID        `json:"id"`
+	DocumentID               pgtype.UUID        `json:"document_id"`
+	Name                     string             `json:"name"`
+	Description              pgtype.Text        `json:"description"`
+	SortOrder                int32              `json:"sort_order"`
+	ClassificationConfidence pgtype.Numeric     `json:"classification_confidence"`
+	CreatedAt                pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt                pgtype.Timestamptz `json:"updated_at"`
+}
+
+type SpecFeature struct {
+	ID          pgtype.UUID        `json:"id"`
+	DomainID    pgtype.UUID        `json:"domain_id"`
+	Name        string             `json:"name"`
+	Description pgtype.Text        `json:"description"`
+	SortOrder   int32              `json:"sort_order"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
 }
 
 type SystemConfig struct {

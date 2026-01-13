@@ -11,6 +11,17 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const checkAnalysisExists = `-- name: CheckAnalysisExists :one
+SELECT EXISTS(SELECT 1 FROM analyses WHERE id = $1) as exists
+`
+
+func (q *Queries) CheckAnalysisExists(ctx context.Context, id pgtype.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, checkAnalysisExists, id)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const createAnalysis = `-- name: CreateAnalysis :one
 INSERT INTO analyses (id, codebase_id, commit_sha, branch_name, status, started_at, parser_version)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -207,6 +218,37 @@ func (q *Queries) FindCodebaseWithLastCommitByOwnerName(ctx context.Context, arg
 	return i, err
 }
 
+const findSpecDocumentByContentHash = `-- name: FindSpecDocumentByContentHash :one
+
+SELECT id, analysis_id, content_hash, language, executive_summary, model_id, created_at, updated_at FROM spec_documents
+WHERE content_hash = $1 AND language = $2 AND model_id = $3
+`
+
+type FindSpecDocumentByContentHashParams struct {
+	ContentHash []byte `json:"content_hash"`
+	Language    string `json:"language"`
+	ModelID     string `json:"model_id"`
+}
+
+// =============================================================================
+// SPEC DOCUMENTS
+// =============================================================================
+func (q *Queries) FindSpecDocumentByContentHash(ctx context.Context, arg FindSpecDocumentByContentHashParams) (SpecDocument, error) {
+	row := q.db.QueryRow(ctx, findSpecDocumentByContentHash, arg.ContentHash, arg.Language, arg.ModelID)
+	var i SpecDocument
+	err := row.Scan(
+		&i.ID,
+		&i.AnalysisID,
+		&i.ContentHash,
+		&i.Language,
+		&i.ExecutiveSummary,
+		&i.ModelID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getCodebaseByID = `-- name: GetCodebaseByID :one
 SELECT id, host, owner, name, default_branch, created_at, updated_at, last_viewed_at, external_repo_id, is_stale, is_private FROM codebases WHERE id = $1
 `
@@ -377,6 +419,69 @@ func (q *Queries) GetTestCasesBySuiteID(ctx context.Context, suiteID pgtype.UUID
 	return items, nil
 }
 
+const getTestDataByAnalysisID = `-- name: GetTestDataByAnalysisID :many
+SELECT
+    tf.id as file_id,
+    tf.file_path,
+    tf.framework,
+    tf.domain_hints,
+    ts.id as suite_id,
+    ts.parent_id as suite_parent_id,
+    ts.name as suite_name,
+    ts.depth as suite_depth,
+    tc.id as test_case_id,
+    tc.name as test_name
+FROM test_files tf
+JOIN test_suites ts ON ts.file_id = tf.id
+JOIN test_cases tc ON tc.suite_id = ts.id
+WHERE tf.analysis_id = $1
+ORDER BY tf.file_path, ts.depth, ts.name, tc.name
+`
+
+type GetTestDataByAnalysisIDRow struct {
+	FileID        pgtype.UUID `json:"file_id"`
+	FilePath      string      `json:"file_path"`
+	Framework     pgtype.Text `json:"framework"`
+	DomainHints   []byte      `json:"domain_hints"`
+	SuiteID       pgtype.UUID `json:"suite_id"`
+	SuiteParentID pgtype.UUID `json:"suite_parent_id"`
+	SuiteName     string      `json:"suite_name"`
+	SuiteDepth    int32       `json:"suite_depth"`
+	TestCaseID    pgtype.UUID `json:"test_case_id"`
+	TestName      string      `json:"test_name"`
+}
+
+func (q *Queries) GetTestDataByAnalysisID(ctx context.Context, analysisID pgtype.UUID) ([]GetTestDataByAnalysisIDRow, error) {
+	rows, err := q.db.Query(ctx, getTestDataByAnalysisID, analysisID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetTestDataByAnalysisIDRow{}
+	for rows.Next() {
+		var i GetTestDataByAnalysisIDRow
+		if err := rows.Scan(
+			&i.FileID,
+			&i.FilePath,
+			&i.Framework,
+			&i.DomainHints,
+			&i.SuiteID,
+			&i.SuiteParentID,
+			&i.SuiteName,
+			&i.SuiteDepth,
+			&i.TestCaseID,
+			&i.TestName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getTestSuitesByFileID = `-- name: GetTestSuitesByFileID :many
 SELECT id, parent_id, name, line_number, depth, file_id FROM test_suites WHERE file_id = $1 ORDER BY line_number
 `
@@ -406,6 +511,83 @@ func (q *Queries) GetTestSuitesByFileID(ctx context.Context, fileID pgtype.UUID)
 		return nil, err
 	}
 	return items, nil
+}
+
+const insertSpecDocument = `-- name: InsertSpecDocument :one
+INSERT INTO spec_documents (analysis_id, content_hash, language, model_id)
+VALUES ($1, $2, $3, $4)
+RETURNING id
+`
+
+type InsertSpecDocumentParams struct {
+	AnalysisID  pgtype.UUID `json:"analysis_id"`
+	ContentHash []byte      `json:"content_hash"`
+	Language    string      `json:"language"`
+	ModelID     string      `json:"model_id"`
+}
+
+func (q *Queries) InsertSpecDocument(ctx context.Context, arg InsertSpecDocumentParams) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, insertSpecDocument,
+		arg.AnalysisID,
+		arg.ContentHash,
+		arg.Language,
+		arg.ModelID,
+	)
+	var id pgtype.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
+const insertSpecDomain = `-- name: InsertSpecDomain :one
+INSERT INTO spec_domains (document_id, name, description, sort_order, classification_confidence)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id
+`
+
+type InsertSpecDomainParams struct {
+	DocumentID               pgtype.UUID    `json:"document_id"`
+	Name                     string         `json:"name"`
+	Description              pgtype.Text    `json:"description"`
+	SortOrder                int32          `json:"sort_order"`
+	ClassificationConfidence pgtype.Numeric `json:"classification_confidence"`
+}
+
+func (q *Queries) InsertSpecDomain(ctx context.Context, arg InsertSpecDomainParams) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, insertSpecDomain,
+		arg.DocumentID,
+		arg.Name,
+		arg.Description,
+		arg.SortOrder,
+		arg.ClassificationConfidence,
+	)
+	var id pgtype.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
+const insertSpecFeature = `-- name: InsertSpecFeature :one
+INSERT INTO spec_features (domain_id, name, description, sort_order)
+VALUES ($1, $2, $3, $4)
+RETURNING id
+`
+
+type InsertSpecFeatureParams struct {
+	DomainID    pgtype.UUID `json:"domain_id"`
+	Name        string      `json:"name"`
+	Description pgtype.Text `json:"description"`
+	SortOrder   int32       `json:"sort_order"`
+}
+
+func (q *Queries) InsertSpecFeature(ctx context.Context, arg InsertSpecFeatureParams) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, insertSpecFeature,
+		arg.DomainID,
+		arg.Name,
+		arg.Description,
+		arg.SortOrder,
+	)
+	var id pgtype.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 const insertTestFile = `-- name: InsertTestFile :one
