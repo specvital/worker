@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/specvital/worker/internal/adapter/ai/prompt"
+	"github.com/specvital/worker/internal/adapter/ai/reliability"
 	"github.com/specvital/worker/internal/domain/specview"
 )
 
@@ -52,6 +53,7 @@ func (p *Provider) classifyDomains(ctx context.Context, input specview.Phase1Inp
 
 // classifyDomainsSingle performs Phase 1 classification for a single chunk.
 // anchorDomains is optional context from previous chunks.
+// Retries on both API errors and JSON parsing errors.
 func (p *Provider) classifyDomainsSingle(ctx context.Context, input specview.Phase1Input, lang specview.Language, anchorDomains []specview.DomainGroup) (*specview.Phase1Output, *specview.TokenUsage, error) {
 	systemPrompt := prompt.Phase1SystemPrompt
 	var userPrompt string
@@ -61,25 +63,33 @@ func (p *Provider) classifyDomainsSingle(ctx context.Context, input specview.Pha
 		userPrompt = prompt.BuildPhase1UserPrompt(input, lang)
 	}
 
-	var result string
+	var output *specview.Phase1Output
 	var usage *specview.TokenUsage
 
 	err := p.phase1Retry.Do(ctx, func() error {
-		var innerErr error
-		result, usage, innerErr = p.generateContent(ctx, p.phase1Model, systemPrompt, userPrompt, p.phase1CB)
-		return innerErr
+		// API call
+		result, innerUsage, innerErr := p.generateContent(ctx, p.phase1Model, systemPrompt, userPrompt, p.phase1CB)
+		if innerErr != nil {
+			return innerErr
+		}
+		usage = innerUsage
+
+		// Parse response - parsing errors are also retryable
+		var parseErr error
+		output, parseErr = parsePhase1Response(result)
+		if parseErr != nil {
+			slog.WarnContext(ctx, "failed to parse phase 1 response, will retry",
+				"error", parseErr,
+				"response", truncateForLog(result, 500),
+			)
+			// Wrap as RetryableError so retry logic will attempt again
+			return &reliability.RetryableError{Err: parseErr}
+		}
+
+		return nil
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("phase 1 classification failed: %w", err)
-	}
-
-	output, err := parsePhase1Response(result)
-	if err != nil {
-		slog.WarnContext(ctx, "failed to parse phase 1 response",
-			"error", err,
-			"response", truncateForLog(result, 500),
-		)
-		return nil, nil, fmt.Errorf("failed to parse phase 1 response: %w", err)
 	}
 
 	if err := validatePhase1Output(ctx, output, input); err != nil {

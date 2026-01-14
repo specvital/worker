@@ -11,9 +11,9 @@ const (
 	MaxTokensPerChunk = 50_000
 
 	// MaxTestsPerChunk is the maximum number of tests per chunk.
-	// Reduced to 1K to ensure reliable API responses within timeout limits.
-	// 1K tests ≈ 40K input tokens + output ≈ 30-45s processing time.
-	MaxTestsPerChunk = 1_000
+	// Reduced to 500 to ensure reliable API responses within timeout limits.
+	// 500 tests ≈ 20K input tokens + output ≈ 15-25s processing time.
+	MaxTestsPerChunk = 500
 
 	// tokensPerTest is the estimated tokens per test (name + metadata).
 	tokensPerTest = 40

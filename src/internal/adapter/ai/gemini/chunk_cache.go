@@ -1,6 +1,7 @@
 package gemini
 
 import (
+	"log/slog"
 	"sync"
 
 	"github.com/specvital/worker/internal/domain/specview"
@@ -45,7 +46,15 @@ func GetGlobalChunkCache() *ChunkCache {
 func (c *ChunkCache) Get(key ChunkCacheKey) *ChunkProgress {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.cache[key]
+	progress := c.cache[key]
+	slog.Info("chunk cache get",
+		"content_hash", key.ContentHash[:16]+"...",
+		"language", key.Language,
+		"model_id", key.ModelID,
+		"found", progress != nil,
+		"cache_size", len(c.cache),
+	)
+	return progress
 }
 
 // Save stores progress for the given key.
@@ -53,6 +62,13 @@ func (c *ChunkCache) Save(key ChunkCacheKey, progress *ChunkProgress) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.cache[key] = progress
+	slog.Info("chunk cache save",
+		"content_hash", key.ContentHash[:16]+"...",
+		"language", key.Language,
+		"model_id", key.ModelID,
+		"completed_chunks", progress.CompletedChunks,
+		"cache_size", len(c.cache),
+	)
 }
 
 // Delete removes the cache entry for the given key.
