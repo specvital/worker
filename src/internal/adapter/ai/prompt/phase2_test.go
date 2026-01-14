@@ -113,12 +113,11 @@ func TestBuildPhase2UserPrompt_LanguageVariants(t *testing.T) {
 
 func TestPhase2SystemPrompt_ContainsRequiredSections(t *testing.T) {
 	requiredSections := []string{
-		"Critical Constraints",
-		"Conversion Process",
-		"Output Style: Specification Notation",
-		"Language Examples",
-		"Confidence Scoring",
-		"Output Format",
+		"Constraints",
+		"Process",
+		"Specification Notation",
+		"Confidence",
+		"Output",
 		"conversions",
 		"index",
 		"description",
@@ -133,15 +132,8 @@ func TestPhase2SystemPrompt_ContainsRequiredSections(t *testing.T) {
 }
 
 func TestPhase2SystemPrompt_ContainsLanguageStyles(t *testing.T) {
-	languageStyles := []string{
-		"Korean",
-		"English",
-		"Japanese",
-	}
-
-	for _, style := range languageStyles {
-		if !strings.Contains(Phase2SystemPrompt, style) {
-			t.Errorf("system prompt should contain style guide for %s", style)
-		}
+	// Prompt now uses Korean as primary example, others apply same principle
+	if !strings.Contains(Phase2SystemPrompt, "Korean") {
+		t.Error("system prompt should contain Korean as primary example")
 	}
 }

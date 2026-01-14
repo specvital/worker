@@ -14,11 +14,11 @@ import (
 )
 
 const (
-	DefaultPhase1Timeout       = 2 * time.Minute
-	DefaultPhase2Timeout       = 7 * time.Minute
-	DefaultPhase2Concurrency   = int64(5)
-	DefaultFailureThreshold    = 0.5 // 50% feature failure threshold
-	DefaultPhase2FeatureTimeout = 30 * time.Second
+	DefaultPhase1Timeout        = 270 * time.Second // 4m30s, below Gemini's 5min server limit
+	DefaultPhase2Timeout        = 7 * time.Minute
+	DefaultPhase2Concurrency    = int64(5)
+	DefaultFailureThreshold     = 0.5 // 50% feature failure threshold
+	DefaultPhase2FeatureTimeout = 90 * time.Second  // 1m30s for single feature conversion
 )
 
 // Config holds configuration for GenerateSpecViewUseCase.

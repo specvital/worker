@@ -145,16 +145,13 @@ func TestBuildPhase1UserPrompt_LanguageVariants(t *testing.T) {
 
 func TestPhase1SystemPrompt_ContainsRequiredSections(t *testing.T) {
 	requiredSections := []string{
-		"Critical Constraints",
-		"Domain Identification",
-		"Feature Grouping",
-		"Confidence Scoring",
-		"Output Format",
+		"Constraints",
+		"Classification Priority",
+		"Confidence",
+		"Output",
 		"domains",
 		"features",
 		"test_indices",
-		"Imports",
-		"Calls",
 	}
 
 	for _, section := range requiredSections {
