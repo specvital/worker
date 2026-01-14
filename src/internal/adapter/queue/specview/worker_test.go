@@ -14,11 +14,11 @@ import (
 )
 
 type mockAIProvider struct {
-	classifyDomainsFn   func(ctx context.Context, input specview.Phase1Input) (*specview.Phase1Output, error)
-	convertTestNamesFn  func(ctx context.Context, input specview.Phase2Input) (*specview.Phase2Output, error)
+	classifyDomainsFn  func(ctx context.Context, input specview.Phase1Input) (*specview.Phase1Output, *specview.TokenUsage, error)
+	convertTestNamesFn func(ctx context.Context, input specview.Phase2Input) (*specview.Phase2Output, *specview.TokenUsage, error)
 }
 
-func (m *mockAIProvider) ClassifyDomains(ctx context.Context, input specview.Phase1Input) (*specview.Phase1Output, error) {
+func (m *mockAIProvider) ClassifyDomains(ctx context.Context, input specview.Phase1Input) (*specview.Phase1Output, *specview.TokenUsage, error) {
 	if m.classifyDomainsFn != nil {
 		return m.classifyDomainsFn(ctx, input)
 	}
@@ -36,10 +36,10 @@ func (m *mockAIProvider) ClassifyDomains(ctx context.Context, input specview.Pha
 				},
 			},
 		},
-	}, nil
+	}, nil, nil
 }
 
-func (m *mockAIProvider) ConvertTestNames(ctx context.Context, input specview.Phase2Input) (*specview.Phase2Output, error) {
+func (m *mockAIProvider) ConvertTestNames(ctx context.Context, input specview.Phase2Input) (*specview.Phase2Output, *specview.TokenUsage, error) {
 	if m.convertTestNamesFn != nil {
 		return m.convertTestNamesFn(ctx, input)
 	}
@@ -47,7 +47,7 @@ func (m *mockAIProvider) ConvertTestNames(ctx context.Context, input specview.Ph
 		Behaviors: []specview.BehaviorSpec{
 			{TestIndex: 0, Description: "should do something", Confidence: 0.9},
 		},
-	}, nil
+	}, nil, nil
 }
 
 type mockRepository struct {
@@ -266,8 +266,8 @@ func TestWorker_Work(t *testing.T) {
 			},
 			setupMocks: func() (*mockRepository, *mockAIProvider) {
 				repo, ai := newSuccessfulMocks()
-				ai.classifyDomainsFn = func(ctx context.Context, input specview.Phase1Input) (*specview.Phase1Output, error) {
-					return nil, errors.New("AI service temporarily unavailable")
+				ai.classifyDomainsFn = func(ctx context.Context, input specview.Phase1Input) (*specview.Phase1Output, *specview.TokenUsage, error) {
+					return nil, nil, errors.New("AI service temporarily unavailable")
 				}
 				return repo, ai
 			},

@@ -31,11 +31,11 @@ func BenchmarkSpecView_500Behaviors(b *testing.B) {
 	analysisID := setupBenchmarkAnalysis(b, ctx, pool, 50, 10)
 
 	aiProvider := &mockAIProvider{
-		classifyDomainsFn: func(ctx context.Context, input specview.Phase1Input) (*specview.Phase1Output, error) {
-			return largeDomainOutput(input, 10), nil
+		classifyDomainsFn: func(ctx context.Context, input specview.Phase1Input) (*specview.Phase1Output, *specview.TokenUsage, error) {
+			return largeDomainOutput(input, 10), nil, nil
 		},
-		convertTestNamesFn: func(ctx context.Context, input specview.Phase2Input) (*specview.Phase2Output, error) {
-			return defaultPhase2Output(input), nil
+		convertTestNamesFn: func(ctx context.Context, input specview.Phase2Input) (*specview.Phase2Output, *specview.TokenUsage, error) {
+			return defaultPhase2Output(input), nil, nil
 		},
 	}
 
@@ -82,8 +82,8 @@ func BenchmarkSpecView_4WayJoin(b *testing.B) {
 	analysisID := setupBenchmarkAnalysis(b, ctx, pool, 50, 10)
 
 	aiProvider := &mockAIProvider{
-		classifyDomainsFn: func(ctx context.Context, input specview.Phase1Input) (*specview.Phase1Output, error) {
-			return largeDomainOutput(input, 10), nil
+		classifyDomainsFn: func(ctx context.Context, input specview.Phase1Input) (*specview.Phase1Output, *specview.TokenUsage, error) {
+			return largeDomainOutput(input, 10), nil, nil
 		},
 	}
 
@@ -139,8 +139,8 @@ func BenchmarkSpecView_BulkInsert(b *testing.B) {
 	analysisID := setupBenchmarkAnalysis(b, ctx, pool, 100, 10)
 
 	aiProvider := &mockAIProvider{
-		classifyDomainsFn: func(ctx context.Context, input specview.Phase1Input) (*specview.Phase1Output, error) {
-			return singleDomainLargeOutput(input), nil
+		classifyDomainsFn: func(ctx context.Context, input specview.Phase1Input) (*specview.Phase1Output, *specview.TokenUsage, error) {
+			return singleDomainLargeOutput(input), nil, nil
 		},
 	}
 

@@ -20,22 +20,22 @@ import (
 
 // mockAIProvider implements specview.AIProvider for integration testing.
 type mockAIProvider struct {
-	classifyDomainsFn  func(ctx context.Context, input specview.Phase1Input) (*specview.Phase1Output, error)
-	convertTestNamesFn func(ctx context.Context, input specview.Phase2Input) (*specview.Phase2Output, error)
+	classifyDomainsFn  func(ctx context.Context, input specview.Phase1Input) (*specview.Phase1Output, *specview.TokenUsage, error)
+	convertTestNamesFn func(ctx context.Context, input specview.Phase2Input) (*specview.Phase2Output, *specview.TokenUsage, error)
 }
 
-func (m *mockAIProvider) ClassifyDomains(ctx context.Context, input specview.Phase1Input) (*specview.Phase1Output, error) {
+func (m *mockAIProvider) ClassifyDomains(ctx context.Context, input specview.Phase1Input) (*specview.Phase1Output, *specview.TokenUsage, error) {
 	if m.classifyDomainsFn != nil {
 		return m.classifyDomainsFn(ctx, input)
 	}
-	return defaultPhase1Output(input), nil
+	return defaultPhase1Output(input), nil, nil
 }
 
-func (m *mockAIProvider) ConvertTestNames(ctx context.Context, input specview.Phase2Input) (*specview.Phase2Output, error) {
+func (m *mockAIProvider) ConvertTestNames(ctx context.Context, input specview.Phase2Input) (*specview.Phase2Output, *specview.TokenUsage, error) {
 	if m.convertTestNamesFn != nil {
 		return m.convertTestNamesFn(ctx, input)
 	}
-	return defaultPhase2Output(input), nil
+	return defaultPhase2Output(input), nil, nil
 }
 
 func defaultPhase1Output(input specview.Phase1Input) *specview.Phase1Output {
@@ -135,13 +135,13 @@ func TestSpecViewIntegration_MediumRepo(t *testing.T) {
 
 	var phase2CallCount atomic.Int32
 	aiProvider := &mockAIProvider{
-		classifyDomainsFn: func(ctx context.Context, input specview.Phase1Input) (*specview.Phase1Output, error) {
-			return multiDomainPhase1Output(input), nil
+		classifyDomainsFn: func(ctx context.Context, input specview.Phase1Input) (*specview.Phase1Output, *specview.TokenUsage, error) {
+			return multiDomainPhase1Output(input), nil, nil
 		},
-		convertTestNamesFn: func(ctx context.Context, input specview.Phase2Input) (*specview.Phase2Output, error) {
+		convertTestNamesFn: func(ctx context.Context, input specview.Phase2Input) (*specview.Phase2Output, *specview.TokenUsage, error) {
 			phase2CallCount.Add(1)
 			time.Sleep(10 * time.Millisecond) // Simulate AI latency
-			return defaultPhase2Output(input), nil
+			return defaultPhase2Output(input), nil, nil
 		},
 	}
 
@@ -194,9 +194,9 @@ func TestSpecViewIntegration_CacheHit(t *testing.T) {
 
 	var phase1CallCount atomic.Int32
 	aiProvider := &mockAIProvider{
-		classifyDomainsFn: func(ctx context.Context, input specview.Phase1Input) (*specview.Phase1Output, error) {
+		classifyDomainsFn: func(ctx context.Context, input specview.Phase1Input) (*specview.Phase1Output, *specview.TokenUsage, error) {
 			phase1CallCount.Add(1)
-			return defaultPhase1Output(input), nil
+			return defaultPhase1Output(input), nil, nil
 		},
 	}
 
@@ -254,16 +254,16 @@ func TestSpecViewIntegration_AIFailureWithFallback(t *testing.T) {
 
 	var phase2CallCount atomic.Int32
 	aiProvider := &mockAIProvider{
-		classifyDomainsFn: func(ctx context.Context, input specview.Phase1Input) (*specview.Phase1Output, error) {
-			return multiFeaturePhase1Output(input, 3), nil
+		classifyDomainsFn: func(ctx context.Context, input specview.Phase1Input) (*specview.Phase1Output, *specview.TokenUsage, error) {
+			return multiFeaturePhase1Output(input, 3), nil, nil
 		},
-		convertTestNamesFn: func(ctx context.Context, input specview.Phase2Input) (*specview.Phase2Output, error) {
+		convertTestNamesFn: func(ctx context.Context, input specview.Phase2Input) (*specview.Phase2Output, *specview.TokenUsage, error) {
 			count := phase2CallCount.Add(1)
 			// Fail first call only
 			if count == 1 {
-				return nil, errors.New("AI service temporarily unavailable")
+				return nil, nil, errors.New("AI service temporarily unavailable")
 			}
-			return defaultPhase2Output(input), nil
+			return defaultPhase2Output(input), nil, nil
 		},
 	}
 
@@ -304,12 +304,12 @@ func TestSpecViewIntegration_PartialPhase2Failure(t *testing.T) {
 	analysisID := setupAnalysisWithTests(t, ctx, analysisRepo, pool, 4, 2)
 
 	aiProvider := &mockAIProvider{
-		classifyDomainsFn: func(ctx context.Context, input specview.Phase1Input) (*specview.Phase1Output, error) {
-			return multiFeaturePhase1Output(input, 4), nil
+		classifyDomainsFn: func(ctx context.Context, input specview.Phase1Input) (*specview.Phase1Output, *specview.TokenUsage, error) {
+			return multiFeaturePhase1Output(input, 4), nil, nil
 		},
-		convertTestNamesFn: func(ctx context.Context, input specview.Phase2Input) (*specview.Phase2Output, error) {
+		convertTestNamesFn: func(ctx context.Context, input specview.Phase2Input) (*specview.Phase2Output, *specview.TokenUsage, error) {
 			// All calls fail
-			return nil, errors.New("AI service unavailable")
+			return nil, nil, errors.New("AI service unavailable")
 		},
 	}
 
@@ -356,8 +356,8 @@ func TestSpecViewIntegration_Phase1Failure(t *testing.T) {
 	analysisID := setupAnalysisWithTests(t, ctx, analysisRepo, pool, 1, 3)
 
 	aiProvider := &mockAIProvider{
-		classifyDomainsFn: func(ctx context.Context, input specview.Phase1Input) (*specview.Phase1Output, error) {
-			return nil, errors.New("Phase 1 AI unavailable")
+		classifyDomainsFn: func(ctx context.Context, input specview.Phase1Input) (*specview.Phase1Output, *specview.TokenUsage, error) {
+			return nil, nil, errors.New("Phase 1 AI unavailable")
 		},
 	}
 
