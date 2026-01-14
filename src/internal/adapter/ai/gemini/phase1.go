@@ -108,9 +108,9 @@ func (p *Provider) classifyDomainsSingle(ctx context.Context, input specview.Pha
 func (p *Provider) classifyDomainsChunked(ctx context.Context, input specview.Phase1Input, lang specview.Language, config ChunkConfig) (*specview.Phase1Output, *specview.TokenUsage, error) {
 	chunks := SplitIntoChunks(input.Files, config)
 
-	// Generate cache key from content hash
+	// Generate cache key from analysisID (more reliable than content hash)
 	cacheKey := ChunkCacheKey{
-		ContentHash: fmt.Sprintf("%x", specview.GenerateContentHash(input.Files, lang)),
+		ContentHash: input.AnalysisID, // Using analysisID for reliable cache key
 		Language:    lang,
 		ModelID:     p.phase1Model,
 	}

@@ -149,7 +149,7 @@ func (uc *GenerateSpecViewUseCase) Execute(
 		}, nil
 	}
 
-	phase1Output, phase1Usage, err := uc.executePhase1(ctx, files, req.Language)
+	phase1Output, phase1Usage, err := uc.executePhase1(ctx, files, req.Language, req.AnalysisID)
 	if err != nil {
 		return nil, fmt.Errorf("%w: phase 1: %w", ErrAIProcessingFailed, err)
 	}
@@ -198,13 +198,15 @@ func (uc *GenerateSpecViewUseCase) executePhase1(
 	ctx context.Context,
 	files []specview.FileInfo,
 	lang specview.Language,
+	analysisID string,
 ) (*specview.Phase1Output, *specview.TokenUsage, error) {
 	phase1Ctx, cancel := context.WithTimeout(ctx, uc.config.Phase1Timeout)
 	defer cancel()
 
 	input := specview.Phase1Input{
-		Files:    files,
-		Language: lang,
+		AnalysisID: analysisID,
+		Files:      files,
+		Language:   lang,
 	}
 
 	output, usage, err := uc.aiProvider.ClassifyDomains(phase1Ctx, input)

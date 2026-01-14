@@ -43,8 +43,9 @@ type SpecViewResult struct {
 
 // Phase1Input represents input for domain classification (Phase 1).
 type Phase1Input struct {
-	Files    []FileInfo
-	Language Language
+	AnalysisID string // for chunk caching across retries
+	Files      []FileInfo
+	Language   Language
 }
 
 // FileInfo represents a test file with its tests and domain hints.
