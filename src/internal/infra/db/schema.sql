@@ -75,6 +75,16 @@ CREATE TYPE public.test_status AS ENUM (
 
 
 --
+-- Name: usage_event_type; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.usage_event_type AS ENUM (
+    'specview',
+    'analysis'
+);
+
+
+--
 -- Name: river_job_state_in_bitmask(bit, public.river_job_state); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -451,6 +461,22 @@ CREATE TABLE public.test_suites (
 
 
 --
+-- Name: usage_events; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.usage_events (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    event_type public.usage_event_type NOT NULL,
+    analysis_id uuid,
+    document_id uuid,
+    quota_amount integer NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_usage_events_resource CHECK (((((analysis_id IS NOT NULL))::integer + ((document_id IS NOT NULL))::integer) = 1))
+);
+
+
+--
 -- Name: user_analysis_history; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -810,6 +836,14 @@ ALTER TABLE ONLY public.user_specview_history
 
 
 --
+-- Name: usage_events usage_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.usage_events
+    ADD CONSTRAINT usage_events_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: user_analysis_history user_analysis_history_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1023,6 +1057,27 @@ CREATE INDEX idx_test_suites_file ON public.test_suites USING btree (file_id);
 --
 
 CREATE INDEX idx_test_suites_parent ON public.test_suites USING btree (parent_id) WHERE (parent_id IS NOT NULL);
+
+
+--
+-- Name: idx_usage_events_analysis; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_usage_events_analysis ON public.usage_events USING btree (analysis_id) WHERE (analysis_id IS NOT NULL);
+
+
+--
+-- Name: idx_usage_events_document; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_usage_events_document ON public.usage_events USING btree (document_id) WHERE (document_id IS NOT NULL);
+
+
+--
+-- Name: idx_usage_events_quota_lookup; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_usage_events_quota_lookup ON public.usage_events USING btree (user_id, event_type, created_at);
 
 
 --
@@ -1275,6 +1330,30 @@ ALTER TABLE ONLY public.test_suites
 
 ALTER TABLE ONLY public.test_suites
     ADD CONSTRAINT fk_test_suites_parent FOREIGN KEY (parent_id) REFERENCES public.test_suites(id) ON DELETE CASCADE;
+
+
+--
+-- Name: usage_events fk_usage_events_analysis; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.usage_events
+    ADD CONSTRAINT fk_usage_events_analysis FOREIGN KEY (analysis_id) REFERENCES public.analyses(id) ON DELETE SET NULL;
+
+
+--
+-- Name: usage_events fk_usage_events_document; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.usage_events
+    ADD CONSTRAINT fk_usage_events_document FOREIGN KEY (document_id) REFERENCES public.spec_documents(id) ON DELETE SET NULL;
+
+
+--
+-- Name: usage_events fk_usage_events_user; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.usage_events
+    ADD CONSTRAINT fk_usage_events_user FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
 
 
 --
