@@ -13,7 +13,8 @@ type Language string
 type SpecViewRequest struct {
 	AnalysisID string
 	Language   Language
-	ModelID    string // optional: AI model override
+	ModelID    string  // optional: AI model override
+	UserID     *string // optional: for history recording
 }
 
 func (r SpecViewRequest) Validate() error {

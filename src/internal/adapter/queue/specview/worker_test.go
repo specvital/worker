@@ -53,6 +53,7 @@ func (m *mockAIProvider) ConvertTestNames(ctx context.Context, input specview.Ph
 type mockRepository struct {
 	findDocumentByContentHashFn func(ctx context.Context, contentHash []byte, language specview.Language, modelID string) (*specview.SpecDocument, error)
 	getTestDataByAnalysisIDFn   func(ctx context.Context, analysisID string) ([]specview.FileInfo, error)
+	recordUserHistoryFn         func(ctx context.Context, userID string, documentID string) error
 	saveDocumentFn              func(ctx context.Context, doc *specview.SpecDocument) error
 }
 
@@ -76,6 +77,13 @@ func (m *mockRepository) GetTestDataByAnalysisID(ctx context.Context, analysisID
 			},
 		},
 	}, nil
+}
+
+func (m *mockRepository) RecordUserHistory(ctx context.Context, userID string, documentID string) error {
+	if m.recordUserHistoryFn != nil {
+		return m.recordUserHistoryFn(ctx, userID, documentID)
+	}
+	return nil
 }
 
 func (m *mockRepository) SaveDocument(ctx context.Context, doc *specview.SpecDocument) error {

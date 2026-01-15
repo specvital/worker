@@ -187,3 +187,9 @@ ORDER BY tf.file_path, ts.depth, ts.name, tc.name;
 
 -- name: CheckAnalysisExists :one
 SELECT EXISTS(SELECT 1 FROM analyses WHERE id = $1) as exists;
+
+-- name: RecordUserSpecviewHistory :exec
+INSERT INTO user_specview_history (user_id, document_id)
+VALUES ($1, $2)
+ON CONFLICT ON CONSTRAINT uq_user_specview_history_user_document
+DO UPDATE SET updated_at = now();

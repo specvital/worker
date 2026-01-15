@@ -399,3 +399,31 @@ func confidenceToNumeric(confidence float64) pgtype.Numeric {
 		Valid: true,
 	}
 }
+
+func (r *SpecDocumentRepository) RecordUserHistory(
+	ctx context.Context,
+	userID string,
+	documentID string,
+) error {
+	parsedUserID, err := analysis.ParseUUID(userID)
+	if err != nil {
+		return fmt.Errorf("%w: invalid user ID format", specview.ErrInvalidInput)
+	}
+
+	parsedDocID, err := analysis.ParseUUID(documentID)
+	if err != nil {
+		return fmt.Errorf("%w: invalid document ID format", specview.ErrInvalidInput)
+	}
+
+	queries := db.New(r.pool)
+
+	err = queries.RecordUserSpecviewHistory(ctx, db.RecordUserSpecviewHistoryParams{
+		UserID:     toPgUUID(parsedUserID),
+		DocumentID: toPgUUID(parsedDocID),
+	})
+	if err != nil {
+		return fmt.Errorf("record user specview history: %w", err)
+	}
+
+	return nil
+}

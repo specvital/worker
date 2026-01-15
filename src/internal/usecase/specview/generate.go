@@ -142,6 +142,9 @@ func (uc *GenerateSpecViewUseCase) Execute(
 			"analysis_id", req.AnalysisID,
 			"document_id", existingDoc.ID,
 		)
+
+		uc.recordUserHistoryIfNeeded(ctx, req.UserID, existingDoc.ID)
+
 		return &specview.SpecViewResult{
 			CacheHit:    true,
 			ContentHash: contentHash,
@@ -167,6 +170,8 @@ func (uc *GenerateSpecViewUseCase) Execute(
 		return nil, fmt.Errorf("%w: %w", ErrSaveFailed, err)
 	}
 
+	uc.recordUserHistoryIfNeeded(ctx, req.UserID, doc.ID)
+
 	// Log token usage summary
 	uc.logTokenUsage(ctx, req.AnalysisID, phase1Usage, phase2Usage)
 
@@ -181,6 +186,24 @@ func (uc *GenerateSpecViewUseCase) Execute(
 		ContentHash: contentHash,
 		DocumentID:  doc.ID,
 	}, nil
+}
+
+func (uc *GenerateSpecViewUseCase) recordUserHistoryIfNeeded(
+	ctx context.Context,
+	userID *string,
+	documentID string,
+) {
+	if userID == nil || *userID == "" {
+		return
+	}
+
+	if err := uc.repository.RecordUserHistory(ctx, *userID, documentID); err != nil {
+		slog.WarnContext(ctx, "failed to record user history (non-critical)",
+			"user_id", *userID,
+			"document_id", documentID,
+			"error", err,
+		)
+	}
 }
 
 func (uc *GenerateSpecViewUseCase) loadTestData(

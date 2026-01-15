@@ -22,9 +22,10 @@ const (
 
 // Args represents the arguments for a spec-view generation job.
 type Args struct {
-	AnalysisID string `json:"analysis_id" river:"unique"`
-	Language   string `json:"language" river:"unique"` // optional, defaults to "English"
-	ModelID    string `json:"model_id,omitempty"`
+	AnalysisID string  `json:"analysis_id" river:"unique"`
+	Language   string  `json:"language" river:"unique"` // optional, defaults to "English"
+	ModelID    string  `json:"model_id,omitempty"`
+	UserID     *string `json:"user_id,omitempty"` // optional: for history recording
 }
 
 // Kind returns the unique identifier for this job type.
@@ -98,6 +99,7 @@ func (w *Worker) Work(ctx context.Context, job *river.Job[Args]) error {
 		AnalysisID: args.AnalysisID,
 		Language:   lang,
 		ModelID:    args.ModelID,
+		UserID:     args.UserID,
 	}
 
 	result, err := w.usecase.Execute(ctx, req)

@@ -13,6 +13,7 @@ import (
 type mockRepository struct {
 	findDocumentByContentHashFn func(ctx context.Context, contentHash []byte, language specview.Language, modelID string) (*specview.SpecDocument, error)
 	getTestDataByAnalysisIDFn   func(ctx context.Context, analysisID string) ([]specview.FileInfo, error)
+	recordUserHistoryFn         func(ctx context.Context, userID string, documentID string) error
 	saveDocumentFn              func(ctx context.Context, doc *specview.SpecDocument) error
 }
 
@@ -28,6 +29,13 @@ func (m *mockRepository) GetTestDataByAnalysisID(ctx context.Context, analysisID
 		return m.getTestDataByAnalysisIDFn(ctx, analysisID)
 	}
 	return nil, nil
+}
+
+func (m *mockRepository) RecordUserHistory(ctx context.Context, userID string, documentID string) error {
+	if m.recordUserHistoryFn != nil {
+		return m.recordUserHistoryFn(ctx, userID, documentID)
+	}
+	return nil
 }
 
 func (m *mockRepository) SaveDocument(ctx context.Context, doc *specview.SpecDocument) error {
@@ -707,4 +715,204 @@ func TestAssembleDocument(t *testing.T) {
 	if behavior.OriginalName != "TestLogin" {
 		t.Errorf("expected original name 'TestLogin', got '%s'", behavior.OriginalName)
 	}
+}
+
+func TestGenerateSpecViewUseCase_RecordUserHistory(t *testing.T) {
+	t.Run("records history when userID is provided", func(t *testing.T) {
+		files := newTestFiles()
+		phase1Output := newPhase1Output()
+
+		var recordedUserID, recordedDocID string
+		repo := &mockRepository{
+			getTestDataByAnalysisIDFn: func(ctx context.Context, analysisID string) ([]specview.FileInfo, error) {
+				return files, nil
+			},
+			findDocumentByContentHashFn: func(ctx context.Context, contentHash []byte, language specview.Language, modelID string) (*specview.SpecDocument, error) {
+				return nil, nil
+			},
+			saveDocumentFn: func(ctx context.Context, doc *specview.SpecDocument) error {
+				doc.ID = "doc-001"
+				return nil
+			},
+			recordUserHistoryFn: func(ctx context.Context, userID string, documentID string) error {
+				recordedUserID = userID
+				recordedDocID = documentID
+				return nil
+			},
+		}
+
+		aiProvider := &mockAIProvider{
+			classifyDomainsFn: func(ctx context.Context, input specview.Phase1Input) (*specview.Phase1Output, *specview.TokenUsage, error) {
+				return phase1Output, nil, nil
+			},
+			convertTestNamesFn: func(ctx context.Context, input specview.Phase2Input) (*specview.Phase2Output, *specview.TokenUsage, error) {
+				return &specview.Phase2Output{Behaviors: []specview.BehaviorSpec{}}, nil, nil
+			},
+		}
+
+		uc := NewGenerateSpecViewUseCase(repo, aiProvider, "gemini-2.5-flash")
+
+		userID := "user-001"
+		req := specview.SpecViewRequest{
+			AnalysisID: "550e8400-e29b-41d4-a716-446655440000",
+			Language:   "Korean",
+			UserID:     &userID,
+		}
+
+		_, err := uc.Execute(context.Background(), req)
+
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		if recordedUserID != "user-001" {
+			t.Errorf("expected user ID 'user-001', got '%s'", recordedUserID)
+		}
+		if recordedDocID != "doc-001" {
+			t.Errorf("expected document ID 'doc-001', got '%s'", recordedDocID)
+		}
+	})
+
+	t.Run("records history on cache hit", func(t *testing.T) {
+		files := newTestFiles()
+		cachedDoc := &specview.SpecDocument{
+			ID:       "cached-doc-001",
+			Language: "Korean",
+		}
+
+		var recordedUserID, recordedDocID string
+		repo := &mockRepository{
+			getTestDataByAnalysisIDFn: func(ctx context.Context, analysisID string) ([]specview.FileInfo, error) {
+				return files, nil
+			},
+			findDocumentByContentHashFn: func(ctx context.Context, contentHash []byte, language specview.Language, modelID string) (*specview.SpecDocument, error) {
+				return cachedDoc, nil
+			},
+			recordUserHistoryFn: func(ctx context.Context, userID string, documentID string) error {
+				recordedUserID = userID
+				recordedDocID = documentID
+				return nil
+			},
+		}
+
+		uc := NewGenerateSpecViewUseCase(repo, &mockAIProvider{}, "gemini-2.5-flash")
+
+		userID := "user-002"
+		req := specview.SpecViewRequest{
+			AnalysisID: "550e8400-e29b-41d4-a716-446655440000",
+			Language:   "Korean",
+			UserID:     &userID,
+		}
+
+		_, err := uc.Execute(context.Background(), req)
+
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		if recordedUserID != "user-002" {
+			t.Errorf("expected user ID 'user-002', got '%s'", recordedUserID)
+		}
+		if recordedDocID != "cached-doc-001" {
+			t.Errorf("expected document ID 'cached-doc-001', got '%s'", recordedDocID)
+		}
+	})
+
+	t.Run("skips history recording when userID is nil", func(t *testing.T) {
+		files := newTestFiles()
+		phase1Output := newPhase1Output()
+
+		historyRecorded := false
+		repo := &mockRepository{
+			getTestDataByAnalysisIDFn: func(ctx context.Context, analysisID string) ([]specview.FileInfo, error) {
+				return files, nil
+			},
+			findDocumentByContentHashFn: func(ctx context.Context, contentHash []byte, language specview.Language, modelID string) (*specview.SpecDocument, error) {
+				return nil, nil
+			},
+			saveDocumentFn: func(ctx context.Context, doc *specview.SpecDocument) error {
+				doc.ID = "doc-001"
+				return nil
+			},
+			recordUserHistoryFn: func(ctx context.Context, userID string, documentID string) error {
+				historyRecorded = true
+				return nil
+			},
+		}
+
+		aiProvider := &mockAIProvider{
+			classifyDomainsFn: func(ctx context.Context, input specview.Phase1Input) (*specview.Phase1Output, *specview.TokenUsage, error) {
+				return phase1Output, nil, nil
+			},
+			convertTestNamesFn: func(ctx context.Context, input specview.Phase2Input) (*specview.Phase2Output, *specview.TokenUsage, error) {
+				return &specview.Phase2Output{Behaviors: []specview.BehaviorSpec{}}, nil, nil
+			},
+		}
+
+		uc := NewGenerateSpecViewUseCase(repo, aiProvider, "gemini-2.5-flash")
+
+		req := specview.SpecViewRequest{
+			AnalysisID: "550e8400-e29b-41d4-a716-446655440000",
+			Language:   "Korean",
+			UserID:     nil,
+		}
+
+		_, err := uc.Execute(context.Background(), req)
+
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		if historyRecorded {
+			t.Error("expected history NOT to be recorded when userID is nil")
+		}
+	})
+
+	t.Run("history recording failure is non-blocking", func(t *testing.T) {
+		files := newTestFiles()
+		phase1Output := newPhase1Output()
+
+		repo := &mockRepository{
+			getTestDataByAnalysisIDFn: func(ctx context.Context, analysisID string) ([]specview.FileInfo, error) {
+				return files, nil
+			},
+			findDocumentByContentHashFn: func(ctx context.Context, contentHash []byte, language specview.Language, modelID string) (*specview.SpecDocument, error) {
+				return nil, nil
+			},
+			saveDocumentFn: func(ctx context.Context, doc *specview.SpecDocument) error {
+				doc.ID = "doc-001"
+				return nil
+			},
+			recordUserHistoryFn: func(ctx context.Context, userID string, documentID string) error {
+				return errors.New("history recording failed")
+			},
+		}
+
+		aiProvider := &mockAIProvider{
+			classifyDomainsFn: func(ctx context.Context, input specview.Phase1Input) (*specview.Phase1Output, *specview.TokenUsage, error) {
+				return phase1Output, nil, nil
+			},
+			convertTestNamesFn: func(ctx context.Context, input specview.Phase2Input) (*specview.Phase2Output, *specview.TokenUsage, error) {
+				return &specview.Phase2Output{Behaviors: []specview.BehaviorSpec{}}, nil, nil
+			},
+		}
+
+		uc := NewGenerateSpecViewUseCase(repo, aiProvider, "gemini-2.5-flash")
+
+		userID := "user-001"
+		req := specview.SpecViewRequest{
+			AnalysisID: "550e8400-e29b-41d4-a716-446655440000",
+			Language:   "Korean",
+			UserID:     &userID,
+		}
+
+		result, err := uc.Execute(context.Background(), req)
+
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		if result == nil {
+			t.Fatal("expected result, got nil")
+		}
+		if result.DocumentID != "doc-001" {
+			t.Errorf("expected document ID 'doc-001', got '%s'", result.DocumentID)
+		}
+	})
 }
