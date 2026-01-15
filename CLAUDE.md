@@ -62,6 +62,12 @@ Before running commands, read `justfile` or check available commands via `just -
 - **Scheduler** (`cmd/scheduler`): single instance only (distributed lock)
 - Must remain separate for Railway deployment - NEVER merge
 
+### Build Artifacts Cleanup
+
+- `just build` outputs binaries to `bin/` directory
+- After build verification, ALWAYS clean up: `rm -rf bin/`
+- NEVER commit `bin/` directory (already in .gitignore)
+
 ## Common Workflows
 
 ### DB Schema Changes
