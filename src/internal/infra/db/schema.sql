@@ -518,6 +518,19 @@ CREATE TABLE public.user_github_repositories (
 
 
 --
+-- Name: user_specview_history; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.user_specview_history (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    document_id uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
 -- Name: users; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -789,6 +802,14 @@ ALTER TABLE ONLY public.user_github_repositories
 
 
 --
+-- Name: user_specview_history uq_user_specview_history_user_document; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_specview_history
+    ADD CONSTRAINT uq_user_specview_history_user_document UNIQUE (user_id, document_id);
+
+
+--
 -- Name: user_analysis_history user_analysis_history_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -818,6 +839,14 @@ ALTER TABLE ONLY public.user_github_org_memberships
 
 ALTER TABLE ONLY public.user_github_repositories
     ADD CONSTRAINT user_github_repositories_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: user_specview_history user_specview_history_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_specview_history
+    ADD CONSTRAINT user_specview_history_pkey PRIMARY KEY (id);
 
 
 --
@@ -1060,6 +1089,20 @@ CREATE INDEX idx_user_github_repositories_user ON public.user_github_repositorie
 
 
 --
+-- Name: idx_user_specview_history_cursor; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_user_specview_history_cursor ON public.user_specview_history USING btree (user_id, updated_at, id);
+
+
+--
+-- Name: idx_user_specview_history_document; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_user_specview_history_document ON public.user_specview_history USING btree (document_id);
+
+
+--
 -- Name: idx_users_email; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1296,6 +1339,22 @@ ALTER TABLE ONLY public.user_github_repositories
 
 ALTER TABLE ONLY public.user_github_repositories
     ADD CONSTRAINT fk_user_github_repositories_user FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: user_specview_history fk_user_specview_history_document; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_specview_history
+    ADD CONSTRAINT fk_user_specview_history_document FOREIGN KEY (document_id) REFERENCES public.spec_documents(id) ON DELETE CASCADE;
+
+
+--
+-- Name: user_specview_history fk_user_specview_history_user; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_specview_history
+    ADD CONSTRAINT fk_user_specview_history_user FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
 
 
 --
