@@ -131,6 +131,14 @@
           "shortcut": "y",
           "terminalName": "sync-docs",
           "useVsCodeApi": false
+        },
+        {
+          "color": "",
+          "command": "just clean-containers",
+          "name": "clean-containers",
+          "shortcut": "n",
+          "terminalName": "clean-containers",
+          "useVsCodeApi": false
         }
       ]
     },
