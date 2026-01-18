@@ -126,21 +126,19 @@ func StartAnalyzer(cfg AnalyzerConfig) error {
 }
 
 // buildAnalyzerQueues creates queue allocations for analyzer service.
-// Subscribes to both legacy queue (for backward compatibility) and new tier-based queues.
 func buildAnalyzerQueues(qw config.QueueWorkers, legacyConcurrency int) []infraqueue.QueueAllocation {
-	// If QueueWorkers is zero-valued, fall back to legacy single-queue mode
+	// If QueueWorkers is zero-valued, fall back to single default queue
 	if qw.Priority == 0 && qw.Default == 0 && qw.Scheduled == 0 {
 		concurrency := legacyConcurrency
 		if concurrency <= 0 {
 			concurrency = defaultConcurrency
 		}
 		return []infraqueue.QueueAllocation{
-			{Name: analyze.QueueLegacy, MaxWorkers: concurrency},
+			{Name: analyze.QueueDefault, MaxWorkers: concurrency},
 		}
 	}
 
 	return []infraqueue.QueueAllocation{
-		{Name: analyze.QueueLegacy, MaxWorkers: qw.Default},    // Legacy uses default workers
 		{Name: analyze.QueuePriority, MaxWorkers: qw.Priority},
 		{Name: analyze.QueueDefault, MaxWorkers: qw.Default},
 		{Name: analyze.QueueScheduled, MaxWorkers: qw.Scheduled},

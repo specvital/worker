@@ -13,12 +13,10 @@ import (
 
 const (
 	// Queue names for analysis jobs
-	QueueLegacy    = "analysis"           // Deprecated: kept for backward compatibility
 	QueuePriority  = "analysis:priority"  // Pro/Enterprise tier users
 	QueueDefault   = "analysis:default"   // Free tier users
 	QueueScheduled = "analysis:scheduled" // Scheduler/cron jobs
 
-	QueueName        = QueueLegacy // Deprecated: use specific queue constants
 	maxRetryAttempts = 3
 )
 
@@ -33,7 +31,7 @@ func (AnalyzeArgs) Kind() string { return "analysis:analyze" }
 
 func (AnalyzeArgs) InsertOpts() river.InsertOpts {
 	return river.InsertOpts{
-		Queue:       QueueName,
+		Queue:       QueueDefault,
 		MaxAttempts: maxRetryAttempts,
 		UniqueOpts: river.UniqueOpts{
 			ByArgs: true,

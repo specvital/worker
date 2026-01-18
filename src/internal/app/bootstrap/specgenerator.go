@@ -122,21 +122,19 @@ func StartSpecGenerator(cfg SpecGeneratorConfig) error {
 }
 
 // buildSpecGeneratorQueues creates queue allocations for spec-generator service.
-// Subscribes to both legacy queue (for backward compatibility) and new tier-based queues.
 func buildSpecGeneratorQueues(qw config.QueueWorkers, legacyConcurrency int) []infraqueue.QueueAllocation {
-	// If QueueWorkers is zero-valued, fall back to legacy single-queue mode
+	// If QueueWorkers is zero-valued, fall back to single default queue
 	if qw.Priority == 0 && qw.Default == 0 && qw.Scheduled == 0 {
 		concurrency := legacyConcurrency
 		if concurrency <= 0 {
 			concurrency = defaultConcurrency
 		}
 		return []infraqueue.QueueAllocation{
-			{Name: specview.QueueLegacy, MaxWorkers: concurrency},
+			{Name: specview.QueueDefault, MaxWorkers: concurrency},
 		}
 	}
 
 	return []infraqueue.QueueAllocation{
-		{Name: specview.QueueLegacy, MaxWorkers: qw.Default},    // Legacy uses default workers
 		{Name: specview.QueuePriority, MaxWorkers: qw.Priority},
 		{Name: specview.QueueDefault, MaxWorkers: qw.Default},
 		{Name: specview.QueueScheduled, MaxWorkers: qw.Scheduled},
