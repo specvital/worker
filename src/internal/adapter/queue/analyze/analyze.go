@@ -12,10 +12,10 @@ import (
 )
 
 const (
-	// Queue names for analysis jobs
-	QueuePriority  = "analysis:priority"  // Pro/Enterprise tier users
-	QueueDefault   = "analysis:default"   // Free tier users
-	QueueScheduled = "analysis:scheduled" // Scheduler/cron jobs
+	// Queue names for analysis jobs (underscore required - River disallows colons)
+	QueuePriority  = "analysis_priority"  // Pro/Enterprise tier users
+	QueueDefault   = "analysis_default"   // Free tier users
+	QueueScheduled = "analysis_scheduled" // Scheduler/cron jobs
 
 	maxRetryAttempts = 3
 )

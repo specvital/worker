@@ -13,10 +13,10 @@ import (
 )
 
 const (
-	// Queue names for specview jobs
-	QueuePriority  = "specview:priority"  // Pro/Enterprise tier users
-	QueueDefault   = "specview:default"   // Free tier users
-	QueueScheduled = "specview:scheduled" // Scheduler/cron jobs
+	// Queue names for specview jobs (underscore required - River disallows colons)
+	QueuePriority  = "specview_priority"  // Pro/Enterprise tier users
+	QueueDefault   = "specview_default"   // Free tier users
+	QueueScheduled = "specview_scheduled" // Scheduler/cron jobs
 
 	jobKind          = "specview:generate"
 	maxRetryAttempts = 3
