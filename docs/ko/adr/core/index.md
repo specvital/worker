@@ -28,6 +28,12 @@ description: 코어 라이브러리(테스트 파서 엔진) 아키텍처 의사
 | 13  | [NaCl SecretBox 암호화](./13-nacl-secretbox-encryption.md)                                  | 2024-12-23 |
 | 14  | [간접 Import Alias 감지 미지원](./14-indirect-import-unsupported.md)                        | 2025-12-29 |
 | 15  | [C# 전처리기 블록 내 Attribute 감지 한계](./15-csharp-preprocessor-attribute-limitation.md) | 2026-01-04 |
+| 16  | [도메인 힌트 추출 시스템](./16-domain-hints-extraction.md)                                  | 2026-01-18 |
+| 17  | [Swift Testing 프레임워크 지원](./17-swift-testing-framework-support.md)                    | 2026-01-04 |
+| 18  | [JUnit 4 프레임워크 분리](./18-junit4-framework-separation.md)                              | 2025-12-26 |
+| 19  | [Vitest 4.0+ test.for/it.for API 지원](./19-vitest-4-api-support.md)                        | 2026-01-03 |
+| 20  | [Java 21+ 암시적 클래스 감지](./20-java21-implicit-class-detection.md)                      | 2026-01-04 |
+| 21  | [Rust 매크로 기반 테스트 감지](./21-rust-macro-test-detection.md)                           | 2025-12-27 |
 
 ## 관련 문서
 

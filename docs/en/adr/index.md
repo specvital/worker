@@ -69,6 +69,14 @@ XX-brief-decision-title.md
 | 10  | [TestStatus Data Contract](./10-test-status-data-contract.md)                          | Data Integrity | 2024-12-29 |
 | 11  | [Repository Visibility-Based Access Control](./11-community-private-repo-filtering.md) | Security       | 2026-01-03 |
 | 12  | [Worker-Centric Analysis Lifecycle](./12-worker-centric-analysis-lifecycle.md)         | Architecture   | 2024-12-16 |
+| 13  | [Billing and Quota Architecture](./13-billing-quota-architecture.md)                   | Billing        | 2026-01-18 |
+| 14  | [AI-Based Spec Document Generation Pipeline](./14-ai-spec-generation-pipeline.md)      | AI/ML          | 2026-01-18 |
+| 15  | [Parser Version Tracking for Re-analysis](./15-parser-version-tracking.md)             | Data Integrity | 2026-01-18 |
+| 16  | [Multi-Queue Priority Routing Architecture](./16-multi-queue-priority-routing.md)      | Architecture   | 2026-01-19 |
+| 17  | [Test File Schema Normalization](./17-test-file-schema-normalization.md)               | Database       | 2026-01-19 |
+| 18  | [GitHub API Cache Tables](./18-github-api-cache-tables.md)                             | Database       | 2025-12-24 |
+| 19  | [Hierarchical Spec Document Schema](./19-hierarchical-spec-document-schema.md)         | Database       | 2026-01-12 |
+| 20  | [GitHub App Installation Schema](./20-github-app-installation-schema.md)               | Database       | 2026-01-19 |
 
 ### Core Repository
 
@@ -89,6 +97,12 @@ XX-brief-decision-title.md
 | 13  | [NaCl SecretBox Encryption](./core/13-nacl-secretbox-encryption.md)                                           | Crypto  | 2024-12-23 |
 | 14  | [Indirect Import Alias Detection Unsupported](./core/14-indirect-import-unsupported.md)                       | Parser  | 2025-12-29 |
 | 15  | [C# Preprocessor Block Attribute Detection Limitation](./core/15-csharp-preprocessor-attribute-limitation.md) | Parser  | 2026-01-04 |
+| 16  | [Domain Hints Extraction System](./core/16-domain-hints-extraction.md)                                        | AI/ML   | 2026-01-18 |
+| 17  | [Swift Testing Framework Support](./core/17-swift-testing-framework-support.md)                               | Parser  | 2026-01-04 |
+| 18  | [JUnit 4 Framework Separation](./core/18-junit4-framework-separation.md)                                      | Parser  | 2025-12-26 |
+| 19  | [Vitest 4.0+ test.for/it.for API Support](./core/19-vitest-4-api-support.md)                                  | Parser  | 2026-01-03 |
+| 20  | [Java 21+ Implicit Class Detection](./core/20-java21-implicit-class-detection.md)                             | Parser  | 2026-01-04 |
+| 21  | [Rust Macro-Based Test Detection](./core/21-rust-macro-test-detection.md)                                     | Parser  | 2025-12-27 |
 
 ### Worker Repository
 
@@ -101,31 +115,37 @@ XX-brief-decision-title.md
 | 05  | [Analyzer-Scheduler Process Separation](./worker/05-worker-scheduler-separation.md)          | Architecture | 2024-12-18 |
 | 06  | [Semaphore-Based Clone Concurrency Control](./worker/06-semaphore-clone-concurrency.md)      | Concurrency  | 2024-12-18 |
 | 07  | [Repository Pattern Data Access Abstraction](./worker/07-repository-pattern.md)              | Architecture | 2024-12-18 |
+| 08  | [SpecView Worker Binary Separation](./worker/08-specview-worker-separation.md)               | Architecture | 2026-01-13 |
 
 ### Web Repository
 
-| #   | Title                                                                              | Area          | Date       |
-| --- | ---------------------------------------------------------------------------------- | ------------- | ---------- |
-| 01  | [Go as Backend Language](./web/01-go-backend-language.md)                          | Tech Stack    | 2024-12-18 |
-| 02  | [Next.js 16 + React 19 Selection](./web/02-nextjs-react-selection.md)              | Tech Stack    | 2025-12-04 |
-| 03  | [Chi Router Selection](./web/03-chi-router-selection.md)                           | Tech Stack    | 2025-01-03 |
-| 04  | [TanStack Query Selection](./web/04-tanstack-query-selection.md)                   | Tech Stack    | 2025-01-03 |
-| 05  | [shadcn/ui + Tailwind CSS Selection](./web/05-shadcn-tailwind-selection.md)        | Tech Stack    | 2025-01-03 |
-| 06  | [SQLc Selection](./web/06-sqlc-selection.md)                                       | Tech Stack    | 2025-01-03 |
-| 07  | [Next.js BFF Architecture](./web/07-nextjs-bff-architecture.md)                    | Architecture  | 2025-01-03 |
-| 08  | [Clean Architecture Pattern](./web/08-clean-architecture-pattern.md)               | Architecture  | 2025-01-03 |
-| 09  | [DI Container Pattern](./web/09-di-container-pattern.md)                           | Architecture  | 2025-01-03 |
-| 10  | [StrictServerInterface Contract](./web/10-strict-server-interface-contract.md)     | API           | 2025-01-03 |
-| 11  | [Feature-Based Module Organization](./web/11-feature-based-module-organization.md) | Architecture  | 2025-01-03 |
-| 12  | [APIHandlers Composition Pattern](./web/12-apihandlers-composition-pattern.md)     | Architecture  | 2025-01-03 |
-| 13  | [Domain Error Handling Pattern](./web/13-domain-error-handling-pattern.md)         | Architecture  | 2025-01-03 |
-| 14  | [slog Structured Logging](./web/14-slog-structured-logging.md)                     | Observability | 2025-01-03 |
-| 15  | [React 19 use() Hook Pattern](./web/15-react-19-use-hook-pattern.md)               | Frontend      | 2025-01-03 |
-| 16  | [nuqs URL State Management](./web/16-nuqs-url-state-management.md)                 | Frontend      | 2025-01-03 |
-| 17  | [next-intl i18n Strategy](./web/17-next-intl-i18n-strategy.md)                     | Frontend      | 2025-01-03 |
-| 18  | [next-themes Dark Mode](./web/18-next-themes-dark-mode.md)                         | Frontend      | 2025-01-03 |
-| 19  | [CSS Variable Design Token System](./web/19-css-variable-design-token-system.md)   | Frontend      | 2025-01-03 |
-| 20  | [Skeleton Loading Pattern](./web/20-skeleton-loading-pattern.md)                   | Frontend      | 2025-01-03 |
+| #   | Title                                                                               | Area          | Date       |
+| --- | ----------------------------------------------------------------------------------- | ------------- | ---------- |
+| 01  | [Go as Backend Language](./web/01-go-backend-language.md)                           | Tech Stack    | 2024-12-18 |
+| 02  | [Next.js 16 + React 19 Selection](./web/02-nextjs-react-selection.md)               | Tech Stack    | 2025-12-04 |
+| 03  | [Chi Router Selection](./web/03-chi-router-selection.md)                            | Tech Stack    | 2025-01-03 |
+| 04  | [TanStack Query Selection](./web/04-tanstack-query-selection.md)                    | Tech Stack    | 2025-01-03 |
+| 05  | [shadcn/ui + Tailwind CSS Selection](./web/05-shadcn-tailwind-selection.md)         | Tech Stack    | 2025-01-03 |
+| 06  | [SQLc Selection](./web/06-sqlc-selection.md)                                        | Tech Stack    | 2025-01-03 |
+| 07  | [Next.js BFF Architecture](./web/07-nextjs-bff-architecture.md)                     | Architecture  | 2025-01-03 |
+| 08  | [Clean Architecture Pattern](./web/08-clean-architecture-pattern.md)                | Architecture  | 2025-01-03 |
+| 09  | [DI Container Pattern](./web/09-di-container-pattern.md)                            | Architecture  | 2025-01-03 |
+| 10  | [StrictServerInterface Contract](./web/10-strict-server-interface-contract.md)      | API           | 2025-01-03 |
+| 11  | [Feature-Based Module Organization](./web/11-feature-based-module-organization.md)  | Architecture  | 2025-01-03 |
+| 12  | [APIHandlers Composition Pattern](./web/12-apihandlers-composition-pattern.md)      | Architecture  | 2025-01-03 |
+| 13  | [Domain Error Handling Pattern](./web/13-domain-error-handling-pattern.md)          | Architecture  | 2025-01-03 |
+| 14  | [slog Structured Logging](./web/14-slog-structured-logging.md)                      | Observability | 2025-01-03 |
+| 15  | [React 19 use() Hook Pattern](./web/15-react-19-use-hook-pattern.md)                | Frontend      | 2025-01-03 |
+| 16  | [nuqs URL State Management](./web/16-nuqs-url-state-management.md)                  | Frontend      | 2025-01-03 |
+| 17  | [next-intl i18n Strategy](./web/17-next-intl-i18n-strategy.md)                      | Frontend      | 2025-01-03 |
+| 18  | [next-themes Dark Mode](./web/18-next-themes-dark-mode.md)                          | Frontend      | 2025-01-03 |
+| 19  | [CSS Variable Design Token System](./web/19-css-variable-design-token-system.md)    | Frontend      | 2025-01-03 |
+| 20  | [Skeleton Loading Pattern](./web/20-skeleton-loading-pattern.md)                    | Frontend      | 2025-01-03 |
+| 21  | [Anonymous User Rate Limiting](./web/21-anonymous-rate-limiting.md)                 | Security      | 2026-01-15 |
+| 22  | [React Compiler Adoption](./web/22-react-compiler-adoption.md)                      | Frontend      | 2026-01-19 |
+| 23  | [Window-Level Virtualization Pattern](./web/23-window-level-virtualization.md)      | Frontend      | 2026-01-19 |
+| 24  | [Subscription Period Pro-rata Calculation](./web/24-subscription-period-prorata.md) | Billing       | 2026-01-16 |
+| 25  | [OAuth Return URL Handling](./web/25-oauth-return-url-handling.md)                  | Security      | 2026-01-16 |
 
 ## Process
 

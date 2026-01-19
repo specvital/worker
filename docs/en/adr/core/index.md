@@ -28,6 +28,12 @@ Architecture Decision Records for the [specvital/core](https://github.com/specvi
 | 13  | [NaCl SecretBox Encryption](./13-nacl-secretbox-encryption.md)                                           | 2024-12-23 |
 | 14  | [Indirect Import Alias Detection Unsupported](./14-indirect-import-unsupported.md)                       | 2025-12-29 |
 | 15  | [C# Preprocessor Block Attribute Detection Limitation](./15-csharp-preprocessor-attribute-limitation.md) | 2026-01-04 |
+| 16  | [Domain Hints Extraction System](./16-domain-hints-extraction.md)                                        | 2026-01-18 |
+| 17  | [Swift Testing Framework Support](./17-swift-testing-framework-support.md)                               | 2026-01-04 |
+| 18  | [JUnit 4 Framework Separation](./18-junit4-framework-separation.md)                                      | 2025-12-26 |
+| 19  | [Vitest 4.0+ test.for/it.for API Support](./19-vitest-4-api-support.md)                                  | 2026-01-03 |
+| 20  | [Java 21+ Implicit Class Detection](./20-java21-implicit-class-detection.md)                             | 2026-01-04 |
+| 21  | [Rust Macro-Based Test Detection](./21-rust-macro-test-detection.md)                                     | 2025-12-27 |
 
 ## Related
 

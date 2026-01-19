@@ -33,6 +33,11 @@ description: 웹 플랫폼(대시보드 및 API) 아키텍처 의사결정 기�
 | 18  | [next-themes 다크 모드](./18-next-themes-dark-mode.md)                  | 2025-01-03 |
 | 19  | [CSS 변수 디자인 토큰 시스템](./19-css-variable-design-token-system.md) | 2025-01-03 |
 | 20  | [스켈레톤 로딩 패턴](./20-skeleton-loading-pattern.md)                  | 2025-01-03 |
+| 21  | [익명 사용자 Rate Limiting](./21-anonymous-rate-limiting.md)            | 2026-01-15 |
+| 22  | [React Compiler 도입](./22-react-compiler-adoption.md)                  | 2026-01-19 |
+| 23  | [윈도우 레벨 가상화 패턴](./23-window-level-virtualization.md)          | 2026-01-19 |
+| 24  | [구독 기간 일할 계산](./24-subscription-period-prorata.md)              | 2026-01-16 |
+| 25  | [OAuth 리턴 URL 처리](./25-oauth-return-url-handling.md)                | 2026-01-16 |
 
 ## 관련 문서
 

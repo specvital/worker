@@ -20,6 +20,7 @@ Architecture Decision Records for the [specvital/worker](https://github.com/spec
 | 05  | [Analyzer-Scheduler Process Separation](./05-worker-scheduler-separation.md)          | 2024-12-18 |
 | 06  | [Semaphore-Based Clone Concurrency Control](./06-semaphore-clone-concurrency.md)      | 2024-12-18 |
 | 07  | [Repository Pattern Data Access Abstraction](./07-repository-pattern.md)              | 2024-12-18 |
+| 08  | [SpecView Worker Binary Separation](./08-specview-worker-separation.md)               | 2026-01-13 |
 
 ## Related
 
