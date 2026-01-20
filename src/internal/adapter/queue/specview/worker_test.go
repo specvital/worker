@@ -50,6 +50,10 @@ func (m *mockAIProvider) ConvertTestNames(ctx context.Context, input specview.Ph
 	}, nil, nil
 }
 
+func (m *mockAIProvider) Close() error {
+	return nil
+}
+
 type mockRepository struct {
 	findDocumentByContentHashFn func(ctx context.Context, contentHash []byte, language specview.Language, modelID string) (*specview.SpecDocument, error)
 	getTestDataByAnalysisIDFn   func(ctx context.Context, analysisID string) ([]specview.FileInfo, error)

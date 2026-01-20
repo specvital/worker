@@ -10,12 +10,13 @@ const schedulerLockKey = "scheduler:auto-refresh:lock"
 
 // ContainerConfig holds common configuration for dependency injection containers.
 type ContainerConfig struct {
-	EncryptionKey   string
-	GeminiAPIKey    string
+	EncryptionKey     string
+	GeminiAPIKey      string
 	GeminiPhase1Model string // optional: default gemini-2.5-flash
 	GeminiPhase2Model string // optional: default gemini-2.5-flash-lite
-	ParserVersion   string
-	Pool            *pgxpool.Pool
+	MockMode          bool   // enable mock AI provider for development/testing
+	ParserVersion     string
+	Pool              *pgxpool.Pool
 }
 
 // Validate checks that required common configuration fields are set.
@@ -45,8 +46,9 @@ func (c ContainerConfig) ValidateSpecGenerator() error {
 	if err := c.Validate(); err != nil {
 		return err
 	}
-	if c.GeminiAPIKey == "" {
-		return fmt.Errorf("gemini API key is required")
+	// Skip GeminiAPIKey validation when MockMode is enabled
+	if !c.MockMode && c.GeminiAPIKey == "" {
+		return fmt.Errorf("gemini API key is required (set MOCK_MODE=true to skip)")
 	}
 	return nil
 }

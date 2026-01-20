@@ -18,9 +18,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	if cfg.GeminiAPIKey == "" {
-		slog.Error("GEMINI_API_KEY is required for spec-generator")
+	if !cfg.MockMode && cfg.GeminiAPIKey == "" {
+		slog.Error("GEMINI_API_KEY is required for spec-generator (set MOCK_MODE=true to skip)")
 		os.Exit(1)
+	}
+
+	if cfg.MockMode {
+		slog.Info("starting in mock mode - AI calls will be simulated")
 	}
 
 	if err := bootstrap.StartSpecGenerator(bootstrap.SpecGeneratorConfig{
@@ -29,6 +33,7 @@ func main() {
 		GeminiAPIKey:      cfg.GeminiAPIKey,
 		GeminiPhase1Model: cfg.GeminiPhase1Model,
 		GeminiPhase2Model: cfg.GeminiPhase2Model,
+		MockMode:          cfg.MockMode,
 		QueueWorkers:      cfg.Queue.Specgen,
 	}); err != nil {
 		slog.Error("spec-generator failed", "error", err)

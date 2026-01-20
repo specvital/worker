@@ -3,18 +3,21 @@ package app
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/riverqueue/river"
 	"github.com/specvital/worker/internal/adapter/ai/gemini"
+	"github.com/specvital/worker/internal/adapter/ai/mock"
 	specviewqueue "github.com/specvital/worker/internal/adapter/queue/specview"
 	"github.com/specvital/worker/internal/adapter/repository/postgres"
+	"github.com/specvital/worker/internal/domain/specview"
 	infraqueue "github.com/specvital/worker/internal/infra/queue"
 	specviewuc "github.com/specvital/worker/internal/usecase/specview"
 )
 
 // SpecGeneratorContainer holds dependencies for the spec-generator worker service.
 type SpecGeneratorContainer struct {
-	GeminiProvider *gemini.Provider
+	AIProvider     specview.AIProvider
 	QueueClient    *infraqueue.Client
 	SpecViewWorker *specviewqueue.Worker
 	Workers        *river.Workers
@@ -26,23 +29,33 @@ func NewSpecGeneratorContainer(ctx context.Context, cfg ContainerConfig) (*SpecG
 		return nil, fmt.Errorf("invalid container config: %w", err)
 	}
 
-	geminiProvider, err := gemini.NewProvider(ctx, gemini.Config{
-		APIKey:      cfg.GeminiAPIKey,
-		Phase1Model: cfg.GeminiPhase1Model,
-		Phase2Model: cfg.GeminiPhase2Model,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("create gemini provider: %w", err)
+	var aiProvider specview.AIProvider
+	var defaultModelID string
+
+	if cfg.MockMode {
+		slog.Info("mock mode enabled, using mock AI provider")
+		aiProvider = mock.NewProvider()
+		defaultModelID = "mock-model"
+	} else {
+		geminiProvider, err := gemini.NewProvider(ctx, gemini.Config{
+			APIKey:      cfg.GeminiAPIKey,
+			Phase1Model: cfg.GeminiPhase1Model,
+			Phase2Model: cfg.GeminiPhase2Model,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("create gemini provider: %w", err)
+		}
+		aiProvider = geminiProvider
+		defaultModelID = cfg.GeminiPhase1Model
+		if defaultModelID == "" {
+			defaultModelID = "gemini-2.5-flash"
+		}
 	}
 
 	specDocRepo := postgres.NewSpecDocumentRepository(cfg.Pool)
-	defaultModelID := cfg.GeminiPhase1Model
-	if defaultModelID == "" {
-		defaultModelID = "gemini-2.5-flash"
-	}
 	specViewUC := specviewuc.NewGenerateSpecViewUseCase(
 		specDocRepo,
-		geminiProvider,
+		aiProvider,
 		defaultModelID,
 	)
 	specViewWorker := specviewqueue.NewWorker(specViewUC)
@@ -56,7 +69,7 @@ func NewSpecGeneratorContainer(ctx context.Context, cfg ContainerConfig) (*SpecG
 	}
 
 	return &SpecGeneratorContainer{
-		GeminiProvider: geminiProvider,
+		AIProvider:     aiProvider,
 		QueueClient:    queueClient,
 		SpecViewWorker: specViewWorker,
 		Workers:        workers,
@@ -73,9 +86,9 @@ func (c *SpecGeneratorContainer) Close() error {
 		}
 	}
 
-	if c.GeminiProvider != nil {
-		if err := c.GeminiProvider.Close(); err != nil {
-			errs = append(errs, fmt.Errorf("close gemini provider: %w", err))
+	if c.AIProvider != nil {
+		if err := c.AIProvider.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("close AI provider: %w", err))
 		}
 	}
 

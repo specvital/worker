@@ -36,6 +36,7 @@ type Config struct {
 	GeminiAPIKey      string
 	GeminiPhase1Model string
 	GeminiPhase2Model string
+	MockMode          bool
 	Queue             QueueConfig
 }
 
@@ -56,6 +57,7 @@ func Load() (*Config, error) {
 		GeminiAPIKey:      os.Getenv("GEMINI_API_KEY"),
 		GeminiPhase1Model: os.Getenv("GEMINI_PHASE1_MODEL"),
 		GeminiPhase2Model: os.Getenv("GEMINI_PHASE2_MODEL"),
+		MockMode:          os.Getenv("MOCK_MODE") == "true",
 		Queue:             loadQueueConfig(),
 	}, nil
 }

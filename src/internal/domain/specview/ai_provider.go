@@ -13,4 +13,7 @@ type AIProvider interface {
 	// Converts technical test names into human-readable behavior descriptions.
 	// Returns token usage for the API call.
 	ConvertTestNames(ctx context.Context, input Phase2Input) (*Phase2Output, *TokenUsage, error)
+
+	// Close releases resources held by the provider.
+	Close() error
 }

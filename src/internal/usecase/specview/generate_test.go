@@ -72,6 +72,10 @@ func (m *mockAIProvider) ConvertTestNames(ctx context.Context, input specview.Ph
 	return nil, nil, nil
 }
 
+func (m *mockAIProvider) Close() error {
+	return nil
+}
+
 func newTestFiles() []specview.FileInfo {
 	return []specview.FileInfo{
 		{

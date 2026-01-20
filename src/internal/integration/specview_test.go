@@ -38,6 +38,10 @@ func (m *mockAIProvider) ConvertTestNames(ctx context.Context, input specview.Ph
 	return defaultPhase2Output(input), nil, nil
 }
 
+func (m *mockAIProvider) Close() error {
+	return nil
+}
+
 func defaultPhase1Output(input specview.Phase1Input) *specview.Phase1Output {
 	var allIndices []int
 	for _, file := range input.Files {

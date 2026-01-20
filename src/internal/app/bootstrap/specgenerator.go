@@ -25,6 +25,7 @@ type SpecGeneratorConfig struct {
 	GeminiAPIKey      string
 	GeminiPhase1Model string
 	GeminiPhase2Model string
+	MockMode          bool              // Enable mock AI provider for development/testing
 	QueueWorkers      config.QueueWorkers // Worker allocation per queue
 }
 
@@ -36,8 +37,9 @@ func (c *SpecGeneratorConfig) Validate() error {
 	if c.DatabaseURL == "" {
 		return fmt.Errorf("database URL is required")
 	}
-	if c.GeminiAPIKey == "" {
-		return fmt.Errorf("gemini API key is required")
+	// Skip GeminiAPIKey validation when MockMode is enabled
+	if !c.MockMode && c.GeminiAPIKey == "" {
+		return fmt.Errorf("gemini API key is required (set MOCK_MODE=true to skip)")
 	}
 	return nil
 }
@@ -78,6 +80,7 @@ func StartSpecGenerator(cfg SpecGeneratorConfig) error {
 		GeminiAPIKey:      cfg.GeminiAPIKey,
 		GeminiPhase1Model: cfg.GeminiPhase1Model,
 		GeminiPhase2Model: cfg.GeminiPhase2Model,
+		MockMode:          cfg.MockMode,
 		Pool:              pool,
 	})
 	if err != nil {
