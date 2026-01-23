@@ -115,6 +115,8 @@ func (uc *GenerateSpecViewUseCase) Execute(
 	ctx context.Context,
 	req specview.SpecViewRequest,
 ) (*specview.SpecViewResult, error) {
+	startTime := time.Now()
+
 	if err := req.Validate(); err != nil {
 		return nil, err
 	}
@@ -131,6 +133,7 @@ func (uc *GenerateSpecViewUseCase) Execute(
 
 	files, err := uc.loadTestData(ctx, req.AnalysisID)
 	if err != nil {
+		uc.logExecutionError(ctx, req.AnalysisID, "load_data", startTime, err)
 		return nil, err
 	}
 
@@ -148,6 +151,7 @@ func (uc *GenerateSpecViewUseCase) Execute(
 	if !req.ForceRegenerate {
 		existingDoc, err := uc.repository.FindDocumentByContentHash(ctx, contentHash, req.Language, modelID)
 		if err != nil {
+			uc.logExecutionError(ctx, req.AnalysisID, "cache_check", startTime, err)
 			return nil, fmt.Errorf("check cache: %w", err)
 		}
 
@@ -172,6 +176,7 @@ func (uc *GenerateSpecViewUseCase) Execute(
 
 	phase1Output, phase1Usage, err := uc.executePhase1(ctx, files, req.Language, req.AnalysisID)
 	if err != nil {
+		uc.logExecutionError(ctx, req.AnalysisID, "phase1", startTime, err)
 		return nil, fmt.Errorf("%w: phase 1: %w", ErrAIProcessingFailed, err)
 	}
 
@@ -179,12 +184,14 @@ func (uc *GenerateSpecViewUseCase) Execute(
 
 	phase2Results, phase2Usage, err := uc.executePhase2(ctx, phase1Output, req.Language, testIndexMap)
 	if err != nil {
+		uc.logExecutionError(ctx, req.AnalysisID, "phase2", startTime, err)
 		return nil, fmt.Errorf("%w: phase 2: %w", ErrAIProcessingFailed, err)
 	}
 
 	doc := uc.assembleDocument(req, modelID, contentHash, phase1Output, phase2Results, testIndexMap)
 
 	if err := uc.repository.SaveDocument(ctx, doc); err != nil {
+		uc.logExecutionError(ctx, req.AnalysisID, "save", startTime, err)
 		return nil, fmt.Errorf("%w: %w", ErrSaveFailed, err)
 	}
 
@@ -601,6 +608,22 @@ func countTotalTestCases(files []specview.FileInfo) int {
 		count += len(f.Tests)
 	}
 	return count
+}
+
+func (uc *GenerateSpecViewUseCase) logExecutionError(
+	ctx context.Context,
+	analysisID string,
+	phase string,
+	startTime time.Time,
+	err error,
+) {
+	durationMs := time.Since(startTime).Milliseconds()
+	slog.ErrorContext(ctx, "specview execution failed",
+		"analysis_id", analysisID,
+		"phase", phase,
+		"duration_ms", durationMs,
+		"error", err,
+	)
 }
 
 func (uc *GenerateSpecViewUseCase) logTokenUsage(

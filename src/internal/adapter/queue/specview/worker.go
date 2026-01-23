@@ -143,15 +143,21 @@ func (w *Worker) handleError(ctx context.Context, job *river.Job[Args], err erro
 		slog.WarnContext(ctx, "permanent error, cancelling job",
 			"job_id", job.ID,
 			"analysis_id", args.AnalysisID,
+			"attempt", job.Attempt,
+			"max_attempts", maxRetryAttempts,
+			"will_retry", false,
 			"error", err,
 		)
 		return river.JobCancel(err)
 	}
 
+	willRetry := job.Attempt < maxRetryAttempts
 	slog.ErrorContext(ctx, "specview generation task failed",
 		"job_id", job.ID,
 		"analysis_id", args.AnalysisID,
 		"attempt", job.Attempt,
+		"max_attempts", maxRetryAttempts,
+		"will_retry", willRetry,
 		"error", err,
 	)
 
