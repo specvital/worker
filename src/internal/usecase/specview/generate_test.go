@@ -1201,6 +1201,72 @@ func TestGenerateSpecViewUseCase_RecordUsageEvent(t *testing.T) {
 	})
 }
 
+func TestProgressTracker(t *testing.T) {
+	t.Run("increments completed count", func(t *testing.T) {
+		tracker := newProgressTracker(5)
+
+		tracker.recordCompletion(context.Background(), false)
+		tracker.recordCompletion(context.Background(), false)
+
+		if tracker.completed.Load() != 2 {
+			t.Errorf("expected completed=2, got %d", tracker.completed.Load())
+		}
+		if tracker.failed.Load() != 0 {
+			t.Errorf("expected failed=0, got %d", tracker.failed.Load())
+		}
+	})
+
+	t.Run("increments failed count on failure", func(t *testing.T) {
+		tracker := newProgressTracker(5)
+
+		tracker.recordCompletion(context.Background(), false)
+		tracker.recordCompletion(context.Background(), true)
+		tracker.recordCompletion(context.Background(), true)
+
+		if tracker.completed.Load() != 3 {
+			t.Errorf("expected completed=3, got %d", tracker.completed.Load())
+		}
+		if tracker.failed.Load() != 2 {
+			t.Errorf("expected failed=2, got %d", tracker.failed.Load())
+		}
+	})
+
+	t.Run("skips progress logging for small task counts", func(t *testing.T) {
+		tracker := newProgressTracker(5)
+
+		for range 5 {
+			tracker.recordCompletion(context.Background(), false)
+		}
+
+		if tracker.completed.Load() != 5 {
+			t.Errorf("expected completed=5, got %d", tracker.completed.Load())
+		}
+	})
+
+	t.Run("concurrent access safety", func(t *testing.T) {
+		tracker := newProgressTracker(100)
+
+		done := make(chan struct{})
+		for i := range 100 {
+			go func() {
+				tracker.recordCompletion(context.Background(), i%5 == 0)
+				done <- struct{}{}
+			}()
+		}
+
+		for range 100 {
+			<-done
+		}
+
+		if tracker.completed.Load() != 100 {
+			t.Errorf("expected completed=100, got %d", tracker.completed.Load())
+		}
+		if tracker.failed.Load() != 20 {
+			t.Errorf("expected failed=20, got %d", tracker.failed.Load())
+		}
+	})
+}
+
 func TestCountTotalTestCases(t *testing.T) {
 	t.Run("counts all test cases across files", func(t *testing.T) {
 		files := []specview.FileInfo{

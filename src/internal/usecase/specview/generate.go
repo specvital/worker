@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -19,6 +20,11 @@ const (
 	DefaultPhase2Concurrency    = int64(5)
 	DefaultFailureThreshold     = 0.5 // 50% feature failure threshold
 	DefaultPhase2FeatureTimeout = 90 * time.Second  // 1m30s for single feature conversion
+
+	// Progress logging thresholds for Phase 2
+	progressLogBatchSize     = 10               // Log every N completions
+	progressLogTimeInterval  = 30 * time.Second // Log at least every 30 seconds
+	progressLogMinFeatures   = 10               // Only log progress when total >= this
 )
 
 // Config holds configuration for GenerateSpecViewUseCase.
@@ -334,10 +340,9 @@ func (uc *GenerateSpecViewUseCase) executePhase2(
 	)
 
 	var (
-		results      = make([]phase2Result, len(featureTasks))
-		resultsMu    sync.Mutex
-		failedCount  int
-		failedCountM sync.Mutex
+		results   = make([]phase2Result, len(featureTasks))
+		resultsMu sync.Mutex
+		tracker   = newProgressTracker(len(featureTasks))
 	)
 
 	g, gCtx := errgroup.WithContext(phase2Ctx)
@@ -361,11 +366,7 @@ func (uc *GenerateSpecViewUseCase) executePhase2(
 			}
 			resultsMu.Unlock()
 
-			if failed > 0 {
-				failedCountM.Lock()
-				failedCount++
-				failedCountM.Unlock()
-			}
+			tracker.recordCompletion(ctx, failed > 0)
 
 			return nil
 		})
@@ -375,6 +376,7 @@ func (uc *GenerateSpecViewUseCase) executePhase2(
 		return nil, nil, err
 	}
 
+	failedCount := int(tracker.failed.Load())
 	failureRate := float64(failedCount) / float64(len(featureTasks))
 	if failureRate > uc.config.FailureThreshold {
 		return nil, nil, fmt.Errorf("%w: %.0f%% features failed (threshold: %.0f%%)",
@@ -407,6 +409,58 @@ type featureTask struct {
 	domainIdx     int
 	feature       specview.FeatureGroup
 	featureIdx    int
+}
+
+// progressTracker tracks Phase 2 progress and handles batch logging.
+type progressTracker struct {
+	completed   atomic.Int32
+	failed      atomic.Int32
+	lastLogTime atomic.Int64 // unix nano
+	total       int32
+}
+
+func newProgressTracker(total int) *progressTracker {
+	pt := &progressTracker{total: int32(total)}
+	pt.lastLogTime.Store(time.Now().UnixNano())
+	return pt
+}
+
+func (pt *progressTracker) recordCompletion(ctx context.Context, failed bool) {
+	completed := pt.completed.Add(1)
+	if failed {
+		pt.failed.Add(1)
+	}
+
+	if pt.total < progressLogMinFeatures {
+		return
+	}
+
+	pt.maybeLogProgress(ctx, completed)
+}
+
+func (pt *progressTracker) maybeLogProgress(ctx context.Context, completed int32) {
+	lastLog := pt.lastLogTime.Load()
+	now := time.Now().UnixNano()
+	timeSinceLastLog := time.Duration(now - lastLog)
+
+	shouldLogByBatch := completed%progressLogBatchSize == 0
+	shouldLogByTime := timeSinceLastLog >= progressLogTimeInterval
+	isComplete := completed >= pt.total
+
+	if !shouldLogByBatch && !shouldLogByTime {
+		return
+	}
+	if isComplete {
+		return
+	}
+
+	if pt.lastLogTime.CompareAndSwap(lastLog, now) {
+		slog.InfoContext(ctx, "phase 2 progress",
+			"completed", completed,
+			"total", pt.total,
+			"failed", pt.failed.Load(),
+		)
+	}
 }
 
 func (uc *GenerateSpecViewUseCase) convertFeature(
