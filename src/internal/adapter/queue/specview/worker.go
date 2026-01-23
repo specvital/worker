@@ -26,11 +26,11 @@ const (
 
 // Args represents the arguments for a spec-view generation job.
 type Args struct {
-	AnalysisID      string  `json:"analysis_id" river:"unique"`
-	Language        string  `json:"language" river:"unique"` // optional, defaults to "English"
-	ModelID         string  `json:"model_id,omitempty"`
-	UserID          *string `json:"user_id,omitempty"`        // optional: for history recording
-	ForceRegenerate bool    `json:"force_regenerate,omitempty"` // skip cache and create new version
+	AnalysisID      string `json:"analysis_id" river:"unique"`
+	Language        string `json:"language" river:"unique"` // optional, defaults to "English"
+	ModelID         string `json:"model_id,omitempty"`
+	UserID          string `json:"user_id" river:"unique"` // required: document owner
+	ForceRegenerate bool   `json:"force_regenerate,omitempty"` // skip cache and create new version
 }
 
 // Kind returns the unique identifier for this job type.
@@ -92,6 +92,15 @@ func (w *Worker) Work(ctx context.Context, job *river.Job[Args]) error {
 
 	if args.AnalysisID == "" {
 		err := errors.New("analysis_id is required")
+		slog.WarnContext(ctx, "invalid job arguments, cancelling",
+			"job_id", job.ID,
+			"error", err,
+		)
+		return river.JobCancel(err)
+	}
+
+	if args.UserID == "" {
+		err := errors.New("user_id is required")
 		slog.WarnContext(ctx, "invalid job arguments, cancelling",
 			"job_id", job.ID,
 			"error", err,

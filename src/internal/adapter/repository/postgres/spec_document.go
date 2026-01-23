@@ -38,13 +38,20 @@ func NewSpecDocumentRepository(pool *pgxpool.Pool) *SpecDocumentRepository {
 
 func (r *SpecDocumentRepository) FindDocumentByContentHash(
 	ctx context.Context,
+	userID string,
 	contentHash []byte,
 	language specview.Language,
 	modelID string,
 ) (*specview.SpecDocument, error) {
+	parsedUserID, err := analysis.ParseUUID(userID)
+	if err != nil {
+		return nil, fmt.Errorf("%w: invalid user ID format", specview.ErrInvalidInput)
+	}
+
 	queries := db.New(r.pool)
 
 	doc, err := queries.FindSpecDocumentByContentHash(ctx, db.FindSpecDocumentByContentHashParams{
+		UserID:      toPgUUID(parsedUserID),
 		ContentHash: contentHash,
 		Language:    string(language),
 		ModelID:     modelID,
@@ -63,6 +70,7 @@ func (r *SpecDocumentRepository) FindDocumentByContentHash(
 		ID:          fromPgUUID(doc.ID).String(),
 		Language:    specview.Language(doc.Language),
 		ModelID:     doc.ModelID,
+		UserID:      fromPgUUID(doc.UserID).String(),
 		Version:     doc.Version,
 	}, nil
 }
@@ -212,6 +220,9 @@ func (r *SpecDocumentRepository) SaveDocument(
 	if doc == nil {
 		return fmt.Errorf("%w: document is nil", specview.ErrInvalidInput)
 	}
+	if doc.UserID == "" {
+		return fmt.Errorf("%w: user ID is required", specview.ErrInvalidInput)
+	}
 	if len(doc.ContentHash) == 0 {
 		return fmt.Errorf("%w: content hash is required", specview.ErrInvalidInput)
 	}
@@ -235,12 +246,18 @@ func (r *SpecDocumentRepository) SaveDocument(
 
 	queries := db.New(tx)
 
+	userID, err := analysis.ParseUUID(doc.UserID)
+	if err != nil {
+		return fmt.Errorf("%w: invalid user ID", specview.ErrInvalidInput)
+	}
+
 	analysisID, err := analysis.ParseUUID(doc.AnalysisID)
 	if err != nil {
 		return fmt.Errorf("%w: invalid analysis ID", specview.ErrInvalidInput)
 	}
 
-	currentVersion, err := queries.GetMaxVersionByAnalysisAndLanguage(ctx, db.GetMaxVersionByAnalysisAndLanguageParams{
+	currentVersion, err := queries.GetMaxVersionByUserAnalysisAndLanguage(ctx, db.GetMaxVersionByUserAnalysisAndLanguageParams{
+		UserID:     toPgUUID(userID),
 		AnalysisID: toPgUUID(analysisID),
 		Language:   string(doc.Language),
 	})
@@ -249,6 +266,7 @@ func (r *SpecDocumentRepository) SaveDocument(
 	}
 
 	docID, err := queries.InsertSpecDocument(ctx, db.InsertSpecDocumentParams{
+		UserID:      toPgUUID(userID),
 		AnalysisID:  toPgUUID(analysisID),
 		ContentHash: doc.ContentHash,
 		Language:    string(doc.Language),

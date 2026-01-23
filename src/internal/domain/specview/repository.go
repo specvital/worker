@@ -4,9 +4,9 @@ import "context"
 
 // Repository defines the interface for spec-view document persistence.
 type Repository interface {
-	// FindDocumentByContentHash checks if a document already exists with the given hash.
+	// FindDocumentByContentHash checks if a document already exists with the given hash for the user.
 	// Returns nil without error if no document is found.
-	FindDocumentByContentHash(ctx context.Context, contentHash []byte, language Language, modelID string) (*SpecDocument, error)
+	FindDocumentByContentHash(ctx context.Context, userID string, contentHash []byte, language Language, modelID string) (*SpecDocument, error)
 
 	// GetAnalysisContext retrieves repository context (host, owner, repo) for an analysis.
 	// Returns ErrAnalysisNotFound if the analysis does not exist.

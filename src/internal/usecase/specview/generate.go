@@ -149,7 +149,7 @@ func (uc *GenerateSpecViewUseCase) Execute(
 	contentHash := specview.GenerateContentHash(files, req.Language)
 
 	if !req.ForceRegenerate {
-		existingDoc, err := uc.repository.FindDocumentByContentHash(ctx, contentHash, req.Language, modelID)
+		existingDoc, err := uc.repository.FindDocumentByContentHash(ctx, req.UserID, contentHash, req.Language, modelID)
 		if err != nil {
 			uc.logExecutionError(ctx, req.AnalysisID, "cache_check", startTime, err)
 			return nil, fmt.Errorf("check cache: %w", err)
@@ -158,12 +158,13 @@ func (uc *GenerateSpecViewUseCase) Execute(
 		if existingDoc != nil {
 			slog.InfoContext(ctx, "cache hit",
 				"analysis_id", req.AnalysisID,
+				"user_id", req.UserID,
 				"owner", analysisCtx.Owner,
 				"repo", analysisCtx.Repo,
 				"document_id", existingDoc.ID,
 			)
 
-			uc.recordUserHistoryIfNeeded(ctx, req.UserID, existingDoc.ID)
+			uc.recordUserHistory(ctx, req.UserID, existingDoc.ID)
 
 			return &specview.SpecViewResult{
 				AnalysisContext: analysisCtx,
@@ -196,14 +197,15 @@ func (uc *GenerateSpecViewUseCase) Execute(
 	}
 
 	testCasesCount := countTotalTestCases(files)
-	uc.recordUsageEventIfNeeded(ctx, req.UserID, doc.ID, testCasesCount)
-	uc.recordUserHistoryIfNeeded(ctx, req.UserID, doc.ID)
+	uc.recordUsageEvent(ctx, req.UserID, doc.ID, testCasesCount)
+	uc.recordUserHistory(ctx, req.UserID, doc.ID)
 
 	// Log token usage summary
 	uc.logTokenUsage(ctx, req.AnalysisID, phase1Usage, phase2Usage)
 
 	slog.InfoContext(ctx, "document generated",
 		"analysis_id", req.AnalysisID,
+		"user_id", req.UserID,
 		"owner", analysisCtx.Owner,
 		"repo", analysisCtx.Repo,
 		"document_id", doc.ID,
@@ -218,19 +220,15 @@ func (uc *GenerateSpecViewUseCase) Execute(
 	}, nil
 }
 
-func (uc *GenerateSpecViewUseCase) recordUsageEventIfNeeded(
+func (uc *GenerateSpecViewUseCase) recordUsageEvent(
 	ctx context.Context,
-	userID *string,
+	userID string,
 	documentID string,
 	quotaAmount int,
 ) {
-	if userID == nil || *userID == "" {
-		return
-	}
-
-	if err := uc.repository.RecordUsageEvent(ctx, *userID, documentID, quotaAmount); err != nil {
+	if err := uc.repository.RecordUsageEvent(ctx, userID, documentID, quotaAmount); err != nil {
 		slog.WarnContext(ctx, "failed to record usage event (non-critical)",
-			"user_id", *userID,
+			"user_id", userID,
 			"document_id", documentID,
 			"quota_amount", quotaAmount,
 			"error", err,
@@ -238,18 +236,14 @@ func (uc *GenerateSpecViewUseCase) recordUsageEventIfNeeded(
 	}
 }
 
-func (uc *GenerateSpecViewUseCase) recordUserHistoryIfNeeded(
+func (uc *GenerateSpecViewUseCase) recordUserHistory(
 	ctx context.Context,
-	userID *string,
+	userID string,
 	documentID string,
 ) {
-	if userID == nil || *userID == "" {
-		return
-	}
-
-	if err := uc.repository.RecordUserHistory(ctx, *userID, documentID); err != nil {
+	if err := uc.repository.RecordUserHistory(ctx, userID, documentID); err != nil {
 		slog.WarnContext(ctx, "failed to record user history (non-critical)",
-			"user_id", *userID,
+			"user_id", userID,
 			"document_id", documentID,
 			"error", err,
 		)
@@ -589,6 +583,7 @@ func (uc *GenerateSpecViewUseCase) assembleDocument(
 		Domains:     domains,
 		Language:    req.Language,
 		ModelID:     modelID,
+		UserID:      req.UserID,
 	}
 }
 

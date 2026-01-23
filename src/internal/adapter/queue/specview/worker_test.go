@@ -55,7 +55,7 @@ func (m *mockAIProvider) Close() error {
 }
 
 type mockRepository struct {
-	findDocumentByContentHashFn func(ctx context.Context, contentHash []byte, language specview.Language, modelID string) (*specview.SpecDocument, error)
+	findDocumentByContentHashFn func(ctx context.Context, userID string, contentHash []byte, language specview.Language, modelID string) (*specview.SpecDocument, error)
 	getAnalysisContextFn        func(ctx context.Context, analysisID string) (*specview.AnalysisContext, error)
 	getTestDataByAnalysisIDFn   func(ctx context.Context, analysisID string) ([]specview.FileInfo, error)
 	recordUsageEventFn          func(ctx context.Context, userID string, documentID string, quotaAmount int) error
@@ -63,9 +63,9 @@ type mockRepository struct {
 	saveDocumentFn              func(ctx context.Context, doc *specview.SpecDocument) error
 }
 
-func (m *mockRepository) FindDocumentByContentHash(ctx context.Context, contentHash []byte, language specview.Language, modelID string) (*specview.SpecDocument, error) {
+func (m *mockRepository) FindDocumentByContentHash(ctx context.Context, userID string, contentHash []byte, language specview.Language, modelID string) (*specview.SpecDocument, error) {
 	if m.findDocumentByContentHashFn != nil {
-		return m.findDocumentByContentHashFn(ctx, contentHash, language, modelID)
+		return m.findDocumentByContentHashFn(ctx, userID, contentHash, language, modelID)
 	}
 	return nil, nil
 }
@@ -225,6 +225,7 @@ func TestWorker_Work(t *testing.T) {
 			args: Args{
 				AnalysisID: "valid-analysis-id",
 				Language:   "en",
+				UserID:     "test-user-001",
 			},
 			setupMocks: func() (*mockRepository, *mockAIProvider) {
 				return newSuccessfulMocks()
@@ -236,10 +237,11 @@ func TestWorker_Work(t *testing.T) {
 			args: Args{
 				AnalysisID: "cached-analysis-id",
 				Language:   "ko",
+				UserID:     "test-user-001",
 			},
 			setupMocks: func() (*mockRepository, *mockAIProvider) {
 				repo, ai := newSuccessfulMocks()
-				repo.findDocumentByContentHashFn = func(ctx context.Context, contentHash []byte, language specview.Language, modelID string) (*specview.SpecDocument, error) {
+				repo.findDocumentByContentHashFn = func(ctx context.Context, userID string, contentHash []byte, language specview.Language, modelID string) (*specview.SpecDocument, error) {
 					return &specview.SpecDocument{ID: "cached-doc-id"}, nil
 				}
 				return repo, ai
@@ -251,6 +253,20 @@ func TestWorker_Work(t *testing.T) {
 			args: Args{
 				AnalysisID: "",
 				Language:   "en",
+				UserID:     "test-user-001",
+			},
+			setupMocks: func() (*mockRepository, *mockAIProvider) {
+				return newSuccessfulMocks()
+			},
+			wantErr:    true,
+			wantCancel: true,
+		},
+		{
+			name: "invalid args - empty user ID",
+			args: Args{
+				AnalysisID: "valid-analysis-id",
+				Language:   "en",
+				UserID:     "",
 			},
 			setupMocks: func() (*mockRepository, *mockAIProvider) {
 				return newSuccessfulMocks()
@@ -263,6 +279,7 @@ func TestWorker_Work(t *testing.T) {
 			args: Args{
 				AnalysisID: "valid-id",
 				Language:   "",
+				UserID:     "test-user-001",
 			},
 			setupMocks: func() (*mockRepository, *mockAIProvider) {
 				return newSuccessfulMocks()
@@ -275,6 +292,7 @@ func TestWorker_Work(t *testing.T) {
 			args: Args{
 				AnalysisID: "nonexistent-id",
 				Language:   "en",
+				UserID:     "test-user-001",
 			},
 			setupMocks: func() (*mockRepository, *mockAIProvider) {
 				repo, ai := newSuccessfulMocks()
@@ -291,6 +309,7 @@ func TestWorker_Work(t *testing.T) {
 			args: Args{
 				AnalysisID: "valid-id",
 				Language:   "en",
+				UserID:     "test-user-001",
 			},
 			setupMocks: func() (*mockRepository, *mockAIProvider) {
 				repo, ai := newSuccessfulMocks()
@@ -307,6 +326,7 @@ func TestWorker_Work(t *testing.T) {
 			args: Args{
 				AnalysisID: "valid-id",
 				Language:   "en",
+				UserID:     "test-user-001",
 			},
 			setupMocks: func() (*mockRepository, *mockAIProvider) {
 				repo, ai := newSuccessfulMocks()
@@ -324,6 +344,7 @@ func TestWorker_Work(t *testing.T) {
 				AnalysisID: "valid-id",
 				Language:   "ja",
 				ModelID:    "custom-model",
+				UserID:     "test-user-001",
 			},
 			setupMocks: func() (*mockRepository, *mockAIProvider) {
 				return newSuccessfulMocks()
@@ -382,7 +403,7 @@ func TestWorker_Work_ContextPropagation(t *testing.T) {
 		usecase := uc.NewGenerateSpecViewUseCase(repo, ai, "test-model")
 		worker := NewWorker(usecase)
 
-		job := newTestJob(Args{AnalysisID: "test-id", Language: "en"})
+		job := newTestJob(Args{AnalysisID: "test-id", Language: "en", UserID: "test-user-001"})
 		ctx := context.WithValue(context.Background(), testKey, testValue)
 
 		err := worker.Work(ctx, job)
@@ -407,7 +428,7 @@ func TestWorker_Work_ContextPropagation(t *testing.T) {
 		usecase := uc.NewGenerateSpecViewUseCase(repo, ai, "test-model")
 		worker := NewWorker(usecase)
 
-		job := newTestJob(Args{AnalysisID: "test-id", Language: "en"})
+		job := newTestJob(Args{AnalysisID: "test-id", Language: "en", UserID: "test-user-001"})
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 

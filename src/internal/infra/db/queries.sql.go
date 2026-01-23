@@ -219,26 +219,34 @@ func (q *Queries) FindCodebaseWithLastCommitByOwnerName(ctx context.Context, arg
 }
 
 const findSpecDocumentByContentHash = `-- name: FindSpecDocumentByContentHash :one
-SELECT sd.id, sd.analysis_id, sd.content_hash, sd.language, sd.executive_summary, sd.model_id, sd.created_at, sd.updated_at, sd.version FROM spec_documents sd
-WHERE sd.content_hash = $1
-  AND sd.language = $2
-  AND sd.model_id = $3
+SELECT sd.id, sd.analysis_id, sd.content_hash, sd.language, sd.executive_summary, sd.model_id, sd.created_at, sd.updated_at, sd.version, sd.user_id FROM spec_documents sd
+WHERE sd.user_id = $1
+  AND sd.content_hash = $2
+  AND sd.language = $3
+  AND sd.model_id = $4
   AND sd.version = (
     SELECT MAX(version)
     FROM spec_documents
-    WHERE analysis_id = sd.analysis_id
+    WHERE user_id = sd.user_id
+      AND analysis_id = sd.analysis_id
       AND language = sd.language
   )
 `
 
 type FindSpecDocumentByContentHashParams struct {
-	ContentHash []byte `json:"content_hash"`
-	Language    string `json:"language"`
-	ModelID     string `json:"model_id"`
+	UserID      pgtype.UUID `json:"user_id"`
+	ContentHash []byte      `json:"content_hash"`
+	Language    string      `json:"language"`
+	ModelID     string      `json:"model_id"`
 }
 
 func (q *Queries) FindSpecDocumentByContentHash(ctx context.Context, arg FindSpecDocumentByContentHashParams) (SpecDocument, error) {
-	row := q.db.QueryRow(ctx, findSpecDocumentByContentHash, arg.ContentHash, arg.Language, arg.ModelID)
+	row := q.db.QueryRow(ctx, findSpecDocumentByContentHash,
+		arg.UserID,
+		arg.ContentHash,
+		arg.Language,
+		arg.ModelID,
+	)
 	var i SpecDocument
 	err := row.Scan(
 		&i.ID,
@@ -250,6 +258,7 @@ func (q *Queries) FindSpecDocumentByContentHash(ctx context.Context, arg FindSpe
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Version,
+		&i.UserID,
 	)
 	return i, err
 }
@@ -375,14 +384,15 @@ func (q *Queries) GetCodebasesForAutoRefresh(ctx context.Context) ([]GetCodebase
 	return items, nil
 }
 
-const getMaxVersionByAnalysisAndLanguage = `-- name: GetMaxVersionByAnalysisAndLanguage :one
+const getMaxVersionByUserAnalysisAndLanguage = `-- name: GetMaxVersionByUserAnalysisAndLanguage :one
 
 SELECT COALESCE(MAX(version), 0)::int as max_version
 FROM spec_documents
-WHERE analysis_id = $1 AND language = $2
+WHERE user_id = $1 AND analysis_id = $2 AND language = $3
 `
 
-type GetMaxVersionByAnalysisAndLanguageParams struct {
+type GetMaxVersionByUserAnalysisAndLanguageParams struct {
+	UserID     pgtype.UUID `json:"user_id"`
 	AnalysisID pgtype.UUID `json:"analysis_id"`
 	Language   string      `json:"language"`
 }
@@ -390,8 +400,8 @@ type GetMaxVersionByAnalysisAndLanguageParams struct {
 // =============================================================================
 // SPEC DOCUMENTS
 // =============================================================================
-func (q *Queries) GetMaxVersionByAnalysisAndLanguage(ctx context.Context, arg GetMaxVersionByAnalysisAndLanguageParams) (int32, error) {
-	row := q.db.QueryRow(ctx, getMaxVersionByAnalysisAndLanguage, arg.AnalysisID, arg.Language)
+func (q *Queries) GetMaxVersionByUserAnalysisAndLanguage(ctx context.Context, arg GetMaxVersionByUserAnalysisAndLanguageParams) (int32, error) {
+	row := q.db.QueryRow(ctx, getMaxVersionByUserAnalysisAndLanguage, arg.UserID, arg.AnalysisID, arg.Language)
 	var max_version int32
 	err := row.Scan(&max_version)
 	return max_version, err
@@ -576,12 +586,13 @@ func (q *Queries) GetTestSuitesByFileID(ctx context.Context, fileID pgtype.UUID)
 }
 
 const insertSpecDocument = `-- name: InsertSpecDocument :one
-INSERT INTO spec_documents (analysis_id, content_hash, language, model_id, version)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO spec_documents (user_id, analysis_id, content_hash, language, model_id, version)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING id
 `
 
 type InsertSpecDocumentParams struct {
+	UserID      pgtype.UUID `json:"user_id"`
 	AnalysisID  pgtype.UUID `json:"analysis_id"`
 	ContentHash []byte      `json:"content_hash"`
 	Language    string      `json:"language"`
@@ -591,6 +602,7 @@ type InsertSpecDocumentParams struct {
 
 func (q *Queries) InsertSpecDocument(ctx context.Context, arg InsertSpecDocumentParams) (pgtype.UUID, error) {
 	row := q.db.QueryRow(ctx, insertSpecDocument,
+		arg.UserID,
 		arg.AnalysisID,
 		arg.ContentHash,
 		arg.Language,

@@ -527,6 +527,7 @@ type SpecDocument struct {
 	CreatedAt        pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
 	Version          int32              `json:"version"`
+	UserID           pgtype.UUID        `json:"user_id"`
 }
 
 type SpecDomain struct {

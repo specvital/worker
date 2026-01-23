@@ -16,6 +16,7 @@ func TestSpecViewRequest_Validate(t *testing.T) {
 			req: SpecViewRequest{
 				AnalysisID: "analysis-123",
 				Language:   "English",
+				UserID:     "user-123",
 			},
 			wantErr: nil,
 		},
@@ -25,6 +26,7 @@ func TestSpecViewRequest_Validate(t *testing.T) {
 				AnalysisID: "analysis-123",
 				Language:   "Korean",
 				ModelID:    "gemini-2.5-flash",
+				UserID:     "user-123",
 			},
 			wantErr: nil,
 		},
@@ -33,6 +35,7 @@ func TestSpecViewRequest_Validate(t *testing.T) {
 			req: SpecViewRequest{
 				AnalysisID: "analysis-123",
 				Language:   "Chinese",
+				UserID:     "user-123",
 			},
 			wantErr: nil,
 		},
@@ -41,6 +44,16 @@ func TestSpecViewRequest_Validate(t *testing.T) {
 			req: SpecViewRequest{
 				AnalysisID: "",
 				Language:   "English",
+				UserID:     "user-123",
+			},
+			wantErr: ErrInvalidInput,
+		},
+		{
+			name: "empty user ID",
+			req: SpecViewRequest{
+				AnalysisID: "analysis-123",
+				Language:   "English",
+				UserID:     "",
 			},
 			wantErr: ErrInvalidInput,
 		},
@@ -49,6 +62,7 @@ func TestSpecViewRequest_Validate(t *testing.T) {
 			req: SpecViewRequest{
 				AnalysisID: "analysis-123",
 				Language:   "",
+				UserID:     "user-123",
 			},
 			wantErr: ErrInvalidInput,
 		},

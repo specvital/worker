@@ -87,6 +87,7 @@ func TestSpecDocumentRepository_SaveDocument(t *testing.T) {
 
 	t.Run("should save complete 4-table hierarchy", func(t *testing.T) {
 		analysisID := setupTestAnalysisWithNestedSuites(t, ctx, analysisRepo, pool)
+		userID := setupTestUser(t, ctx, pool)
 
 		files, err := specRepo.GetTestDataByAnalysisID(ctx, analysisID.String())
 		if err != nil {
@@ -103,6 +104,7 @@ func TestSpecDocumentRepository_SaveDocument(t *testing.T) {
 			ContentHash: []byte("test-hash-123"),
 			Language:    "English",
 			ModelID:     "gemini-2.5-flash",
+			UserID:      userID,
 			Domains: []specview.Domain{
 				{
 					Name:        "User Management",
@@ -162,7 +164,8 @@ func TestSpecDocumentRepository_SaveDocument(t *testing.T) {
 	})
 
 	t.Run("should return nil for non-existent content hash", func(t *testing.T) {
-		doc, err := specRepo.FindDocumentByContentHash(ctx, []byte("non-existent"), "English", "model")
+		userID := setupTestUser(t, ctx, pool)
+		doc, err := specRepo.FindDocumentByContentHash(ctx, userID, []byte("non-existent"), "English", "model")
 		if err != nil {
 			t.Fatalf("FindDocumentByContentHash failed: %v", err)
 		}
@@ -186,12 +189,14 @@ func TestSpecDocumentRepository_VersionManagement(t *testing.T) {
 
 	t.Run("should auto-increment version on save", func(t *testing.T) {
 		analysisID := setupTestAnalysisWithNestedSuites(t, ctx, analysisRepo, pool)
+		userID := setupTestUser(t, ctx, pool)
 
 		doc1 := &specview.SpecDocument{
 			AnalysisID:  analysisID.String(),
 			ContentHash: []byte("hash-v1"),
 			Language:    "Korean",
 			ModelID:     "gemini-2.5-flash",
+			UserID:      userID,
 			Domains:     []specview.Domain{},
 		}
 
@@ -210,6 +215,7 @@ func TestSpecDocumentRepository_VersionManagement(t *testing.T) {
 			ContentHash: []byte("hash-v2"),
 			Language:    "Korean",
 			ModelID:     "gemini-2.5-flash",
+			UserID:      userID,
 			Domains:     []specview.Domain{},
 		}
 
@@ -226,6 +232,7 @@ func TestSpecDocumentRepository_VersionManagement(t *testing.T) {
 
 	t.Run("should find only latest version by content hash", func(t *testing.T) {
 		analysisID := setupTestAnalysisWithNestedSuites(t, ctx, analysisRepo, pool)
+		userID := setupTestUser(t, ctx, pool)
 		contentHash := []byte("shared-hash-for-version-test")
 
 		doc1 := &specview.SpecDocument{
@@ -233,6 +240,7 @@ func TestSpecDocumentRepository_VersionManagement(t *testing.T) {
 			ContentHash: contentHash,
 			Language:    "English",
 			ModelID:     "gemini-2.5-flash",
+			UserID:      userID,
 			Domains:     []specview.Domain{},
 		}
 		if err := specRepo.SaveDocument(ctx, doc1); err != nil {
@@ -244,13 +252,14 @@ func TestSpecDocumentRepository_VersionManagement(t *testing.T) {
 			ContentHash: contentHash,
 			Language:    "English",
 			ModelID:     "gemini-2.5-flash",
+			UserID:      userID,
 			Domains:     []specview.Domain{},
 		}
 		if err := specRepo.SaveDocument(ctx, doc2); err != nil {
 			t.Fatalf("SaveDocument v2 failed: %v", err)
 		}
 
-		found, err := specRepo.FindDocumentByContentHash(ctx, contentHash, "English", "gemini-2.5-flash")
+		found, err := specRepo.FindDocumentByContentHash(ctx, userID, contentHash, "English", "gemini-2.5-flash")
 		if err != nil {
 			t.Fatalf("FindDocumentByContentHash failed: %v", err)
 		}
@@ -283,6 +292,7 @@ func TestSpecDocumentRepository_FindDocumentByContentHash(t *testing.T) {
 
 	t.Run("should find existing document by content hash", func(t *testing.T) {
 		analysisID := setupTestAnalysisWithNestedSuites(t, ctx, analysisRepo, pool)
+		userID := setupTestUser(t, ctx, pool)
 		contentHash := []byte("unique-hash-for-find-test")
 
 		doc := &specview.SpecDocument{
@@ -290,6 +300,7 @@ func TestSpecDocumentRepository_FindDocumentByContentHash(t *testing.T) {
 			ContentHash: contentHash,
 			Language:    "Korean",
 			ModelID:     "gemini-2.5-flash",
+			UserID:      userID,
 			Domains:     []specview.Domain{},
 		}
 
@@ -298,7 +309,7 @@ func TestSpecDocumentRepository_FindDocumentByContentHash(t *testing.T) {
 			t.Fatalf("SaveDocument failed: %v", err)
 		}
 
-		found, err := specRepo.FindDocumentByContentHash(ctx, contentHash, "Korean", "gemini-2.5-flash")
+		found, err := specRepo.FindDocumentByContentHash(ctx, userID, contentHash, "Korean", "gemini-2.5-flash")
 		if err != nil {
 			t.Fatalf("FindDocumentByContentHash failed: %v", err)
 		}
@@ -314,6 +325,7 @@ func TestSpecDocumentRepository_FindDocumentByContentHash(t *testing.T) {
 
 	t.Run("should not find document with different language", func(t *testing.T) {
 		analysisID := setupTestAnalysisWithNestedSuites(t, ctx, analysisRepo, pool)
+		userID := setupTestUser(t, ctx, pool)
 		contentHash := []byte("hash-for-lang-test")
 
 		doc := &specview.SpecDocument{
@@ -321,6 +333,7 @@ func TestSpecDocumentRepository_FindDocumentByContentHash(t *testing.T) {
 			ContentHash: contentHash,
 			Language:    "English",
 			ModelID:     "gemini-2.5-flash",
+			UserID:      userID,
 			Domains:     []specview.Domain{},
 		}
 
@@ -329,7 +342,7 @@ func TestSpecDocumentRepository_FindDocumentByContentHash(t *testing.T) {
 			t.Fatalf("SaveDocument failed: %v", err)
 		}
 
-		found, err := specRepo.FindDocumentByContentHash(ctx, contentHash, "Korean", "gemini-2.5-flash")
+		found, err := specRepo.FindDocumentByContentHash(ctx, userID, contentHash, "Korean", "gemini-2.5-flash")
 		if err != nil {
 			t.Fatalf("FindDocumentByContentHash failed: %v", err)
 		}
@@ -338,6 +351,68 @@ func TestSpecDocumentRepository_FindDocumentByContentHash(t *testing.T) {
 			t.Error("should not find document with different language")
 		}
 	})
+
+	t.Run("should not find document owned by different user (user isolation)", func(t *testing.T) {
+		analysisID := setupTestAnalysisWithNestedSuites(t, ctx, analysisRepo, pool)
+		userA := setupTestUser(t, ctx, pool)
+		userB := setupTestUser(t, ctx, pool)
+		contentHash := []byte("hash-for-user-isolation-test")
+
+		doc := &specview.SpecDocument{
+			AnalysisID:  analysisID.String(),
+			ContentHash: contentHash,
+			Language:    "English",
+			ModelID:     "gemini-2.5-flash",
+			UserID:      userA,
+			Domains:     []specview.Domain{},
+		}
+
+		err := specRepo.SaveDocument(ctx, doc)
+		if err != nil {
+			t.Fatalf("SaveDocument failed: %v", err)
+		}
+
+		found, err := specRepo.FindDocumentByContentHash(ctx, userB, contentHash, "English", "gemini-2.5-flash")
+		if err != nil {
+			t.Fatalf("FindDocumentByContentHash failed: %v", err)
+		}
+
+		if found != nil {
+			t.Error("should not find document owned by different user")
+		}
+
+		foundByOwner, err := specRepo.FindDocumentByContentHash(ctx, userA, contentHash, "English", "gemini-2.5-flash")
+		if err != nil {
+			t.Fatalf("FindDocumentByContentHash failed: %v", err)
+		}
+
+		if foundByOwner == nil {
+			t.Error("owner should be able to find their own document")
+		}
+	})
+}
+
+func setupTestUser(t *testing.T, ctx context.Context, pool *pgxpool.Pool) string {
+	t.Helper()
+
+	randBytes := make([]byte, 4)
+	if _, err := rand.Read(randBytes); err != nil {
+		t.Fatalf("failed to generate random bytes: %v", err)
+	}
+	randSuffix := hex.EncodeToString(randBytes)
+	username := "testuser" + randSuffix
+
+	var userID [16]byte
+	err := pool.QueryRow(ctx, `
+		INSERT INTO users (username)
+		VALUES ($1)
+		RETURNING id
+	`, username).Scan(&userID)
+	if err != nil {
+		t.Fatalf("failed to create test user: %v", err)
+	}
+
+	return uuidBytesToString(userID)
 }
 
 func setupTestAnalysisWithNestedSuites(t *testing.T, ctx context.Context, repo *AnalysisRepository, pool *pgxpool.Pool) *uuidWrapper {

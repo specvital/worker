@@ -148,26 +148,28 @@ SELECT value FROM system_config WHERE key = $1;
 -- SPEC DOCUMENTS
 -- =============================================================================
 
--- name: GetMaxVersionByAnalysisAndLanguage :one
+-- name: GetMaxVersionByUserAnalysisAndLanguage :one
 SELECT COALESCE(MAX(version), 0)::int as max_version
 FROM spec_documents
-WHERE analysis_id = $1 AND language = $2;
+WHERE user_id = $1 AND analysis_id = $2 AND language = $3;
 
 -- name: FindSpecDocumentByContentHash :one
 SELECT sd.* FROM spec_documents sd
-WHERE sd.content_hash = $1
-  AND sd.language = $2
-  AND sd.model_id = $3
+WHERE sd.user_id = $1
+  AND sd.content_hash = $2
+  AND sd.language = $3
+  AND sd.model_id = $4
   AND sd.version = (
     SELECT MAX(version)
     FROM spec_documents
-    WHERE analysis_id = sd.analysis_id
+    WHERE user_id = sd.user_id
+      AND analysis_id = sd.analysis_id
       AND language = sd.language
   );
 
 -- name: InsertSpecDocument :one
-INSERT INTO spec_documents (analysis_id, content_hash, language, model_id, version)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO spec_documents (user_id, analysis_id, content_hash, language, model_id, version)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING id;
 
 -- name: InsertSpecDomain :one

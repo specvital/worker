@@ -12,15 +12,18 @@ type Language string
 // SpecViewRequest represents a request to generate a spec-view document.
 type SpecViewRequest struct {
 	AnalysisID      string
-	ForceRegenerate bool    // skip cache and create new version
+	ForceRegenerate bool     // skip cache and create new version
 	Language        Language
-	ModelID         string  // optional: AI model override
-	UserID          *string // optional: for history recording
+	ModelID         string   // optional: AI model override
+	UserID          string   // required: document owner
 }
 
 func (r SpecViewRequest) Validate() error {
 	if r.AnalysisID == "" {
 		return fmt.Errorf("%w: analysis ID is required", ErrInvalidInput)
+	}
+	if r.UserID == "" {
+		return fmt.Errorf("%w: user ID is required", ErrInvalidInput)
 	}
 	if r.Language == "" {
 		return fmt.Errorf("%w: language is required", ErrInvalidInput)
@@ -129,6 +132,7 @@ type SpecDocument struct {
 	ID          string
 	Language    Language
 	ModelID     string
+	UserID      string
 	Version     int32
 }
 

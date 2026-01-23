@@ -395,7 +395,8 @@ CREATE TABLE public.spec_documents (
     model_id character varying(100) NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    version integer DEFAULT 1 NOT NULL
+    version integer DEFAULT 1 NOT NULL,
+    user_id uuid NOT NULL
 );
 
 
@@ -845,19 +846,19 @@ ALTER TABLE ONLY public.refresh_tokens
 
 
 --
--- Name: spec_documents uq_spec_documents_analysis_lang_version; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: spec_documents uq_spec_documents_user_analysis_lang_version; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.spec_documents
-    ADD CONSTRAINT uq_spec_documents_analysis_lang_version UNIQUE (analysis_id, language, version);
+    ADD CONSTRAINT uq_spec_documents_user_analysis_lang_version UNIQUE (user_id, analysis_id, language, version);
 
 
 --
--- Name: spec_documents uq_spec_documents_hash_lang_model_version; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: spec_documents uq_spec_documents_user_hash_lang_model_version; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.spec_documents
-    ADD CONSTRAINT uq_spec_documents_hash_lang_model_version UNIQUE (content_hash, language, model_id, version);
+    ADD CONSTRAINT uq_spec_documents_user_hash_lang_model_version UNIQUE (user_id, content_hash, language, model_id, version);
 
 
 --
@@ -1097,6 +1098,13 @@ CREATE INDEX idx_spec_behaviors_source ON public.spec_behaviors USING btree (sou
 --
 
 CREATE INDEX idx_spec_documents_analysis ON public.spec_documents USING btree (analysis_id);
+
+
+--
+-- Name: idx_spec_documents_user_created; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_spec_documents_user_created ON public.spec_documents USING btree (user_id, created_at);
 
 
 --
@@ -1392,6 +1400,14 @@ ALTER TABLE ONLY public.spec_behaviors
 
 ALTER TABLE ONLY public.spec_documents
     ADD CONSTRAINT fk_spec_documents_analysis FOREIGN KEY (analysis_id) REFERENCES public.analyses(id) ON DELETE CASCADE;
+
+
+--
+-- Name: spec_documents fk_spec_documents_user; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.spec_documents
+    ADD CONSTRAINT fk_spec_documents_user FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
 
 
 --
