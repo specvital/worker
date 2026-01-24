@@ -242,8 +242,9 @@ func (uc *GenerateSpecViewUseCase) Execute(
 		return nil, fmt.Errorf("%w: %w", ErrSaveFailed, err)
 	}
 
-	testCasesCount := countTotalTestCases(files)
-	uc.recordUsageEvent(ctx, req.UserID, doc.ID, testCasesCount)
+	// Quota based on AI-generated behaviors only (cache hits are free)
+	quotaAmount := internalStats.cacheMisses
+	uc.recordUsageEvent(ctx, req.UserID, doc.ID, quotaAmount)
 	uc.recordUserHistory(ctx, req.UserID, doc.ID)
 
 	// Log token usage summary

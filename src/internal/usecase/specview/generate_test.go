@@ -992,6 +992,74 @@ func TestGenerateSpecViewUseCase_RecordUsageEvent(t *testing.T) {
 		}
 	})
 
+	t.Run("quota reduced by behavior cache hits", func(t *testing.T) {
+		files := newTestFiles()
+		phase1Output := newPhase1Output()
+
+		var recordedQuotaAmount int
+		repo := &mockRepository{
+			getTestDataByAnalysisIDFn: func(ctx context.Context, analysisID string) ([]specview.FileInfo, error) {
+				return files, nil
+			},
+			findDocumentByContentHashFn: func(ctx context.Context, userID string, contentHash []byte, language specview.Language, modelID string) (*specview.SpecDocument, error) {
+				return nil, nil
+			},
+			findCachedBehaviorsFn: func(ctx context.Context, cacheKeyHashes [][]byte) (map[string]string, error) {
+				// Return 3 cached out of 4 → only 1 AI call → quota 1
+				result := make(map[string]string)
+				for i, hash := range cacheKeyHashes {
+					if i < 3 {
+						result[hex.EncodeToString(hash)] = "Cached"
+					}
+				}
+				return result, nil
+			},
+			saveDocumentFn: func(ctx context.Context, doc *specview.SpecDocument) error {
+				doc.ID = "doc-001"
+				return nil
+			},
+			recordUsageEventFn: func(ctx context.Context, userID string, documentID string, quotaAmount int) error {
+				recordedQuotaAmount = quotaAmount
+				return nil
+			},
+		}
+
+		aiProvider := &mockAIProvider{
+			classifyDomainsFn: func(ctx context.Context, input specview.Phase1Input) (*specview.Phase1Output, *specview.TokenUsage, error) {
+				return phase1Output, nil, nil
+			},
+			convertTestNamesFn: func(ctx context.Context, input specview.Phase2Input) (*specview.Phase2Output, *specview.TokenUsage, error) {
+				behaviors := make([]specview.BehaviorSpec, len(input.Tests))
+				for i, test := range input.Tests {
+					behaviors[i] = specview.BehaviorSpec{
+						TestIndex:   test.Index,
+						Description: "Generated: " + test.Name,
+						Confidence:  0.9,
+					}
+				}
+				return &specview.Phase2Output{Behaviors: behaviors}, nil, nil
+			},
+		}
+
+		uc := NewGenerateSpecViewUseCase(repo, aiProvider, "gemini-2.5-flash")
+
+		result, err := uc.Execute(context.Background(), newValidRequest())
+
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		if result.BehaviorCacheStats == nil {
+			t.Fatal("expected BehaviorCacheStats, got nil")
+		}
+		// 3 cached, 1 generated → quota should be 1
+		if recordedQuotaAmount != 1 {
+			t.Errorf("expected quota amount 1 (only AI-generated), got %d", recordedQuotaAmount)
+		}
+		if result.BehaviorCacheStats.GeneratedBehaviors != 1 {
+			t.Errorf("expected GeneratedBehaviors=1, got %d", result.BehaviorCacheStats.GeneratedBehaviors)
+		}
+	})
+
 	t.Run("no usage event on cache hit", func(t *testing.T) {
 		files := newTestFiles()
 		cachedDoc := &specview.SpecDocument{
