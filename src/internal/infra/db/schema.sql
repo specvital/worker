@@ -172,6 +172,18 @@ CREATE TABLE public.atlas_schema_revisions (
 
 
 --
+-- Name: behavior_caches; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.behavior_caches (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    cache_key_hash bytea NOT NULL,
+    converted_description text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
 -- Name: codebases; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -654,6 +666,14 @@ ALTER TABLE ONLY public.atlas_schema_revisions
 
 
 --
+-- Name: behavior_caches behavior_caches_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.behavior_caches
+    ADD CONSTRAINT behavior_caches_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: codebases codebases_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -803,6 +823,14 @@ ALTER TABLE ONLY public.test_files
 
 ALTER TABLE ONLY public.test_suites
     ADD CONSTRAINT test_suites_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: behavior_caches uq_behavior_caches_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.behavior_caches
+    ADD CONSTRAINT uq_behavior_caches_key UNIQUE (cache_key_hash);
 
 
 --
@@ -993,6 +1021,13 @@ CREATE INDEX idx_analyses_codebase_status ON public.analyses USING btree (codeba
 --
 
 CREATE INDEX idx_analyses_created ON public.analyses USING btree (codebase_id, created_at);
+
+
+--
+-- Name: idx_behavior_caches_created_at; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_behavior_caches_created_at ON public.behavior_caches USING btree (created_at);
 
 
 --
