@@ -11,12 +11,21 @@ import (
 )
 
 type mockRepository struct {
+	findCachedBehaviorsFn       func(ctx context.Context, cacheKeyHashes [][]byte) (map[string]string, error)
 	findDocumentByContentHashFn func(ctx context.Context, userID string, contentHash []byte, language specview.Language, modelID string) (*specview.SpecDocument, error)
 	getAnalysisContextFn        func(ctx context.Context, analysisID string) (*specview.AnalysisContext, error)
 	getTestDataByAnalysisIDFn   func(ctx context.Context, analysisID string) ([]specview.FileInfo, error)
 	recordUsageEventFn          func(ctx context.Context, userID string, documentID string, quotaAmount int) error
 	recordUserHistoryFn         func(ctx context.Context, userID string, documentID string) error
+	saveBehaviorCacheFn         func(ctx context.Context, entries []specview.BehaviorCacheEntry) error
 	saveDocumentFn              func(ctx context.Context, doc *specview.SpecDocument) error
+}
+
+func (m *mockRepository) FindCachedBehaviors(ctx context.Context, cacheKeyHashes [][]byte) (map[string]string, error) {
+	if m.findCachedBehaviorsFn != nil {
+		return m.findCachedBehaviorsFn(ctx, cacheKeyHashes)
+	}
+	return nil, nil
 }
 
 func (m *mockRepository) FindDocumentByContentHash(ctx context.Context, userID string, contentHash []byte, language specview.Language, modelID string) (*specview.SpecDocument, error) {
@@ -50,6 +59,13 @@ func (m *mockRepository) RecordUsageEvent(ctx context.Context, userID string, do
 func (m *mockRepository) RecordUserHistory(ctx context.Context, userID string, documentID string) error {
 	if m.recordUserHistoryFn != nil {
 		return m.recordUserHistoryFn(ctx, userID, documentID)
+	}
+	return nil
+}
+
+func (m *mockRepository) SaveBehaviorCache(ctx context.Context, entries []specview.BehaviorCacheEntry) error {
+	if m.saveBehaviorCacheFn != nil {
+		return m.saveBehaviorCacheFn(ctx, entries)
 	}
 	return nil
 }

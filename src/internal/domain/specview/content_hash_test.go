@@ -354,3 +354,265 @@ func TestGenerateContentHash_EmptyLanguage(t *testing.T) {
 		t.Errorf("expected SHA256 hash length 32 for empty language, got %d", len(hash))
 	}
 }
+
+func TestGenerateCacheKeyHash_Deterministic(t *testing.T) {
+	key := BehaviorCacheKey{
+		TestName:  "should login with valid credentials",
+		SuitePath: "Authentication > Login",
+		FilePath:  "src/auth/login_test.ts",
+		Language:  "Korean",
+		ModelID:   "gemini-2.5-flash",
+	}
+
+	hash1 := GenerateCacheKeyHash(key)
+	hash2 := GenerateCacheKeyHash(key)
+
+	if !bytes.Equal(hash1, hash2) {
+		t.Error("hash should be deterministic: same input produced different hashes")
+	}
+
+	if len(hash1) != 32 {
+		t.Errorf("expected SHA256 hash length 32, got %d", len(hash1))
+	}
+}
+
+func TestGenerateCacheKeyHash_DifferentTestName(t *testing.T) {
+	key1 := BehaviorCacheKey{
+		TestName:  "should login",
+		SuitePath: "",
+		FilePath:  "test.ts",
+		Language:  "English",
+		ModelID:   "model",
+	}
+	key2 := BehaviorCacheKey{
+		TestName:  "should logout",
+		SuitePath: "",
+		FilePath:  "test.ts",
+		Language:  "English",
+		ModelID:   "model",
+	}
+
+	hash1 := GenerateCacheKeyHash(key1)
+	hash2 := GenerateCacheKeyHash(key2)
+
+	if bytes.Equal(hash1, hash2) {
+		t.Error("different test names should produce different hashes")
+	}
+}
+
+func TestGenerateCacheKeyHash_DifferentFilePath(t *testing.T) {
+	key1 := BehaviorCacheKey{
+		TestName:  "test_success",
+		SuitePath: "",
+		FilePath:  "auth/login.test.ts",
+		Language:  "English",
+		ModelID:   "gemini-2.5-flash",
+	}
+	key2 := BehaviorCacheKey{
+		TestName:  "test_success",
+		SuitePath: "",
+		FilePath:  "payment/checkout.test.ts",
+		Language:  "English",
+		ModelID:   "gemini-2.5-flash",
+	}
+
+	hash1 := GenerateCacheKeyHash(key1)
+	hash2 := GenerateCacheKeyHash(key2)
+
+	if bytes.Equal(hash1, hash2) {
+		t.Error("different file paths should produce different hashes")
+	}
+}
+
+func TestGenerateCacheKeyHash_UnicodeNFCNormalization(t *testing.T) {
+	// é as single codepoint (U+00E9) vs composed form (U+0065 + U+0301)
+	keyNFC := BehaviorCacheKey{
+		TestName:  "test caf\u00e9", // é as single codepoint
+		SuitePath: "",
+		FilePath:  "test.ts",
+		Language:  "English",
+		ModelID:   "model",
+	}
+	keyNFD := BehaviorCacheKey{
+		TestName:  "test cafe\u0301", // e + combining acute accent
+		SuitePath: "",
+		FilePath:  "test.ts",
+		Language:  "English",
+		ModelID:   "model",
+	}
+
+	hashNFC := GenerateCacheKeyHash(keyNFC)
+	hashNFD := GenerateCacheKeyHash(keyNFD)
+
+	if !bytes.Equal(hashNFC, hashNFD) {
+		t.Error("NFC normalization should produce same hash for equivalent Unicode sequences")
+	}
+}
+
+func TestGenerateCacheKeyHash_DifferentLanguage(t *testing.T) {
+	key1 := BehaviorCacheKey{
+		TestName:  "test",
+		SuitePath: "",
+		FilePath:  "test.ts",
+		Language:  "English",
+		ModelID:   "model",
+	}
+	key2 := BehaviorCacheKey{
+		TestName:  "test",
+		SuitePath: "",
+		FilePath:  "test.ts",
+		Language:  "Korean",
+		ModelID:   "model",
+	}
+
+	hash1 := GenerateCacheKeyHash(key1)
+	hash2 := GenerateCacheKeyHash(key2)
+
+	if bytes.Equal(hash1, hash2) {
+		t.Error("different languages should produce different hashes")
+	}
+}
+
+func TestGenerateCacheKeyHash_DifferentModelID(t *testing.T) {
+	key1 := BehaviorCacheKey{
+		TestName:  "test",
+		SuitePath: "",
+		FilePath:  "test.ts",
+		Language:  "English",
+		ModelID:   "gemini-2.5-flash",
+	}
+	key2 := BehaviorCacheKey{
+		TestName:  "test",
+		SuitePath: "",
+		FilePath:  "test.ts",
+		Language:  "English",
+		ModelID:   "gemini-2.5-flash-lite",
+	}
+
+	hash1 := GenerateCacheKeyHash(key1)
+	hash2 := GenerateCacheKeyHash(key2)
+
+	if bytes.Equal(hash1, hash2) {
+		t.Error("different model IDs should produce different hashes")
+	}
+}
+
+func TestGenerateCacheKeyHash_DifferentSuitePath(t *testing.T) {
+	key1 := BehaviorCacheKey{
+		TestName:  "test",
+		SuitePath: "SuiteA",
+		FilePath:  "test.ts",
+		Language:  "English",
+		ModelID:   "model",
+	}
+	key2 := BehaviorCacheKey{
+		TestName:  "test",
+		SuitePath: "SuiteB",
+		FilePath:  "test.ts",
+		Language:  "English",
+		ModelID:   "model",
+	}
+
+	hash1 := GenerateCacheKeyHash(key1)
+	hash2 := GenerateCacheKeyHash(key2)
+
+	if bytes.Equal(hash1, hash2) {
+		t.Error("different suite paths should produce different hashes")
+	}
+}
+
+func TestGenerateCacheKeyHash_EmptySuitePath(t *testing.T) {
+	keyWithSuite := BehaviorCacheKey{
+		TestName:  "test",
+		SuitePath: "Suite",
+		FilePath:  "test.ts",
+		Language:  "English",
+		ModelID:   "model",
+	}
+	keyWithoutSuite := BehaviorCacheKey{
+		TestName:  "test",
+		SuitePath: "",
+		FilePath:  "test.ts",
+		Language:  "English",
+		ModelID:   "model",
+	}
+
+	hashWith := GenerateCacheKeyHash(keyWithSuite)
+	hashWithout := GenerateCacheKeyHash(keyWithoutSuite)
+
+	if bytes.Equal(hashWith, hashWithout) {
+		t.Error("different suite paths (empty vs non-empty) should produce different hashes")
+	}
+}
+
+func TestGenerateCacheKeyHash_SuitePathNormalization(t *testing.T) {
+	keyNormal := BehaviorCacheKey{
+		TestName:  "test",
+		SuitePath: "SuiteA > SuiteB",
+		FilePath:  "test.ts",
+		Language:  "English",
+		ModelID:   "model",
+	}
+	keyWhitespace := BehaviorCacheKey{
+		TestName:  "test",
+		SuitePath: "  SuiteA > SuiteB  ",
+		FilePath:  "test.ts",
+		Language:  "English",
+		ModelID:   "model",
+	}
+
+	hashNormal := GenerateCacheKeyHash(keyNormal)
+	hashWhitespace := GenerateCacheKeyHash(keyWhitespace)
+
+	if !bytes.Equal(hashNormal, hashWhitespace) {
+		t.Error("suite path normalization should produce same hash for equivalent paths")
+	}
+}
+
+func TestGenerateCacheKeyHash_TestNameNormalization(t *testing.T) {
+	keyNormal := BehaviorCacheKey{
+		TestName:  "should login",
+		SuitePath: "",
+		FilePath:  "test.ts",
+		Language:  "English",
+		ModelID:   "model",
+	}
+	keyWhitespace := BehaviorCacheKey{
+		TestName:  "  should  login  ",
+		SuitePath: "",
+		FilePath:  "test.ts",
+		Language:  "English",
+		ModelID:   "model",
+	}
+
+	hashNormal := GenerateCacheKeyHash(keyNormal)
+	hashWhitespace := GenerateCacheKeyHash(keyWhitespace)
+
+	if !bytes.Equal(hashNormal, hashWhitespace) {
+		t.Error("test name normalization should produce same hash for equivalent names")
+	}
+}
+
+func TestGenerateCacheKeyHash_FilePathNormalization(t *testing.T) {
+	keyUnix := BehaviorCacheKey{
+		TestName:  "test",
+		SuitePath: "",
+		FilePath:  "src/auth/login_test.ts",
+		Language:  "English",
+		ModelID:   "model",
+	}
+	keyWindows := BehaviorCacheKey{
+		TestName:  "test",
+		SuitePath: "",
+		FilePath:  "src\\auth\\login_test.ts",
+		Language:  "English",
+		ModelID:   "model",
+	}
+
+	hashUnix := GenerateCacheKeyHash(keyUnix)
+	hashWindows := GenerateCacheKeyHash(keyWindows)
+
+	if !bytes.Equal(hashUnix, hashWindows) {
+		t.Error("file path normalization should produce same hash for unix and windows paths")
+	}
+}

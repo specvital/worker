@@ -169,3 +169,19 @@ type AnalysisContext struct {
 	Owner string
 	Repo  string
 }
+
+// BehaviorCacheEntry represents a cached behavior conversion result.
+// Cache key is generated from: test_name + suite_path + file_path + language + model_id
+type BehaviorCacheEntry struct {
+	CacheKeyHash []byte // SHA-256 hash of cache key components
+	Description  string // converted behavior description
+}
+
+// BehaviorCacheKey represents the components used to generate a cache key hash.
+type BehaviorCacheKey struct {
+	FilePath  string
+	Language  Language
+	ModelID   string
+	SuitePath string
+	TestName  string
+}

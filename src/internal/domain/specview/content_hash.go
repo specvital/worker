@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"golang.org/x/text/unicode/norm"
 )
 
 // GenerateContentHash creates a deterministic hash from test files and language.
@@ -69,4 +71,28 @@ func normalizeTestName(name string) string {
 	// Normalize internal whitespace (multiple spaces to single space)
 	fields := strings.Fields(normalized)
 	return strings.Join(fields, " ")
+}
+
+// GenerateCacheKeyHash creates a deterministic SHA-256 hash for behavior caching.
+// Hash = SHA256(NFC(test_name) + "\x00" + NFC(suite_path) + "\x00" + NFC(file_path) + "\x00" + NFC(language) + "\x00" + NFC(model_id))
+// Unicode NFC normalization ensures equivalent Unicode sequences produce the same hash.
+func GenerateCacheKeyHash(key BehaviorCacheKey) []byte {
+	h := sha256.New()
+
+	// Apply NFC normalization to all string components
+	h.Write(norm.NFC.Bytes([]byte(normalizeTestName(key.TestName))))
+	h.Write([]byte{0}) // null separator
+
+	h.Write(norm.NFC.Bytes([]byte(strings.TrimSpace(key.SuitePath))))
+	h.Write([]byte{0})
+
+	h.Write(norm.NFC.Bytes([]byte(normalizeFilePath(key.FilePath))))
+	h.Write([]byte{0})
+
+	h.Write(norm.NFC.Bytes([]byte(key.Language)))
+	h.Write([]byte{0})
+
+	h.Write(norm.NFC.Bytes([]byte(key.ModelID)))
+
+	return h.Sum(nil)
 }

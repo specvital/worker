@@ -516,3 +516,24 @@ func (r *SpecDocumentRepository) RecordUserHistory(
 
 	return nil
 }
+
+// FindCachedBehaviors looks up cached behavior descriptions by cache key hashes.
+// Returns a map of cache_key_hash (hex-encoded) -> converted_description.
+// Implementation pending: will be added in Commit 2.
+func (r *SpecDocumentRepository) FindCachedBehaviors(
+	ctx context.Context,
+	cacheKeyHashes [][]byte,
+) (map[string]string, error) {
+	// Stub implementation - actual query will be added in Commit 2
+	return nil, nil
+}
+
+// SaveBehaviorCache saves behavior cache entries to the database.
+// Implementation pending: will be added in Commit 2.
+func (r *SpecDocumentRepository) SaveBehaviorCache(
+	ctx context.Context,
+	entries []specview.BehaviorCacheEntry,
+) error {
+	// Stub implementation - actual query will be added in Commit 2
+	return nil
+}

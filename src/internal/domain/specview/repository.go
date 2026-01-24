@@ -28,4 +28,13 @@ type Repository interface {
 	// SaveDocument saves the complete 4-table hierarchy in a single transaction.
 	// This includes spec_documents, spec_domains, spec_features, and spec_behaviors.
 	SaveDocument(ctx context.Context, doc *SpecDocument) error
+
+	// FindCachedBehaviors looks up cached behavior descriptions by cache key hashes.
+	// Returns a map of cache_key_hash (hex-encoded) -> converted_description.
+	// Only found entries are included in the result map.
+	FindCachedBehaviors(ctx context.Context, cacheKeyHashes [][]byte) (map[string]string, error)
+
+	// SaveBehaviorCache saves behavior cache entries to the database.
+	// Uses upsert semantics: existing entries are updated, new entries are inserted.
+	SaveBehaviorCache(ctx context.Context, entries []BehaviorCacheEntry) error
 }
