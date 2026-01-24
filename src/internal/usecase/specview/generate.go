@@ -15,18 +15,30 @@ import (
 	"github.com/specvital/worker/internal/domain/specview"
 )
 
-// behaviorCacheStats tracks cache hit/miss statistics for Phase 2 behavior cache.
-type behaviorCacheStats struct {
+// internalCacheStats tracks cache hit/miss statistics for Phase 2 behavior cache (internal use).
+type internalCacheStats struct {
 	cacheHits   int
 	cacheMisses int
 	totalTests  int
 }
 
-func (s *behaviorCacheStats) hitRate() float64 {
+func (s *internalCacheStats) hitRate() float64 {
 	if s.totalTests == 0 {
 		return 0.0
 	}
 	return float64(s.cacheHits) / float64(s.totalTests)
+}
+
+func (s *internalCacheStats) toPublic() *specview.BehaviorCacheStats {
+	if s == nil || s.totalTests == 0 {
+		return nil
+	}
+	return &specview.BehaviorCacheStats{
+		CachedBehaviors:    s.cacheHits,
+		GeneratedBehaviors: s.cacheMisses,
+		HitRate:            s.hitRate(),
+		TotalBehaviors:     s.totalTests,
+	}
 }
 
 const (
@@ -198,7 +210,7 @@ func (uc *GenerateSpecViewUseCase) Execute(
 
 	testIndexMap := buildTestIndexMap(files)
 
-	phase2Results, cacheStats, phase2Usage, err := uc.executePhase2(
+	phase2Results, internalStats, phase2Usage, err := uc.executePhase2(
 		ctx,
 		phase1Output,
 		req.Language,
@@ -213,13 +225,13 @@ func (uc *GenerateSpecViewUseCase) Execute(
 	}
 
 	// Log behavior cache stats
-	if cacheStats != nil && cacheStats.totalTests > 0 {
+	if internalStats != nil && internalStats.totalTests > 0 {
 		slog.InfoContext(ctx, "behavior cache stats",
 			"analysis_id", req.AnalysisID,
-			"total_tests", cacheStats.totalTests,
-			"cache_hits", cacheStats.cacheHits,
-			"cache_misses", cacheStats.cacheMisses,
-			"hit_rate", fmt.Sprintf("%.1f%%", cacheStats.hitRate()*100),
+			"total_tests", internalStats.totalTests,
+			"cache_hits", internalStats.cacheHits,
+			"cache_misses", internalStats.cacheMisses,
+			"hit_rate", fmt.Sprintf("%.1f%%", internalStats.hitRate()*100),
 		)
 	}
 
@@ -247,10 +259,11 @@ func (uc *GenerateSpecViewUseCase) Execute(
 	)
 
 	return &specview.SpecViewResult{
-		AnalysisContext: analysisCtx,
-		CacheHit:        false,
-		ContentHash:     contentHash,
-		DocumentID:      doc.ID,
+		AnalysisContext:    analysisCtx,
+		BehaviorCacheStats: internalStats.toPublic(),
+		CacheHit:           false,
+		ContentHash:        contentHash,
+		DocumentID:         doc.ID,
 	}, nil
 }
 
@@ -352,7 +365,7 @@ func (uc *GenerateSpecViewUseCase) executePhase2(
 	testIndexMap map[int]specview.TestInfo,
 	files []specview.FileInfo,
 	forceRegenerate bool,
-) ([]phase2Result, *behaviorCacheStats, *specview.TokenUsage, error) {
+) ([]phase2Result, *internalCacheStats, *specview.TokenUsage, error) {
 	startTime := time.Now()
 
 	phase2Ctx, cancel := context.WithTimeout(ctx, uc.config.Phase2Timeout)
@@ -373,7 +386,7 @@ func (uc *GenerateSpecViewUseCase) executePhase2(
 	}
 
 	if len(featureTasks) == 0 {
-		return nil, &behaviorCacheStats{}, nil, nil
+		return nil, &internalCacheStats{}, nil, nil
 	}
 
 	// Build test -> filePath mapping for cache key generation
@@ -382,7 +395,7 @@ func (uc *GenerateSpecViewUseCase) executePhase2(
 	// Lookup behavior cache (skip if forceRegenerate)
 	var cachedBehaviors map[string]string
 	var testHashMap map[int]string
-	cacheStats := &behaviorCacheStats{totalTests: totalTests}
+	cacheStats := &internalCacheStats{totalTests: totalTests}
 
 	if !forceRegenerate {
 		var err error

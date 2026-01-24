@@ -1444,6 +1444,231 @@ func TestBehaviorCacheIntegration(t *testing.T) {
 	})
 }
 
+func TestBehaviorCacheStats(t *testing.T) {
+	t.Run("returns correct stats on cache miss", func(t *testing.T) {
+		files := newTestFiles()
+		phase1Output := newPhase1Output()
+
+		repo := &mockRepository{
+			getTestDataByAnalysisIDFn: func(ctx context.Context, analysisID string) ([]specview.FileInfo, error) {
+				return files, nil
+			},
+			findDocumentByContentHashFn: func(ctx context.Context, userID string, contentHash []byte, language specview.Language, modelID string) (*specview.SpecDocument, error) {
+				return nil, nil
+			},
+			findCachedBehaviorsFn: func(ctx context.Context, cacheKeyHashes [][]byte) (map[string]string, error) {
+				return make(map[string]string), nil
+			},
+			saveDocumentFn: func(ctx context.Context, doc *specview.SpecDocument) error {
+				doc.ID = "doc-001"
+				return nil
+			},
+		}
+
+		aiProvider := &mockAIProvider{
+			classifyDomainsFn: func(ctx context.Context, input specview.Phase1Input) (*specview.Phase1Output, *specview.TokenUsage, error) {
+				return phase1Output, nil, nil
+			},
+			convertTestNamesFn: func(ctx context.Context, input specview.Phase2Input) (*specview.Phase2Output, *specview.TokenUsage, error) {
+				behaviors := make([]specview.BehaviorSpec, len(input.Tests))
+				for i, test := range input.Tests {
+					behaviors[i] = specview.BehaviorSpec{
+						TestIndex:   test.Index,
+						Description: "Generated: " + test.Name,
+						Confidence:  0.9,
+					}
+				}
+				return &specview.Phase2Output{Behaviors: behaviors}, nil, nil
+			},
+		}
+
+		uc := NewGenerateSpecViewUseCase(repo, aiProvider, "gemini-2.5-flash")
+
+		result, err := uc.Execute(context.Background(), newValidRequest())
+
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		if result.BehaviorCacheStats == nil {
+			t.Fatal("expected BehaviorCacheStats, got nil")
+		}
+		stats := result.BehaviorCacheStats
+		// 4 tests total, all cache misses
+		if stats.TotalBehaviors != 4 {
+			t.Errorf("expected TotalBehaviors=4, got %d", stats.TotalBehaviors)
+		}
+		if stats.CachedBehaviors != 0 {
+			t.Errorf("expected CachedBehaviors=0, got %d", stats.CachedBehaviors)
+		}
+		if stats.GeneratedBehaviors != 4 {
+			t.Errorf("expected GeneratedBehaviors=4, got %d", stats.GeneratedBehaviors)
+		}
+		if stats.HitRate != 0.0 {
+			t.Errorf("expected HitRate=0.0, got %f", stats.HitRate)
+		}
+	})
+
+	t.Run("returns correct stats on full cache hit", func(t *testing.T) {
+		files := newTestFiles()
+		phase1Output := newPhase1Output()
+
+		repo := &mockRepository{
+			getTestDataByAnalysisIDFn: func(ctx context.Context, analysisID string) ([]specview.FileInfo, error) {
+				return files, nil
+			},
+			findDocumentByContentHashFn: func(ctx context.Context, userID string, contentHash []byte, language specview.Language, modelID string) (*specview.SpecDocument, error) {
+				return nil, nil
+			},
+			findCachedBehaviorsFn: func(ctx context.Context, cacheKeyHashes [][]byte) (map[string]string, error) {
+				result := make(map[string]string)
+				for _, hash := range cacheKeyHashes {
+					result[hex.EncodeToString(hash)] = "Cached"
+				}
+				return result, nil
+			},
+			saveDocumentFn: func(ctx context.Context, doc *specview.SpecDocument) error {
+				doc.ID = "doc-001"
+				return nil
+			},
+		}
+
+		aiProvider := &mockAIProvider{
+			classifyDomainsFn: func(ctx context.Context, input specview.Phase1Input) (*specview.Phase1Output, *specview.TokenUsage, error) {
+				return phase1Output, nil, nil
+			},
+			convertTestNamesFn: func(ctx context.Context, input specview.Phase2Input) (*specview.Phase2Output, *specview.TokenUsage, error) {
+				return &specview.Phase2Output{Behaviors: []specview.BehaviorSpec{}}, nil, nil
+			},
+		}
+
+		uc := NewGenerateSpecViewUseCase(repo, aiProvider, "gemini-2.5-flash")
+
+		result, err := uc.Execute(context.Background(), newValidRequest())
+
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		if result.BehaviorCacheStats == nil {
+			t.Fatal("expected BehaviorCacheStats, got nil")
+		}
+		stats := result.BehaviorCacheStats
+		// 4 tests total, all from cache
+		if stats.TotalBehaviors != 4 {
+			t.Errorf("expected TotalBehaviors=4, got %d", stats.TotalBehaviors)
+		}
+		if stats.CachedBehaviors != 4 {
+			t.Errorf("expected CachedBehaviors=4, got %d", stats.CachedBehaviors)
+		}
+		if stats.GeneratedBehaviors != 0 {
+			t.Errorf("expected GeneratedBehaviors=0, got %d", stats.GeneratedBehaviors)
+		}
+		if stats.HitRate != 1.0 {
+			t.Errorf("expected HitRate=1.0, got %f", stats.HitRate)
+		}
+	})
+
+	t.Run("returns correct stats on partial cache hit", func(t *testing.T) {
+		files := newTestFiles()
+		phase1Output := newPhase1Output()
+
+		repo := &mockRepository{
+			getTestDataByAnalysisIDFn: func(ctx context.Context, analysisID string) ([]specview.FileInfo, error) {
+				return files, nil
+			},
+			findDocumentByContentHashFn: func(ctx context.Context, userID string, contentHash []byte, language specview.Language, modelID string) (*specview.SpecDocument, error) {
+				return nil, nil
+			},
+			findCachedBehaviorsFn: func(ctx context.Context, cacheKeyHashes [][]byte) (map[string]string, error) {
+				// Return 2 cached out of 4
+				result := make(map[string]string)
+				for i, hash := range cacheKeyHashes {
+					if i < 2 {
+						result[hex.EncodeToString(hash)] = "Cached"
+					}
+				}
+				return result, nil
+			},
+			saveDocumentFn: func(ctx context.Context, doc *specview.SpecDocument) error {
+				doc.ID = "doc-001"
+				return nil
+			},
+		}
+
+		aiProvider := &mockAIProvider{
+			classifyDomainsFn: func(ctx context.Context, input specview.Phase1Input) (*specview.Phase1Output, *specview.TokenUsage, error) {
+				return phase1Output, nil, nil
+			},
+			convertTestNamesFn: func(ctx context.Context, input specview.Phase2Input) (*specview.Phase2Output, *specview.TokenUsage, error) {
+				behaviors := make([]specview.BehaviorSpec, len(input.Tests))
+				for i, test := range input.Tests {
+					behaviors[i] = specview.BehaviorSpec{
+						TestIndex:   test.Index,
+						Description: "Generated: " + test.Name,
+						Confidence:  0.9,
+					}
+				}
+				return &specview.Phase2Output{Behaviors: behaviors}, nil, nil
+			},
+		}
+
+		uc := NewGenerateSpecViewUseCase(repo, aiProvider, "gemini-2.5-flash")
+
+		result, err := uc.Execute(context.Background(), newValidRequest())
+
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		if result.BehaviorCacheStats == nil {
+			t.Fatal("expected BehaviorCacheStats, got nil")
+		}
+		stats := result.BehaviorCacheStats
+		// 4 tests total, 2 cached, 2 generated
+		if stats.TotalBehaviors != 4 {
+			t.Errorf("expected TotalBehaviors=4, got %d", stats.TotalBehaviors)
+		}
+		if stats.CachedBehaviors != 2 {
+			t.Errorf("expected CachedBehaviors=2, got %d", stats.CachedBehaviors)
+		}
+		if stats.GeneratedBehaviors != 2 {
+			t.Errorf("expected GeneratedBehaviors=2, got %d", stats.GeneratedBehaviors)
+		}
+		if stats.HitRate != 0.5 {
+			t.Errorf("expected HitRate=0.5, got %f", stats.HitRate)
+		}
+	})
+
+	t.Run("returns nil stats on document cache hit", func(t *testing.T) {
+		files := newTestFiles()
+		cachedDoc := &specview.SpecDocument{
+			ID:       "cached-doc-001",
+			Language: "Korean",
+		}
+
+		repo := &mockRepository{
+			getTestDataByAnalysisIDFn: func(ctx context.Context, analysisID string) ([]specview.FileInfo, error) {
+				return files, nil
+			},
+			findDocumentByContentHashFn: func(ctx context.Context, userID string, contentHash []byte, language specview.Language, modelID string) (*specview.SpecDocument, error) {
+				return cachedDoc, nil
+			},
+		}
+
+		uc := NewGenerateSpecViewUseCase(repo, &mockAIProvider{}, "gemini-2.5-flash")
+
+		result, err := uc.Execute(context.Background(), newValidRequest())
+
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		if !result.CacheHit {
+			t.Error("expected document cache hit")
+		}
+		if result.BehaviorCacheStats != nil {
+			t.Error("expected BehaviorCacheStats to be nil on document cache hit")
+		}
+	})
+}
+
 func TestBuildTestFilePathMap(t *testing.T) {
 	t.Run("maps test index to file path", func(t *testing.T) {
 		files := []specview.FileInfo{
