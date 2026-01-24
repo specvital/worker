@@ -398,6 +398,16 @@ type BehaviorCach struct {
 	CreatedAt            pgtype.Timestamptz `json:"created_at"`
 }
 
+type ClassificationCach struct {
+	ID           pgtype.UUID        `json:"id"`
+	ContentHash  []byte             `json:"content_hash"`
+	Language     string             `json:"language"`
+	ModelID      string             `json:"model_id"`
+	Phase1Output []byte             `json:"phase1_output"`
+	TestIndexMap []byte             `json:"test_index_map"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+}
+
 type Codebasis struct {
 	ID             pgtype.UUID        `json:"id"`
 	Host           string             `json:"host"`

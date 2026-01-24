@@ -606,6 +606,300 @@ func TestSpecDocumentRepository_BehaviorCache(t *testing.T) {
 	})
 }
 
+func TestSpecDocumentRepository_ClassificationCache(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+
+	pool, cleanup := testdb.SetupTestDB(t)
+	defer cleanup()
+
+	specRepo := NewSpecDocumentRepository(pool)
+	ctx := context.Background()
+
+	t.Run("should return nil for non-existent cache", func(t *testing.T) {
+		signature := []byte{0x01, 0x02, 0x03, 0x04}
+		result, err := specRepo.FindClassificationCache(ctx, signature, "English", "model-1")
+		if err != nil {
+			t.Fatalf("FindClassificationCache failed: %v", err)
+		}
+		if result != nil {
+			t.Error("expected nil for non-existent cache")
+		}
+	})
+
+	t.Run("should save and retrieve classification cache", func(t *testing.T) {
+		signature := []byte{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}
+		cache := &specview.ClassificationCache{
+			FileSignature: signature,
+			Language:      "Korean",
+			ModelID:       "gemini-2.5-flash",
+			ClassificationResult: &specview.Phase1Output{
+				Domains: []specview.DomainGroup{
+					{
+						Name:        "Authentication",
+						Description: "User authentication features",
+						Confidence:  0.95,
+						Features: []specview.FeatureGroup{
+							{
+								Name:        "Login",
+								Description: "User login functionality",
+								Confidence:  0.90,
+								TestIndices: []int{0, 1, 2},
+							},
+						},
+					},
+				},
+			},
+			TestIndexMap: map[string]specview.TestIdentity{
+				"auth_test.go\x00AuthSuite\x00test_login": {
+					DomainIndex:  0,
+					FeatureIndex: 0,
+					FilePath:     "auth_test.go",
+					SuitePath:    "AuthSuite",
+					TestIndex:    0,
+				},
+			},
+		}
+
+		err := specRepo.SaveClassificationCache(ctx, cache)
+		if err != nil {
+			t.Fatalf("SaveClassificationCache failed: %v", err)
+		}
+
+		result, err := specRepo.FindClassificationCache(ctx, signature, "Korean", "gemini-2.5-flash")
+		if err != nil {
+			t.Fatalf("FindClassificationCache failed: %v", err)
+		}
+
+		if result == nil {
+			t.Fatal("expected to find cache")
+		}
+
+		if result.ID == "" {
+			t.Error("expected non-empty ID")
+		}
+		if result.Language != "Korean" {
+			t.Errorf("expected language Korean, got %s", result.Language)
+		}
+		if result.ModelID != "gemini-2.5-flash" {
+			t.Errorf("expected model gemini-2.5-flash, got %s", result.ModelID)
+		}
+		if len(result.ClassificationResult.Domains) != 1 {
+			t.Errorf("expected 1 domain, got %d", len(result.ClassificationResult.Domains))
+		}
+		if result.ClassificationResult.Domains[0].Name != "Authentication" {
+			t.Errorf("expected domain name Authentication, got %s", result.ClassificationResult.Domains[0].Name)
+		}
+		if len(result.TestIndexMap) != 1 {
+			t.Errorf("expected 1 test index map entry, got %d", len(result.TestIndexMap))
+		}
+	})
+
+	t.Run("should upsert on conflict", func(t *testing.T) {
+		signature := []byte{0x11, 0x22, 0x33, 0x44, 0x55}
+		cache1 := &specview.ClassificationCache{
+			FileSignature: signature,
+			Language:      "English",
+			ModelID:       "model-v1",
+			ClassificationResult: &specview.Phase1Output{
+				Domains: []specview.DomainGroup{
+					{Name: "OriginalDomain", Confidence: 0.8},
+				},
+			},
+			TestIndexMap: map[string]specview.TestIdentity{},
+		}
+
+		err := specRepo.SaveClassificationCache(ctx, cache1)
+		if err != nil {
+			t.Fatalf("SaveClassificationCache (first) failed: %v", err)
+		}
+
+		cache2 := &specview.ClassificationCache{
+			FileSignature: signature,
+			Language:      "English",
+			ModelID:       "model-v1",
+			ClassificationResult: &specview.Phase1Output{
+				Domains: []specview.DomainGroup{
+					{Name: "UpdatedDomain", Confidence: 0.95},
+				},
+			},
+			TestIndexMap: map[string]specview.TestIdentity{},
+		}
+
+		err = specRepo.SaveClassificationCache(ctx, cache2)
+		if err != nil {
+			t.Fatalf("SaveClassificationCache (second) failed: %v", err)
+		}
+
+		result, err := specRepo.FindClassificationCache(ctx, signature, "English", "model-v1")
+		if err != nil {
+			t.Fatalf("FindClassificationCache failed: %v", err)
+		}
+
+		if result.ClassificationResult.Domains[0].Name != "UpdatedDomain" {
+			t.Errorf("expected updated domain name, got %s", result.ClassificationResult.Domains[0].Name)
+		}
+	})
+
+	t.Run("should distinguish by language", func(t *testing.T) {
+		signature := []byte{0x77, 0x88, 0x99, 0xaa}
+
+		cacheEn := &specview.ClassificationCache{
+			FileSignature: signature,
+			Language:      "English",
+			ModelID:       "model-test",
+			ClassificationResult: &specview.Phase1Output{
+				Domains: []specview.DomainGroup{{Name: "EnglishDomain"}},
+			},
+			TestIndexMap: map[string]specview.TestIdentity{},
+		}
+
+		cacheKo := &specview.ClassificationCache{
+			FileSignature: signature,
+			Language:      "Korean",
+			ModelID:       "model-test",
+			ClassificationResult: &specview.Phase1Output{
+				Domains: []specview.DomainGroup{{Name: "KoreanDomain"}},
+			},
+			TestIndexMap: map[string]specview.TestIdentity{},
+		}
+
+		if err := specRepo.SaveClassificationCache(ctx, cacheEn); err != nil {
+			t.Fatalf("SaveClassificationCache (English) failed: %v", err)
+		}
+		if err := specRepo.SaveClassificationCache(ctx, cacheKo); err != nil {
+			t.Fatalf("SaveClassificationCache (Korean) failed: %v", err)
+		}
+
+		resultEn, err := specRepo.FindClassificationCache(ctx, signature, "English", "model-test")
+		if err != nil {
+			t.Fatalf("FindClassificationCache (English) failed: %v", err)
+		}
+		if resultEn.ClassificationResult.Domains[0].Name != "EnglishDomain" {
+			t.Errorf("expected EnglishDomain, got %s", resultEn.ClassificationResult.Domains[0].Name)
+		}
+
+		resultKo, err := specRepo.FindClassificationCache(ctx, signature, "Korean", "model-test")
+		if err != nil {
+			t.Fatalf("FindClassificationCache (Korean) failed: %v", err)
+		}
+		if resultKo.ClassificationResult.Domains[0].Name != "KoreanDomain" {
+			t.Errorf("expected KoreanDomain, got %s", resultKo.ClassificationResult.Domains[0].Name)
+		}
+	})
+
+	t.Run("should distinguish by model_id", func(t *testing.T) {
+		signature := []byte{0xde, 0xad, 0xbe, 0xef}
+
+		cacheV1 := &specview.ClassificationCache{
+			FileSignature: signature,
+			Language:      "English",
+			ModelID:       "model-v1",
+			ClassificationResult: &specview.Phase1Output{
+				Domains: []specview.DomainGroup{{Name: "V1Domain"}},
+			},
+			TestIndexMap: map[string]specview.TestIdentity{},
+		}
+
+		cacheV2 := &specview.ClassificationCache{
+			FileSignature: signature,
+			Language:      "English",
+			ModelID:       "model-v2",
+			ClassificationResult: &specview.Phase1Output{
+				Domains: []specview.DomainGroup{{Name: "V2Domain"}},
+			},
+			TestIndexMap: map[string]specview.TestIdentity{},
+		}
+
+		if err := specRepo.SaveClassificationCache(ctx, cacheV1); err != nil {
+			t.Fatalf("SaveClassificationCache (v1) failed: %v", err)
+		}
+		if err := specRepo.SaveClassificationCache(ctx, cacheV2); err != nil {
+			t.Fatalf("SaveClassificationCache (v2) failed: %v", err)
+		}
+
+		resultV1, err := specRepo.FindClassificationCache(ctx, signature, "English", "model-v1")
+		if err != nil {
+			t.Fatalf("FindClassificationCache (v1) failed: %v", err)
+		}
+		if resultV1.ClassificationResult.Domains[0].Name != "V1Domain" {
+			t.Errorf("expected V1Domain, got %s", resultV1.ClassificationResult.Domains[0].Name)
+		}
+
+		resultV2, err := specRepo.FindClassificationCache(ctx, signature, "English", "model-v2")
+		if err != nil {
+			t.Fatalf("FindClassificationCache (v2) failed: %v", err)
+		}
+		if resultV2.ClassificationResult.Domains[0].Name != "V2Domain" {
+			t.Errorf("expected V2Domain, got %s", resultV2.ClassificationResult.Domains[0].Name)
+		}
+	})
+
+	t.Run("should fail on nil cache", func(t *testing.T) {
+		err := specRepo.SaveClassificationCache(ctx, nil)
+		if !errors.Is(err, specview.ErrInvalidInput) {
+			t.Errorf("expected ErrInvalidInput, got %v", err)
+		}
+	})
+
+	t.Run("should fail on empty file signature", func(t *testing.T) {
+		cache := &specview.ClassificationCache{
+			FileSignature:        nil,
+			Language:             "English",
+			ModelID:              "model",
+			ClassificationResult: &specview.Phase1Output{},
+			TestIndexMap:         map[string]specview.TestIdentity{},
+		}
+		err := specRepo.SaveClassificationCache(ctx, cache)
+		if !errors.Is(err, specview.ErrInvalidInput) {
+			t.Errorf("expected ErrInvalidInput, got %v", err)
+		}
+	})
+
+	t.Run("should fail on empty language", func(t *testing.T) {
+		cache := &specview.ClassificationCache{
+			FileSignature:        []byte{0x01},
+			Language:             "",
+			ModelID:              "model",
+			ClassificationResult: &specview.Phase1Output{},
+			TestIndexMap:         map[string]specview.TestIdentity{},
+		}
+		err := specRepo.SaveClassificationCache(ctx, cache)
+		if !errors.Is(err, specview.ErrInvalidInput) {
+			t.Errorf("expected ErrInvalidInput, got %v", err)
+		}
+	})
+
+	t.Run("should fail on empty model ID", func(t *testing.T) {
+		cache := &specview.ClassificationCache{
+			FileSignature:        []byte{0x01},
+			Language:             "English",
+			ModelID:              "",
+			ClassificationResult: &specview.Phase1Output{},
+			TestIndexMap:         map[string]specview.TestIdentity{},
+		}
+		err := specRepo.SaveClassificationCache(ctx, cache)
+		if !errors.Is(err, specview.ErrInvalidInput) {
+			t.Errorf("expected ErrInvalidInput, got %v", err)
+		}
+	})
+
+	t.Run("should fail on nil classification result", func(t *testing.T) {
+		cache := &specview.ClassificationCache{
+			FileSignature:        []byte{0x01},
+			Language:             "English",
+			ModelID:              "model",
+			ClassificationResult: nil,
+			TestIndexMap:         map[string]specview.TestIdentity{},
+		}
+		err := specRepo.SaveClassificationCache(ctx, cache)
+		if !errors.Is(err, specview.ErrInvalidInput) {
+			t.Errorf("expected ErrInvalidInput, got %v", err)
+		}
+	})
+}
+
 func createNestedSuiteInventory() *parser.ScanResult {
 	return &parser.ScanResult{
 		Inventory: &domain.Inventory{

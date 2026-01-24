@@ -104,6 +104,19 @@ func (q *Queries) CreateTestCase(ctx context.Context, arg CreateTestCaseParams) 
 	return i, err
 }
 
+const deleteExpiredClassificationCaches = `-- name: DeleteExpiredClassificationCaches :execrows
+DELETE FROM classification_caches
+WHERE created_at < now() - $1::interval
+`
+
+func (q *Queries) DeleteExpiredClassificationCaches(ctx context.Context, dollar_1 pgtype.Interval) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteExpiredClassificationCaches, dollar_1)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const findBehaviorCachesByHashes = `-- name: FindBehaviorCachesByHashes :many
 
 SELECT cache_key_hash, converted_description
@@ -137,6 +150,37 @@ func (q *Queries) FindBehaviorCachesByHashes(ctx context.Context, dollar_1 [][]b
 		return nil, err
 	}
 	return items, nil
+}
+
+const findClassificationCacheByKey = `-- name: FindClassificationCacheByKey :one
+
+SELECT id, content_hash, language, model_id, phase1_output, test_index_map, created_at
+FROM classification_caches
+WHERE content_hash = $1 AND language = $2 AND model_id = $3
+`
+
+type FindClassificationCacheByKeyParams struct {
+	ContentHash []byte `json:"content_hash"`
+	Language    string `json:"language"`
+	ModelID     string `json:"model_id"`
+}
+
+// =============================================================================
+// CLASSIFICATION CACHES
+// =============================================================================
+func (q *Queries) FindClassificationCacheByKey(ctx context.Context, arg FindClassificationCacheByKeyParams) (ClassificationCach, error) {
+	row := q.db.QueryRow(ctx, findClassificationCacheByKey, arg.ContentHash, arg.Language, arg.ModelID)
+	var i ClassificationCach
+	err := row.Scan(
+		&i.ID,
+		&i.ContentHash,
+		&i.Language,
+		&i.ModelID,
+		&i.Phase1Output,
+		&i.TestIndexMap,
+		&i.CreatedAt,
+	)
+	return i, err
 }
 
 const findCodebaseByExternalID = `-- name: FindCodebaseByExternalID :one
@@ -968,6 +1012,34 @@ type UpsertBehaviorCacheParams struct {
 
 func (q *Queries) UpsertBehaviorCache(ctx context.Context, arg UpsertBehaviorCacheParams) error {
 	_, err := q.db.Exec(ctx, upsertBehaviorCache, arg.CacheKeyHash, arg.ConvertedDescription)
+	return err
+}
+
+const upsertClassificationCache = `-- name: UpsertClassificationCache :exec
+INSERT INTO classification_caches (content_hash, language, model_id, phase1_output, test_index_map)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT ON CONSTRAINT uq_classification_caches_key DO UPDATE
+SET phase1_output = EXCLUDED.phase1_output,
+    test_index_map = EXCLUDED.test_index_map,
+    created_at = now()
+`
+
+type UpsertClassificationCacheParams struct {
+	ContentHash  []byte `json:"content_hash"`
+	Language     string `json:"language"`
+	ModelID      string `json:"model_id"`
+	Phase1Output []byte `json:"phase1_output"`
+	TestIndexMap []byte `json:"test_index_map"`
+}
+
+func (q *Queries) UpsertClassificationCache(ctx context.Context, arg UpsertClassificationCacheParams) error {
+	_, err := q.db.Exec(ctx, upsertClassificationCache,
+		arg.ContentHash,
+		arg.Language,
+		arg.ModelID,
+		arg.Phase1Output,
+		arg.TestIndexMap,
+	)
 	return err
 }
 

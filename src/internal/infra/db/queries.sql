@@ -248,3 +248,24 @@ INSERT INTO behavior_caches (cache_key_hash, converted_description)
 VALUES ($1, $2)
 ON CONFLICT (cache_key_hash) DO UPDATE
 SET converted_description = EXCLUDED.converted_description;
+
+-- =============================================================================
+-- CLASSIFICATION CACHES
+-- =============================================================================
+
+-- name: FindClassificationCacheByKey :one
+SELECT id, content_hash, language, model_id, phase1_output, test_index_map, created_at
+FROM classification_caches
+WHERE content_hash = $1 AND language = $2 AND model_id = $3;
+
+-- name: UpsertClassificationCache :exec
+INSERT INTO classification_caches (content_hash, language, model_id, phase1_output, test_index_map)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT ON CONSTRAINT uq_classification_caches_key DO UPDATE
+SET phase1_output = EXCLUDED.phase1_output,
+    test_index_map = EXCLUDED.test_index_map,
+    created_at = now();
+
+-- name: DeleteExpiredClassificationCaches :execrows
+DELETE FROM classification_caches
+WHERE created_at < now() - $1::interval;

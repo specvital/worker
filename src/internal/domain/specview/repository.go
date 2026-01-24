@@ -40,7 +40,7 @@ type Repository interface {
 
 	// FindClassificationCache looks up a cached Phase 1 classification result.
 	// Cache key: file_signature + language + model_id.
-	// Returns nil without error if no cache is found or if cache has expired.
+	// Returns nil without error if no cache is found.
 	FindClassificationCache(ctx context.Context, fileSignature []byte, language Language, modelID string) (*ClassificationCache, error)
 
 	// SaveClassificationCache saves or updates a Phase 1 classification cache.

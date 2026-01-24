@@ -573,25 +573,92 @@ func (r *SpecDocumentRepository) SaveBehaviorCache(
 
 // FindClassificationCache looks up a cached Phase 1 classification result.
 // Cache key: file_signature + language + model_id.
-// Returns nil without error if no cache is found or if cache has expired.
-// NOTE: Stub implementation - will be implemented in Commit 3.
+// Returns nil without error if no cache is found.
 func (r *SpecDocumentRepository) FindClassificationCache(
 	ctx context.Context,
 	fileSignature []byte,
 	language specview.Language,
 	modelID string,
 ) (*specview.ClassificationCache, error) {
-	// Stub: return nil (cache miss) until database schema is ready
-	return nil, nil
+	queries := db.New(r.pool)
+
+	row, err := queries.FindClassificationCacheByKey(ctx, db.FindClassificationCacheByKeyParams{
+		ContentHash: fileSignature,
+		Language:    string(language),
+		ModelID:     modelID,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("find classification cache: %w", err)
+	}
+
+	var phase1Output specview.Phase1Output
+	if err := json.Unmarshal(row.Phase1Output, &phase1Output); err != nil {
+		return nil, fmt.Errorf("unmarshal phase1_output: %w", err)
+	}
+
+	var testIndexMap map[string]specview.TestIdentity
+	if err := json.Unmarshal(row.TestIndexMap, &testIndexMap); err != nil {
+		return nil, fmt.Errorf("unmarshal test_index_map: %w", err)
+	}
+
+	return &specview.ClassificationCache{
+		ClassificationResult: &phase1Output,
+		CreatedAt:            row.CreatedAt.Time,
+		FileSignature:        row.ContentHash,
+		ID:                   fromPgUUID(row.ID).String(),
+		Language:             language,
+		ModelID:              row.ModelID,
+		TestIndexMap:         testIndexMap,
+	}, nil
 }
 
 // SaveClassificationCache saves or updates a Phase 1 classification cache.
 // Uses upsert semantics: existing cache is replaced, new cache is inserted.
-// NOTE: Stub implementation - will be implemented in Commit 3.
 func (r *SpecDocumentRepository) SaveClassificationCache(
 	ctx context.Context,
 	cache *specview.ClassificationCache,
 ) error {
-	// Stub: no-op until database schema is ready
+	if cache == nil {
+		return fmt.Errorf("%w: cache is nil", specview.ErrInvalidInput)
+	}
+	if len(cache.FileSignature) == 0 {
+		return fmt.Errorf("%w: file signature is required", specview.ErrInvalidInput)
+	}
+	if cache.Language == "" {
+		return fmt.Errorf("%w: language is required", specview.ErrInvalidInput)
+	}
+	if cache.ModelID == "" {
+		return fmt.Errorf("%w: model ID is required", specview.ErrInvalidInput)
+	}
+	if cache.ClassificationResult == nil {
+		return fmt.Errorf("%w: classification result is required", specview.ErrInvalidInput)
+	}
+
+	phase1OutputJSON, err := json.Marshal(cache.ClassificationResult)
+	if err != nil {
+		return fmt.Errorf("marshal phase1_output: %w", err)
+	}
+
+	testIndexMapJSON, err := json.Marshal(cache.TestIndexMap)
+	if err != nil {
+		return fmt.Errorf("marshal test_index_map: %w", err)
+	}
+
+	queries := db.New(r.pool)
+
+	err = queries.UpsertClassificationCache(ctx, db.UpsertClassificationCacheParams{
+		ContentHash:  cache.FileSignature,
+		Language:     string(cache.Language),
+		ModelID:      cache.ModelID,
+		Phase1Output: phase1OutputJSON,
+		TestIndexMap: testIndexMapJSON,
+	})
+	if err != nil {
+		return fmt.Errorf("upsert classification cache: %w", err)
+	}
+
 	return nil
 }
