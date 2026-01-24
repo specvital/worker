@@ -24,3 +24,9 @@ var SpecBehaviorCopyColumns = []string{
 	"converted_description",
 	"sort_order",
 }
+
+const UpsertBehaviorCacheBatch = `
+INSERT INTO behavior_caches (cache_key_hash, converted_description)
+VALUES ($1, $2)
+ON CONFLICT (cache_key_hash) DO UPDATE
+SET converted_description = EXCLUDED.converted_description`

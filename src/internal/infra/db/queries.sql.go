@@ -104,6 +104,41 @@ func (q *Queries) CreateTestCase(ctx context.Context, arg CreateTestCaseParams) 
 	return i, err
 }
 
+const findBehaviorCachesByHashes = `-- name: FindBehaviorCachesByHashes :many
+
+SELECT cache_key_hash, converted_description
+FROM behavior_caches
+WHERE cache_key_hash = ANY($1::bytea[])
+`
+
+type FindBehaviorCachesByHashesRow struct {
+	CacheKeyHash         []byte `json:"cache_key_hash"`
+	ConvertedDescription string `json:"converted_description"`
+}
+
+// =============================================================================
+// BEHAVIOR CACHES
+// =============================================================================
+func (q *Queries) FindBehaviorCachesByHashes(ctx context.Context, dollar_1 [][]byte) ([]FindBehaviorCachesByHashesRow, error) {
+	rows, err := q.db.Query(ctx, findBehaviorCachesByHashes, dollar_1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []FindBehaviorCachesByHashesRow{}
+	for rows.Next() {
+		var i FindBehaviorCachesByHashesRow
+		if err := rows.Scan(&i.CacheKeyHash, &i.ConvertedDescription); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const findCodebaseByExternalID = `-- name: FindCodebaseByExternalID :one
 SELECT id, host, owner, name, default_branch, created_at, updated_at, last_viewed_at, external_repo_id, is_stale, is_private FROM codebases
 WHERE host = $1 AND external_repo_id = $2
@@ -916,6 +951,23 @@ type UpdateCodebaseVisibilityParams struct {
 
 func (q *Queries) UpdateCodebaseVisibility(ctx context.Context, arg UpdateCodebaseVisibilityParams) error {
 	_, err := q.db.Exec(ctx, updateCodebaseVisibility, arg.ID, arg.IsPrivate)
+	return err
+}
+
+const upsertBehaviorCache = `-- name: UpsertBehaviorCache :exec
+INSERT INTO behavior_caches (cache_key_hash, converted_description)
+VALUES ($1, $2)
+ON CONFLICT (cache_key_hash) DO UPDATE
+SET converted_description = EXCLUDED.converted_description
+`
+
+type UpsertBehaviorCacheParams struct {
+	CacheKeyHash         []byte `json:"cache_key_hash"`
+	ConvertedDescription string `json:"converted_description"`
+}
+
+func (q *Queries) UpsertBehaviorCache(ctx context.Context, arg UpsertBehaviorCacheParams) error {
+	_, err := q.db.Exec(ctx, upsertBehaviorCache, arg.CacheKeyHash, arg.ConvertedDescription)
 	return err
 }
 

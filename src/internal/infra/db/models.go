@@ -391,6 +391,13 @@ type AtlasSchemaRevision struct {
 	OperatorVersion string             `json:"operator_version"`
 }
 
+type BehaviorCach struct {
+	ID                   pgtype.UUID        `json:"id"`
+	CacheKeyHash         []byte             `json:"cache_key_hash"`
+	ConvertedDescription string             `json:"converted_description"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+}
+
 type Codebasis struct {
 	ID             pgtype.UUID        `json:"id"`
 	Host           string             `json:"host"`

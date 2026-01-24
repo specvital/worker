@@ -519,21 +519,54 @@ func (r *SpecDocumentRepository) RecordUserHistory(
 
 // FindCachedBehaviors looks up cached behavior descriptions by cache key hashes.
 // Returns a map of cache_key_hash (hex-encoded) -> converted_description.
-// Implementation pending: will be added in Commit 2.
+// Only found entries are included in the result map.
 func (r *SpecDocumentRepository) FindCachedBehaviors(
 	ctx context.Context,
 	cacheKeyHashes [][]byte,
 ) (map[string]string, error) {
-	// Stub implementation - actual query will be added in Commit 2
-	return nil, nil
+	if len(cacheKeyHashes) == 0 {
+		return make(map[string]string), nil
+	}
+
+	queries := db.New(r.pool)
+
+	rows, err := queries.FindBehaviorCachesByHashes(ctx, cacheKeyHashes)
+	if err != nil {
+		return nil, fmt.Errorf("find cached behaviors: %w", err)
+	}
+
+	result := make(map[string]string, len(rows))
+	for _, row := range rows {
+		hexKey := fmt.Sprintf("%x", row.CacheKeyHash)
+		result[hexKey] = row.ConvertedDescription
+	}
+
+	return result, nil
 }
 
 // SaveBehaviorCache saves behavior cache entries to the database.
-// Implementation pending: will be added in Commit 2.
+// Uses upsert semantics: existing entries are updated, new entries are inserted.
 func (r *SpecDocumentRepository) SaveBehaviorCache(
 	ctx context.Context,
 	entries []specview.BehaviorCacheEntry,
 ) error {
-	// Stub implementation - actual query will be added in Commit 2
-	return nil
+	if len(entries) == 0 {
+		return nil
+	}
+
+	batch := &pgx.Batch{}
+	for _, entry := range entries {
+		batch.Queue(db.UpsertBehaviorCacheBatch, entry.CacheKeyHash, entry.Description)
+	}
+
+	results := r.pool.SendBatch(ctx, batch)
+	defer results.Close()
+
+	for i := range entries {
+		if _, err := results.Exec(); err != nil {
+			return fmt.Errorf("upsert behavior cache (index=%d): %w", i, err)
+		}
+	}
+
+	return results.Close()
 }

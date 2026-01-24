@@ -469,6 +469,143 @@ func (u *uuidWrapper) String() string {
 	return uuidBytesToString(u.id)
 }
 
+func TestSpecDocumentRepository_BehaviorCache(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+
+	pool, cleanup := testdb.SetupTestDB(t)
+	defer cleanup()
+
+	specRepo := NewSpecDocumentRepository(pool)
+	ctx := context.Background()
+
+	t.Run("should return empty map for empty input", func(t *testing.T) {
+		result, err := specRepo.FindCachedBehaviors(ctx, nil)
+		if err != nil {
+			t.Fatalf("FindCachedBehaviors failed: %v", err)
+		}
+		if len(result) != 0 {
+			t.Errorf("expected empty map, got %d entries", len(result))
+		}
+	})
+
+	t.Run("should return empty map for non-existent hashes", func(t *testing.T) {
+		hashes := [][]byte{
+			{0x01, 0x02, 0x03},
+			{0x04, 0x05, 0x06},
+		}
+
+		result, err := specRepo.FindCachedBehaviors(ctx, hashes)
+		if err != nil {
+			t.Fatalf("FindCachedBehaviors failed: %v", err)
+		}
+		if len(result) != 0 {
+			t.Errorf("expected empty map for non-existent hashes, got %d entries", len(result))
+		}
+	})
+
+	t.Run("should save and retrieve behavior cache", func(t *testing.T) {
+		hash1 := []byte{0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88}
+		hash2 := []byte{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x00, 0x11}
+
+		entries := []specview.BehaviorCacheEntry{
+			{CacheKeyHash: hash1, Description: "사용자가 로그인할 수 있어야 한다"},
+			{CacheKeyHash: hash2, Description: "이메일 형식이 유효해야 한다"},
+		}
+
+		err := specRepo.SaveBehaviorCache(ctx, entries)
+		if err != nil {
+			t.Fatalf("SaveBehaviorCache failed: %v", err)
+		}
+
+		result, err := specRepo.FindCachedBehaviors(ctx, [][]byte{hash1, hash2})
+		if err != nil {
+			t.Fatalf("FindCachedBehaviors failed: %v", err)
+		}
+
+		if len(result) != 2 {
+			t.Errorf("expected 2 entries, got %d", len(result))
+		}
+
+		hexKey1 := "1122334455667788"
+		if result[hexKey1] != "사용자가 로그인할 수 있어야 한다" {
+			t.Errorf("unexpected description for hash1: %s", result[hexKey1])
+		}
+
+		hexKey2 := "aabbccddeeff0011"
+		if result[hexKey2] != "이메일 형식이 유효해야 한다" {
+			t.Errorf("unexpected description for hash2: %s", result[hexKey2])
+		}
+	})
+
+	t.Run("should upsert on conflict", func(t *testing.T) {
+		hash := []byte{0x99, 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22}
+
+		err := specRepo.SaveBehaviorCache(ctx, []specview.BehaviorCacheEntry{
+			{CacheKeyHash: hash, Description: "original description"},
+		})
+		if err != nil {
+			t.Fatalf("SaveBehaviorCache (first) failed: %v", err)
+		}
+
+		err = specRepo.SaveBehaviorCache(ctx, []specview.BehaviorCacheEntry{
+			{CacheKeyHash: hash, Description: "updated description"},
+		})
+		if err != nil {
+			t.Fatalf("SaveBehaviorCache (second) failed: %v", err)
+		}
+
+		result, err := specRepo.FindCachedBehaviors(ctx, [][]byte{hash})
+		if err != nil {
+			t.Fatalf("FindCachedBehaviors failed: %v", err)
+		}
+
+		hexKey := "9988776655443322"
+		if result[hexKey] != "updated description" {
+			t.Errorf("expected updated description, got: %s", result[hexKey])
+		}
+	})
+
+	t.Run("should return partial matches", func(t *testing.T) {
+		existingHash := []byte{0xde, 0xad, 0xbe, 0xef}
+		nonExistingHash := []byte{0xca, 0xfe, 0xba, 0xbe}
+
+		err := specRepo.SaveBehaviorCache(ctx, []specview.BehaviorCacheEntry{
+			{CacheKeyHash: existingHash, Description: "existing entry"},
+		})
+		if err != nil {
+			t.Fatalf("SaveBehaviorCache failed: %v", err)
+		}
+
+		result, err := specRepo.FindCachedBehaviors(ctx, [][]byte{existingHash, nonExistingHash})
+		if err != nil {
+			t.Fatalf("FindCachedBehaviors failed: %v", err)
+		}
+
+		if len(result) != 1 {
+			t.Errorf("expected 1 entry (partial match), got %d", len(result))
+		}
+
+		hexKey := "deadbeef"
+		if _, ok := result[hexKey]; !ok {
+			t.Error("expected existing hash to be in result")
+		}
+	})
+
+	t.Run("should do nothing for empty entries", func(t *testing.T) {
+		err := specRepo.SaveBehaviorCache(ctx, nil)
+		if err != nil {
+			t.Fatalf("SaveBehaviorCache with nil should not fail: %v", err)
+		}
+
+		err = specRepo.SaveBehaviorCache(ctx, []specview.BehaviorCacheEntry{})
+		if err != nil {
+			t.Fatalf("SaveBehaviorCache with empty slice should not fail: %v", err)
+		}
+	})
+}
+
 func createNestedSuiteInventory() *parser.ScanResult {
 	return &parser.ScanResult{
 		Inventory: &domain.Inventory{

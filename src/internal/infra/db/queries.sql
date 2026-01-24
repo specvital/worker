@@ -233,3 +233,18 @@ SELECT c.host, c.owner, c.name as repo
 FROM analyses a
 JOIN codebases c ON a.codebase_id = c.id
 WHERE a.id = $1;
+
+-- =============================================================================
+-- BEHAVIOR CACHES
+-- =============================================================================
+
+-- name: FindBehaviorCachesByHashes :many
+SELECT cache_key_hash, converted_description
+FROM behavior_caches
+WHERE cache_key_hash = ANY($1::bytea[]);
+
+-- name: UpsertBehaviorCache :exec
+INSERT INTO behavior_caches (cache_key_hash, converted_description)
+VALUES ($1, $2)
+ON CONFLICT (cache_key_hash) DO UPDATE
+SET converted_description = EXCLUDED.converted_description;
