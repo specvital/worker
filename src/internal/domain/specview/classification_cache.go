@@ -83,12 +83,16 @@ func GenerateFileSignature(files []FileInfo) []byte {
 	return h.Sum(nil)
 }
 
+// testKeyDelimiter is the delimiter used in test keys.
+// Uses a string that won't appear in file paths, suite paths, or test names.
+const testKeyDelimiter = "\x1f" // ASCII Unit Separator (valid in JSON, unlike \x00)
+
 // TestKey generates a unique key for a test based on its identity.
-// Key = normalized(filePath) + "\x00" + suitePath + "\x00" + normalized(testName)
+// Key = normalized(filePath) + delimiter + suitePath + delimiter + normalized(testName)
 func TestKey(filePath, suitePath, testName string) string {
 	normalizedPath := normalizeFilePath(filePath)
 	normalizedName := normalizeTestName(testName)
-	return normalizedPath + "\x00" + suitePath + "\x00" + normalizedName
+	return normalizedPath + testKeyDelimiter + suitePath + testKeyDelimiter + normalizedName
 }
 
 // BuildTestIndexMap creates a test key -> TestIdentity mapping from Phase1Output.

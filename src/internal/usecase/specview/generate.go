@@ -202,7 +202,14 @@ func (uc *GenerateSpecViewUseCase) Execute(
 		}
 	}
 
-	phase1Output, phase1Usage, err := uc.executePhase1(ctx, files, req.Language, req.AnalysisID)
+	phase1Output, phase1Usage, err := uc.executePhase1WithCache(
+		ctx,
+		files,
+		req.Language,
+		modelID,
+		req.AnalysisID,
+		req.ForceRegenerate,
+	)
 	if err != nil {
 		uc.logExecutionError(ctx, req.AnalysisID, "phase1", startTime, err)
 		return nil, fmt.Errorf("%w: phase 1: %w", ErrAIProcessingFailed, err)
@@ -347,6 +354,168 @@ func (uc *GenerateSpecViewUseCase) executePhase1(
 	)
 
 	return output, usage, nil
+}
+
+// executePhase1WithCache performs Phase 1 classification with incremental caching.
+// Cache flow:
+// - forceRegenerate=true: full classification, save cache
+// - cache miss: full classification, save cache
+// - cache hit + no changes: return cached output (zero token usage)
+// - cache hit + deletions only: remove indices, update cache
+// - cache hit + additions: call placement AI, fallback to Uncategorized on failure
+func (uc *GenerateSpecViewUseCase) executePhase1WithCache(
+	ctx context.Context,
+	files []specview.FileInfo,
+	lang specview.Language,
+	modelID string,
+	analysisID string,
+	forceRegenerate bool,
+) (*specview.Phase1Output, *specview.TokenUsage, error) {
+	fileSignature := specview.GenerateFileSignature(files)
+
+	// Skip cache lookup if forceRegenerate
+	if forceRegenerate {
+		slog.InfoContext(ctx, "classification cache bypassed (force regenerate)",
+			"analysis_id", analysisID,
+		)
+		return uc.executePhase1AndSaveCache(ctx, files, lang, modelID, analysisID, fileSignature)
+	}
+
+	// Lookup classification cache
+	cache, err := uc.repository.FindClassificationCache(ctx, fileSignature, lang, modelID)
+	if err != nil {
+		slog.WarnContext(ctx, "classification cache lookup failed, proceeding without cache",
+			"analysis_id", analysisID,
+			"error", err,
+		)
+		return uc.executePhase1AndSaveCache(ctx, files, lang, modelID, analysisID, fileSignature)
+	}
+
+	// Cache miss
+	if cache == nil {
+		slog.InfoContext(ctx, "classification cache miss",
+			"analysis_id", analysisID,
+		)
+		return uc.executePhase1AndSaveCache(ctx, files, lang, modelID, analysisID, fileSignature)
+	}
+
+	// Cache hit - calculate diff
+	diff := CalculateTestDiff(cache.TestIndexMap, files)
+
+	// No changes
+	if len(diff.NewTests) == 0 && len(diff.DeletedTests) == 0 {
+		slog.InfoContext(ctx, "classification cache hit (no changes)",
+			"analysis_id", analysisID,
+			"domain_count", len(cache.ClassificationResult.Domains),
+		)
+		return cache.ClassificationResult, &specview.TokenUsage{}, nil
+	}
+
+	// Deletions only
+	if len(diff.NewTests) == 0 && len(diff.DeletedTests) > 0 {
+		slog.InfoContext(ctx, "classification cache hit (deletions only)",
+			"analysis_id", analysisID,
+			"deleted_count", len(diff.DeletedTests),
+		)
+		updatedOutput := RemoveDeletedTestIndices(cache.ClassificationResult, diff.DeletedTests)
+		uc.updateClassificationCache(ctx, cache, updatedOutput, files)
+		return updatedOutput, &specview.TokenUsage{}, nil
+	}
+
+	// Additions (with or without deletions) - call placement AI
+	slog.InfoContext(ctx, "classification cache hit (additions detected)",
+		"analysis_id", analysisID,
+		"new_count", len(diff.NewTests),
+		"deleted_count", len(diff.DeletedTests),
+	)
+
+	// First apply deletions if any
+	baseOutput := cache.ClassificationResult
+	if len(diff.DeletedTests) > 0 {
+		baseOutput = RemoveDeletedTestIndices(cache.ClassificationResult, diff.DeletedTests)
+	}
+
+	// Call placement AI for new tests
+	placementInput := specview.PlacementInput{
+		ExistingStructure: baseOutput,
+		Language:          lang,
+		NewTests:          diff.NewTests,
+	}
+
+	placementOutput, usage, err := uc.aiProvider.PlaceNewTests(ctx, placementInput)
+	if err != nil {
+		slog.WarnContext(ctx, "placement AI failed, falling back to Uncategorized",
+			"analysis_id", analysisID,
+			"new_test_count", len(diff.NewTests),
+			"error", err,
+		)
+		// Fallback: place all new tests in Uncategorized
+		updatedOutput := placeAllToUncategorized(baseOutput, diff.NewTests)
+		uc.updateClassificationCache(ctx, cache, updatedOutput, files)
+		return updatedOutput, &specview.TokenUsage{}, nil
+	}
+
+	// Apply placements
+	updatedOutput := applyPlacements(baseOutput, placementOutput.Placements)
+	uc.updateClassificationCache(ctx, cache, updatedOutput, files)
+
+	slog.InfoContext(ctx, "placement AI completed",
+		"analysis_id", analysisID,
+		"placed_count", len(placementOutput.Placements),
+	)
+
+	return updatedOutput, usage, nil
+}
+
+// executePhase1AndSaveCache runs full Phase 1 classification and saves the result to cache.
+func (uc *GenerateSpecViewUseCase) executePhase1AndSaveCache(
+	ctx context.Context,
+	files []specview.FileInfo,
+	lang specview.Language,
+	modelID string,
+	analysisID string,
+	fileSignature []byte,
+) (*specview.Phase1Output, *specview.TokenUsage, error) {
+	output, usage, err := uc.executePhase1(ctx, files, lang, analysisID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Build and save cache (non-blocking on error)
+	cache := &specview.ClassificationCache{
+		ClassificationResult: output,
+		FileSignature:        fileSignature,
+		Language:             lang,
+		ModelID:              modelID,
+		TestIndexMap:         specview.BuildTestIndexMap(output, files),
+	}
+
+	if err := uc.repository.SaveClassificationCache(ctx, cache); err != nil {
+		slog.WarnContext(ctx, "failed to save classification cache (non-critical)",
+			"analysis_id", analysisID,
+			"error", err,
+		)
+	}
+
+	return output, usage, nil
+}
+
+// updateClassificationCache updates an existing cache with new classification result.
+func (uc *GenerateSpecViewUseCase) updateClassificationCache(
+	ctx context.Context,
+	cache *specview.ClassificationCache,
+	updatedOutput *specview.Phase1Output,
+	files []specview.FileInfo,
+) {
+	cache.ClassificationResult = updatedOutput
+	cache.TestIndexMap = specview.BuildTestIndexMap(updatedOutput, files)
+
+	if err := uc.repository.SaveClassificationCache(ctx, cache); err != nil {
+		slog.WarnContext(ctx, "failed to update classification cache (non-critical)",
+			"cache_id", cache.ID,
+			"error", err,
+		)
+	}
 }
 
 type phase2Result struct {

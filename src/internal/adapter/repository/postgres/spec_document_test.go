@@ -652,7 +652,7 @@ func TestSpecDocumentRepository_ClassificationCache(t *testing.T) {
 				},
 			},
 			TestIndexMap: map[string]specview.TestIdentity{
-				"auth_test.go\x00AuthSuite\x00test_login": {
+				specview.TestKey("auth_test.go", "AuthSuite", "test_login"): {
 					DomainIndex:  0,
 					FeatureIndex: 0,
 					FilePath:     "auth_test.go",

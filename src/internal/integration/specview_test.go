@@ -105,11 +105,13 @@ func TestSpecViewIntegration_SmallRepo(t *testing.T) {
 	analysisID := setupAnalysisWithTests(t, ctx, analysisRepo, pool, 2, 5)
 
 	aiProvider := &mockAIProvider{}
+	userID := setupTestUser(t, ctx, pool)
 	uc := specviewuc.NewGenerateSpecViewUseCase(specRepo, aiProvider, "test-model")
 
 	req := specview.SpecViewRequest{
 		AnalysisID: analysisID,
 		Language:   "Korean",
+		UserID:     userID,
 	}
 
 	result, err := uc.Execute(ctx, req)
@@ -157,11 +159,13 @@ func TestSpecViewIntegration_MediumRepo(t *testing.T) {
 		},
 	}
 
+	userID := setupTestUser(t, ctx, pool)
 	uc := specviewuc.NewGenerateSpecViewUseCase(specRepo, aiProvider, "test-model")
 
 	req := specview.SpecViewRequest{
 		AnalysisID: analysisID,
 		Language:   "English",
+		UserID:     userID,
 	}
 
 	start := time.Now()
@@ -212,11 +216,13 @@ func TestSpecViewIntegration_CacheHit(t *testing.T) {
 		},
 	}
 
+	userID := setupTestUser(t, ctx, pool)
 	uc := specviewuc.NewGenerateSpecViewUseCase(specRepo, aiProvider, "test-model")
 
 	req := specview.SpecViewRequest{
 		AnalysisID: analysisID,
 		Language:   "Korean",
+		UserID:     userID,
 	}
 
 	// First execution
@@ -280,11 +286,13 @@ func TestSpecViewIntegration_AIFailureWithFallback(t *testing.T) {
 	}
 
 	// Use default threshold (50%) - 1 out of 3 features failing should succeed
+	userID := setupTestUser(t, ctx, pool)
 	uc := specviewuc.NewGenerateSpecViewUseCase(specRepo, aiProvider, "test-model")
 
 	req := specview.SpecViewRequest{
 		AnalysisID: analysisID,
 		Language:   "Korean",
+		UserID:     userID,
 	}
 
 	result, err := uc.Execute(ctx, req)
@@ -326,6 +334,7 @@ func TestSpecViewIntegration_PartialPhase2Failure(t *testing.T) {
 	}
 
 	// Use 30% threshold - 4 out of 4 features failing should fail the job
+	userID := setupTestUser(t, ctx, pool)
 	uc := specviewuc.NewGenerateSpecViewUseCase(specRepo, aiProvider, "test-model",
 		specviewuc.WithFailureThreshold(0.3),
 	)
@@ -333,6 +342,7 @@ func TestSpecViewIntegration_PartialPhase2Failure(t *testing.T) {
 	req := specview.SpecViewRequest{
 		AnalysisID: analysisID,
 		Language:   "Korean",
+		UserID:     userID,
 	}
 
 	_, err := uc.Execute(ctx, req)
@@ -373,11 +383,13 @@ func TestSpecViewIntegration_Phase1Failure(t *testing.T) {
 		},
 	}
 
+	userID := setupTestUser(t, ctx, pool)
 	uc := specviewuc.NewGenerateSpecViewUseCase(specRepo, aiProvider, "test-model")
 
 	req := specview.SpecViewRequest{
 		AnalysisID: analysisID,
 		Language:   "Korean",
+		UserID:     userID,
 	}
 
 	_, err := uc.Execute(ctx, req)
@@ -402,12 +414,14 @@ func TestSpecViewIntegration_AnalysisNotFound(t *testing.T) {
 	ctx := context.Background()
 	specRepo := postgres.NewSpecDocumentRepository(pool)
 
+	userID := setupTestUser(t, ctx, pool)
 	aiProvider := &mockAIProvider{}
 	uc := specviewuc.NewGenerateSpecViewUseCase(specRepo, aiProvider, "test-model")
 
 	req := specview.SpecViewRequest{
 		AnalysisID: "00000000-0000-0000-0000-000000000000",
 		Language:   "Korean",
+		UserID:     userID,
 	}
 
 	_, err := uc.Execute(ctx, req)
@@ -415,8 +429,9 @@ func TestSpecViewIntegration_AnalysisNotFound(t *testing.T) {
 		t.Fatal("expected error for non-existent analysis")
 	}
 
-	if !errors.Is(err, specviewuc.ErrLoadInventoryFailed) {
-		t.Errorf("expected ErrLoadInventoryFailed, got %v", err)
+	// GetAnalysisContext returns ErrAnalysisNotFound before loadTestData
+	if !errors.Is(err, specview.ErrAnalysisNotFound) {
+		t.Errorf("expected ErrAnalysisNotFound, got %v", err)
 	}
 }
 
@@ -435,6 +450,7 @@ func TestSpecViewIntegration_DifferentLanguages(t *testing.T) {
 
 	analysisID := setupAnalysisWithTests(t, ctx, analysisRepo, pool, 1, 3)
 
+	userID := setupTestUser(t, ctx, pool)
 	aiProvider := &mockAIProvider{}
 	uc := specviewuc.NewGenerateSpecViewUseCase(specRepo, aiProvider, "test-model")
 
@@ -442,6 +458,7 @@ func TestSpecViewIntegration_DifferentLanguages(t *testing.T) {
 	reqKO := specview.SpecViewRequest{
 		AnalysisID: analysisID,
 		Language:   "Korean",
+		UserID:     userID,
 	}
 	resultKO, err := uc.Execute(ctx, reqKO)
 	if err != nil {
@@ -452,6 +469,7 @@ func TestSpecViewIntegration_DifferentLanguages(t *testing.T) {
 	reqEN := specview.SpecViewRequest{
 		AnalysisID: analysisID,
 		Language:   "English",
+		UserID:     userID,
 	}
 	resultEN, err := uc.Execute(ctx, reqEN)
 	if err != nil {
@@ -693,4 +711,29 @@ func uuidBytesToString(bytes [16]byte) string {
 		hex.EncodeToString(bytes[6:8]) + "-" +
 		hex.EncodeToString(bytes[8:10]) + "-" +
 		hex.EncodeToString(bytes[10:16])
+}
+
+func setupTestUser(t *testing.T, ctx context.Context, pool *pgxpool.Pool) string {
+	t.Helper()
+
+	randBytes := make([]byte, 4)
+	if _, err := rand.Read(randBytes); err != nil {
+		t.Fatalf("failed to generate random bytes: %v", err)
+	}
+	randSuffix := hex.EncodeToString(randBytes)
+
+	username := "testuser" + randSuffix
+	email := "test" + randSuffix + "@example.com"
+
+	var userID [16]byte
+	err := pool.QueryRow(ctx, `
+		INSERT INTO users (email, username, avatar_url)
+		VALUES ($1, $2, 'https://example.com/avatar.png')
+		RETURNING id
+	`, email, username).Scan(&userID)
+	if err != nil {
+		t.Fatalf("failed to create test user: %v", err)
+	}
+
+	return uuidBytesToString(userID)
 }
