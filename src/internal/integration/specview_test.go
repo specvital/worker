@@ -22,6 +22,7 @@ import (
 type mockAIProvider struct {
 	classifyDomainsFn  func(ctx context.Context, input specview.Phase1Input) (*specview.Phase1Output, *specview.TokenUsage, error)
 	convertTestNamesFn func(ctx context.Context, input specview.Phase2Input) (*specview.Phase2Output, *specview.TokenUsage, error)
+	generateSummaryFn  func(ctx context.Context, input specview.Phase3Input) (*specview.Phase3Output, *specview.TokenUsage, error)
 	placeNewTestsFn    func(ctx context.Context, input specview.PlacementInput) (*specview.PlacementOutput, *specview.TokenUsage, error)
 }
 
@@ -37,6 +38,13 @@ func (m *mockAIProvider) ConvertTestNames(ctx context.Context, input specview.Ph
 		return m.convertTestNamesFn(ctx, input)
 	}
 	return defaultPhase2Output(input), nil, nil
+}
+
+func (m *mockAIProvider) GenerateSummary(ctx context.Context, input specview.Phase3Input) (*specview.Phase3Output, *specview.TokenUsage, error) {
+	if m.generateSummaryFn != nil {
+		return m.generateSummaryFn(ctx, input)
+	}
+	return &specview.Phase3Output{Summary: "integration test summary"}, nil, nil
 }
 
 func (m *mockAIProvider) PlaceNewTests(ctx context.Context, input specview.PlacementInput) (*specview.PlacementOutput, *specview.TokenUsage, error) {

@@ -132,17 +132,29 @@ type BehaviorSpec struct {
 	TestIndex   int
 }
 
+// Phase3Input represents input for executive summary generation (Phase 3).
+type Phase3Input struct {
+	Domains  []Domain
+	Language Language
+}
+
+// Phase3Output represents the result of executive summary generation.
+type Phase3Output struct {
+	Summary string
+}
+
 // SpecDocument represents the final spec-view document (4-table hierarchy root).
 type SpecDocument struct {
-	AnalysisID  string
-	ContentHash []byte
-	CreatedAt   time.Time
-	Domains     []Domain
-	ID          string
-	Language    Language
-	ModelID     string
-	UserID      string
-	Version     int32
+	AnalysisID       string
+	ContentHash      []byte
+	CreatedAt        time.Time
+	Domains          []Domain
+	ExecutiveSummary string
+	ID               string
+	Language         Language
+	ModelID          string
+	UserID           string
+	Version          int32
 }
 
 // Domain represents a domain within a spec document.

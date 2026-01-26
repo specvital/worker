@@ -63,15 +63,21 @@ func (r *SpecDocumentRepository) FindDocumentByContentHash(
 		return nil, fmt.Errorf("find spec document: %w", err)
 	}
 
+	var executiveSummary string
+	if doc.ExecutiveSummary.Valid {
+		executiveSummary = doc.ExecutiveSummary.String
+	}
+
 	return &specview.SpecDocument{
-		AnalysisID:  fromPgUUID(doc.AnalysisID).String(),
-		ContentHash: doc.ContentHash,
-		CreatedAt:   doc.CreatedAt.Time,
-		ID:          fromPgUUID(doc.ID).String(),
-		Language:    specview.Language(doc.Language),
-		ModelID:     doc.ModelID,
-		UserID:      fromPgUUID(doc.UserID).String(),
-		Version:     doc.Version,
+		AnalysisID:       fromPgUUID(doc.AnalysisID).String(),
+		ContentHash:      doc.ContentHash,
+		CreatedAt:        doc.CreatedAt.Time,
+		ExecutiveSummary: executiveSummary,
+		ID:               fromPgUUID(doc.ID).String(),
+		Language:         specview.Language(doc.Language),
+		ModelID:          doc.ModelID,
+		UserID:           fromPgUUID(doc.UserID).String(),
+		Version:          doc.Version,
 	}, nil
 }
 
@@ -265,13 +271,19 @@ func (r *SpecDocumentRepository) SaveDocument(
 		return fmt.Errorf("get max version: %w", err)
 	}
 
+	var executiveSummary pgtype.Text
+	if doc.ExecutiveSummary != "" {
+		executiveSummary = pgtype.Text{String: doc.ExecutiveSummary, Valid: true}
+	}
+
 	docID, err := queries.InsertSpecDocument(ctx, db.InsertSpecDocumentParams{
-		UserID:      toPgUUID(userID),
-		AnalysisID:  toPgUUID(analysisID),
-		ContentHash: doc.ContentHash,
-		Language:    string(doc.Language),
-		ModelID:     doc.ModelID,
-		Version:     currentVersion + 1,
+		UserID:           toPgUUID(userID),
+		AnalysisID:       toPgUUID(analysisID),
+		ContentHash:      doc.ContentHash,
+		Language:         string(doc.Language),
+		ExecutiveSummary: executiveSummary,
+		ModelID:          doc.ModelID,
+		Version:          currentVersion + 1,
 	})
 	if err != nil {
 		return fmt.Errorf("insert spec document: %w", err)

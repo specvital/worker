@@ -665,18 +665,19 @@ func (q *Queries) GetTestSuitesByFileID(ctx context.Context, fileID pgtype.UUID)
 }
 
 const insertSpecDocument = `-- name: InsertSpecDocument :one
-INSERT INTO spec_documents (user_id, analysis_id, content_hash, language, model_id, version)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO spec_documents (user_id, analysis_id, content_hash, language, executive_summary, model_id, version)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING id
 `
 
 type InsertSpecDocumentParams struct {
-	UserID      pgtype.UUID `json:"user_id"`
-	AnalysisID  pgtype.UUID `json:"analysis_id"`
-	ContentHash []byte      `json:"content_hash"`
-	Language    string      `json:"language"`
-	ModelID     string      `json:"model_id"`
-	Version     int32       `json:"version"`
+	UserID           pgtype.UUID `json:"user_id"`
+	AnalysisID       pgtype.UUID `json:"analysis_id"`
+	ContentHash      []byte      `json:"content_hash"`
+	Language         string      `json:"language"`
+	ExecutiveSummary pgtype.Text `json:"executive_summary"`
+	ModelID          string      `json:"model_id"`
+	Version          int32       `json:"version"`
 }
 
 func (q *Queries) InsertSpecDocument(ctx context.Context, arg InsertSpecDocumentParams) (pgtype.UUID, error) {
@@ -685,6 +686,7 @@ func (q *Queries) InsertSpecDocument(ctx context.Context, arg InsertSpecDocument
 		arg.AnalysisID,
 		arg.ContentHash,
 		arg.Language,
+		arg.ExecutiveSummary,
 		arg.ModelID,
 		arg.Version,
 	)

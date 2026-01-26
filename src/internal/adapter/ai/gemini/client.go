@@ -103,6 +103,11 @@ func (p *Provider) PlaceNewTests(ctx context.Context, input specview.PlacementIn
 	return p.placeNewTests(ctx, input)
 }
 
+// GenerateSummary performs Phase 3: executive summary generation.
+func (p *Provider) GenerateSummary(ctx context.Context, input specview.Phase3Input) (*specview.Phase3Output, *specview.TokenUsage, error) {
+	return p.generateSummary(ctx, input)
+}
+
 // Close releases resources held by the provider.
 func (p *Provider) Close() error {
 	// genai.Client doesn't require explicit close

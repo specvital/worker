@@ -19,6 +19,11 @@ type AIProvider interface {
 	// Returns token usage for the API call.
 	PlaceNewTests(ctx context.Context, input PlacementInput) (*PlacementOutput, *TokenUsage, error)
 
+	// GenerateSummary performs Phase 3: executive summary generation.
+	// Produces a concise project-level summary from the assembled document structure.
+	// Returns token usage for the API call.
+	GenerateSummary(ctx context.Context, input Phase3Input) (*Phase3Output, *TokenUsage, error)
+
 	// Close releases resources held by the provider.
 	Close() error
 }

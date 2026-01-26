@@ -97,6 +97,7 @@ func (m *mockRepository) SaveClassificationCache(ctx context.Context, cache *spe
 type mockAIProvider struct {
 	classifyDomainsFn  func(ctx context.Context, input specview.Phase1Input) (*specview.Phase1Output, *specview.TokenUsage, error)
 	convertTestNamesFn func(ctx context.Context, input specview.Phase2Input) (*specview.Phase2Output, *specview.TokenUsage, error)
+	generateSummaryFn  func(ctx context.Context, input specview.Phase3Input) (*specview.Phase3Output, *specview.TokenUsage, error)
 	placeNewTestsFn    func(ctx context.Context, input specview.PlacementInput) (*specview.PlacementOutput, *specview.TokenUsage, error)
 }
 
@@ -112,6 +113,13 @@ func (m *mockAIProvider) ConvertTestNames(ctx context.Context, input specview.Ph
 		return m.convertTestNamesFn(ctx, input)
 	}
 	return nil, nil, nil
+}
+
+func (m *mockAIProvider) GenerateSummary(ctx context.Context, input specview.Phase3Input) (*specview.Phase3Output, *specview.TokenUsage, error) {
+	if m.generateSummaryFn != nil {
+		return m.generateSummaryFn(ctx, input)
+	}
+	return &specview.Phase3Output{Summary: "mock summary"}, nil, nil
 }
 
 func (m *mockAIProvider) PlaceNewTests(ctx context.Context, input specview.PlacementInput) (*specview.PlacementOutput, *specview.TokenUsage, error) {
@@ -533,6 +541,63 @@ func TestGenerateSpecViewUseCase_Execute(t *testing.T) {
 		}
 		if !errors.Is(err, ErrSaveFailed) {
 			t.Errorf("expected ErrSaveFailed, got %v", err)
+		}
+	})
+
+	t.Run("phase 3 failure saves document without summary", func(t *testing.T) {
+		files := newTestFiles()
+		phase1Output := newPhase1Output()
+
+		savedDoc := &specview.SpecDocument{}
+		repo := &mockRepository{
+			getTestDataByAnalysisIDFn: func(ctx context.Context, analysisID string) ([]specview.FileInfo, error) {
+				return files, nil
+			},
+			findDocumentByContentHashFn: func(ctx context.Context, userID string, contentHash []byte, language specview.Language, modelID string) (*specview.SpecDocument, error) {
+				return nil, nil
+			},
+			saveDocumentFn: func(ctx context.Context, doc *specview.SpecDocument) error {
+				savedDoc = doc
+				doc.ID = "doc-phase3-fail"
+				return nil
+			},
+		}
+
+		aiProvider := &mockAIProvider{
+			classifyDomainsFn: func(ctx context.Context, input specview.Phase1Input) (*specview.Phase1Output, *specview.TokenUsage, error) {
+				return phase1Output, nil, nil
+			},
+			convertTestNamesFn: func(ctx context.Context, input specview.Phase2Input) (*specview.Phase2Output, *specview.TokenUsage, error) {
+				behaviors := make([]specview.BehaviorSpec, len(input.Tests))
+				for i, test := range input.Tests {
+					behaviors[i] = specview.BehaviorSpec{
+						TestIndex:   test.Index,
+						Description: "Converted: " + test.Name,
+						Confidence:  0.9,
+					}
+				}
+				return &specview.Phase2Output{Behaviors: behaviors}, nil, nil
+			},
+			generateSummaryFn: func(ctx context.Context, input specview.Phase3Input) (*specview.Phase3Output, *specview.TokenUsage, error) {
+				return nil, nil, errors.New("AI summary generation failed")
+			},
+		}
+
+		uc := NewGenerateSpecViewUseCase(repo, aiProvider, "gemini-2.5-flash")
+
+		result, err := uc.Execute(context.Background(), newValidRequest())
+
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if result == nil {
+			t.Fatal("expected result, got nil")
+		}
+		if result.DocumentID != "doc-phase3-fail" {
+			t.Errorf("expected document ID 'doc-phase3-fail', got '%s'", result.DocumentID)
+		}
+		if savedDoc.ExecutiveSummary != "" {
+			t.Errorf("expected empty executive summary, got %q", savedDoc.ExecutiveSummary)
 		}
 	})
 

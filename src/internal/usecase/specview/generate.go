@@ -244,6 +244,9 @@ func (uc *GenerateSpecViewUseCase) Execute(
 
 	doc := uc.assembleDocument(req, modelID, contentHash, phase1Output, phase2Results, testIndexMap)
 
+	// Phase 3: Executive summary generation (non-fatal)
+	phase3Usage := uc.executePhase3(ctx, req.AnalysisID, doc)
+
 	if err := uc.repository.SaveDocument(ctx, doc); err != nil {
 		uc.logExecutionError(ctx, req.AnalysisID, "save", startTime, err)
 		return nil, fmt.Errorf("%w: %w", ErrSaveFailed, err)
@@ -255,7 +258,7 @@ func (uc *GenerateSpecViewUseCase) Execute(
 	uc.recordUserHistory(ctx, req.UserID, doc.ID)
 
 	// Log token usage summary
-	uc.logTokenUsage(ctx, req.AnalysisID, phase1Usage, phase2Usage)
+	uc.logTokenUsage(ctx, req.AnalysisID, phase1Usage, phase2Usage, phase3Usage)
 
 	slog.InfoContext(ctx, "document generated",
 		"analysis_id", req.AnalysisID,
@@ -1005,6 +1008,53 @@ func (uc *GenerateSpecViewUseCase) assembleDocument(
 	}
 }
 
+const (
+	// DefaultPhase3Timeout is the timeout for Phase 3 executive summary generation.
+	DefaultPhase3Timeout = 60 * time.Second
+)
+
+// executePhase3 generates an executive summary from the assembled document.
+// Phase 3 failure is non-fatal: logs a warning and continues without summary.
+func (uc *GenerateSpecViewUseCase) executePhase3(
+	ctx context.Context,
+	analysisID string,
+	doc *specview.SpecDocument,
+) *specview.TokenUsage {
+	phase3Start := time.Now()
+
+	slog.InfoContext(ctx, "phase 3 started",
+		"analysis_id", analysisID,
+		"domain_count", len(doc.Domains),
+	)
+
+	phase3Ctx, cancel := context.WithTimeout(ctx, DefaultPhase3Timeout)
+	defer cancel()
+
+	input := specview.Phase3Input{
+		Domains:  doc.Domains,
+		Language: doc.Language,
+	}
+
+	output, usage, err := uc.aiProvider.GenerateSummary(phase3Ctx, input)
+	if err != nil {
+		slog.WarnContext(ctx, "phase 3 executive summary generation failed (non-fatal)",
+			"analysis_id", analysisID,
+			"duration_ms", time.Since(phase3Start).Milliseconds(),
+			"error", err,
+		)
+		return nil
+	}
+
+	slog.InfoContext(ctx, "phase 3 complete",
+		"analysis_id", analysisID,
+		"duration_ms", time.Since(phase3Start).Milliseconds(),
+		"summary_length", len(output.Summary),
+	)
+
+	doc.ExecutiveSummary = output.Summary
+	return usage
+}
+
 func buildTestIndexMap(files []specview.FileInfo) map[int]specview.TestInfo {
 	m := make(map[int]specview.TestInfo)
 	for _, f := range files {
@@ -1044,6 +1094,7 @@ func (uc *GenerateSpecViewUseCase) logTokenUsage(
 	analysisID string,
 	phase1Usage *specview.TokenUsage,
 	phase2Usage *specview.TokenUsage,
+	phase3Usage *specview.TokenUsage,
 ) {
 	var phase1Prompt, phase1Candidates, phase1Total int32
 	var phase1Model string
@@ -1061,7 +1112,16 @@ func (uc *GenerateSpecViewUseCase) logTokenUsage(
 		phase2Total = phase2Usage.TotalTokens
 	}
 
-	grandTotal := phase1Total + phase2Total
+	var phase3Prompt, phase3Candidates, phase3Total int32
+	var phase3Model string
+	if phase3Usage != nil {
+		phase3Prompt = phase3Usage.PromptTokens
+		phase3Candidates = phase3Usage.CandidatesTokens
+		phase3Total = phase3Usage.TotalTokens
+		phase3Model = phase3Usage.Model
+	}
+
+	grandTotal := phase1Total + phase2Total + phase3Total
 
 	slog.InfoContext(ctx, "specview_token_usage",
 		"analysis_id", analysisID,
@@ -1072,6 +1132,10 @@ func (uc *GenerateSpecViewUseCase) logTokenUsage(
 		"phase2_prompt_tokens", phase2Prompt,
 		"phase2_candidates_tokens", phase2Candidates,
 		"phase2_total_tokens", phase2Total,
+		"phase3_model", phase3Model,
+		"phase3_prompt_tokens", phase3Prompt,
+		"phase3_candidates_tokens", phase3Candidates,
+		"phase3_total_tokens", phase3Total,
 		"grand_total_tokens", grandTotal,
 	)
 }

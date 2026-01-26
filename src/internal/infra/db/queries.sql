@@ -168,8 +168,8 @@ WHERE sd.user_id = $1
   );
 
 -- name: InsertSpecDocument :one
-INSERT INTO spec_documents (user_id, analysis_id, content_hash, language, model_id, version)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO spec_documents (user_id, analysis_id, content_hash, language, executive_summary, model_id, version)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING id;
 
 -- name: InsertSpecDomain :one

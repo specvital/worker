@@ -64,6 +64,32 @@ func (p *Provider) PlaceNewTests(ctx context.Context, input specview.PlacementIn
 	}, nil, nil
 }
 
+// GenerateSummary returns a mock executive summary.
+func (p *Provider) GenerateSummary(ctx context.Context, input specview.Phase3Input) (*specview.Phase3Output, *specview.TokenUsage, error) {
+	if err := p.simulateDelay(ctx); err != nil {
+		return nil, nil, err
+	}
+
+	domainNames := make([]string, len(input.Domains))
+	for i, d := range input.Domains {
+		domainNames[i] = d.Name
+	}
+
+	totalBehaviors := 0
+	for _, d := range input.Domains {
+		for _, f := range d.Features {
+			totalBehaviors += len(f.Behaviors)
+		}
+	}
+
+	summary := fmt.Sprintf("[Mock] This project covers %d domains (%s) with %d verified behaviors.",
+		len(input.Domains), strings.Join(domainNames, ", "), totalBehaviors)
+
+	return &specview.Phase3Output{
+		Summary: summary,
+	}, nil, nil
+}
+
 // simulateDelay waits for the configured delay duration, respecting context cancellation.
 func (p *Provider) simulateDelay(ctx context.Context) error {
 	if p.delay <= 0 {
