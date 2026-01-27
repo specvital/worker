@@ -1858,3 +1858,246 @@ func TestBuildTestFilePathMap(t *testing.T) {
 	})
 }
 
+func TestSalvageBehaviorCache(t *testing.T) {
+	threeFeatureFiles := []specview.FileInfo{
+		{
+			Path:      "test/auth_test.go",
+			Framework: "go",
+			Tests: []specview.TestInfo{
+				{Index: 0, Name: "TestLogin", TestCaseID: "tc-001"},
+				{Index: 1, Name: "TestLogout", TestCaseID: "tc-002"},
+				{Index: 2, Name: "TestCreateUser", TestCaseID: "tc-003"},
+			},
+		},
+	}
+	threeFeaturePhase1 := &specview.Phase1Output{
+		Domains: []specview.DomainGroup{
+			{
+				Name:        "Auth",
+				Description: "Authentication",
+				Confidence:  0.9,
+				Features: []specview.FeatureGroup{
+					{Name: "Login", Description: "Login flow", Confidence: 0.9, TestIndices: []int{0}},
+					{Name: "Logout", Description: "Logout flow", Confidence: 0.9, TestIndices: []int{1}},
+					{Name: "Register", Description: "Registration", Confidence: 0.9, TestIndices: []int{2}},
+				},
+			},
+		},
+	}
+
+	t.Run("should save completed cache on g.Wait error via semaphore acquire failure", func(t *testing.T) {
+		// Concurrency=1: first goroutine succeeds, second blocks, third fails at Acquire
+		var savedCacheEntries []specview.BehaviorCacheEntry
+		repo := &mockRepository{
+			getTestDataByAnalysisIDFn: func(ctx context.Context, analysisID string) ([]specview.FileInfo, error) {
+				return threeFeatureFiles, nil
+			},
+			findDocumentByContentHashFn: func(ctx context.Context, userID string, contentHash []byte, language specview.Language, modelID string) (*specview.SpecDocument, error) {
+				return nil, nil
+			},
+			saveBehaviorCacheFn: func(ctx context.Context, entries []specview.BehaviorCacheEntry) error {
+				savedCacheEntries = append(savedCacheEntries, entries...)
+				return nil
+			},
+		}
+
+		var callCount atomic.Int32
+		firstDone := make(chan struct{})
+		aiProvider := &mockAIProvider{
+			classifyDomainsFn: func(ctx context.Context, input specview.Phase1Input) (*specview.Phase1Output, *specview.TokenUsage, error) {
+				return threeFeaturePhase1, nil, nil
+			},
+			convertTestNamesFn: func(ctx context.Context, input specview.Phase2Input) (*specview.Phase2Output, *specview.TokenUsage, error) {
+				count := callCount.Add(1)
+				if count == 1 {
+					behaviors := make([]specview.BehaviorSpec, len(input.Tests))
+					for i, test := range input.Tests {
+						behaviors[i] = specview.BehaviorSpec{
+							TestIndex:   test.Index,
+							Description: "Converted: " + test.Name,
+							Confidence:  0.9,
+						}
+					}
+					close(firstDone)
+					return &specview.Phase2Output{Behaviors: behaviors}, nil, nil
+				}
+				// Subsequent calls hold semaphore until context cancelled
+				<-firstDone
+				<-ctx.Done()
+				return nil, nil, ctx.Err()
+			},
+		}
+
+		uc := NewGenerateSpecViewUseCase(repo, aiProvider, "gemini-2.5-flash",
+			WithPhase2Timeout(300*time.Millisecond),
+			WithPhase2Concurrency(1),
+		)
+
+		_, err := uc.Execute(context.Background(), newValidRequest())
+
+		if err == nil {
+			t.Fatal("expected error from Phase 2 context cancellation, got nil")
+		}
+
+		if len(savedCacheEntries) != 1 {
+			t.Errorf("expected 1 salvaged cache entry from completed feature, got %d", len(savedCacheEntries))
+		}
+	})
+
+	t.Run("should save cache on failure threshold exceeded", func(t *testing.T) {
+		// 3 features: 1 succeeds, 2 fail → 66% > 30% threshold
+		var savedCacheEntries []specview.BehaviorCacheEntry
+		repo := &mockRepository{
+			getTestDataByAnalysisIDFn: func(ctx context.Context, analysisID string) ([]specview.FileInfo, error) {
+				return threeFeatureFiles, nil
+			},
+			findDocumentByContentHashFn: func(ctx context.Context, userID string, contentHash []byte, language specview.Language, modelID string) (*specview.SpecDocument, error) {
+				return nil, nil
+			},
+			saveBehaviorCacheFn: func(ctx context.Context, entries []specview.BehaviorCacheEntry) error {
+				savedCacheEntries = append(savedCacheEntries, entries...)
+				return nil
+			},
+		}
+
+		var callCount atomic.Int32
+		aiProvider := &mockAIProvider{
+			classifyDomainsFn: func(ctx context.Context, input specview.Phase1Input) (*specview.Phase1Output, *specview.TokenUsage, error) {
+				return threeFeaturePhase1, nil, nil
+			},
+			convertTestNamesFn: func(ctx context.Context, input specview.Phase2Input) (*specview.Phase2Output, *specview.TokenUsage, error) {
+				count := callCount.Add(1)
+				if count == 1 {
+					behaviors := make([]specview.BehaviorSpec, len(input.Tests))
+					for i, test := range input.Tests {
+						behaviors[i] = specview.BehaviorSpec{
+							TestIndex:   test.Index,
+							Description: "Converted: " + test.Name,
+							Confidence:  0.9,
+						}
+					}
+					return &specview.Phase2Output{Behaviors: behaviors}, nil, nil
+				}
+				return nil, nil, errors.New("AI error")
+			},
+		}
+
+		uc := NewGenerateSpecViewUseCase(repo, aiProvider, "gemini-2.5-flash",
+			WithFailureThreshold(0.3),
+		)
+
+		_, err := uc.Execute(context.Background(), newValidRequest())
+
+		if !errors.Is(err, ErrPartialFeatureFailure) {
+			t.Errorf("expected ErrPartialFeatureFailure, got %v", err)
+		}
+
+		if len(savedCacheEntries) != 1 {
+			t.Errorf("expected 1 salvaged cache entry from successful feature, got %d", len(savedCacheEntries))
+		}
+	})
+
+	t.Run("should have cache hits on retry after partial failure", func(t *testing.T) {
+		files := newTestFiles()
+		phase1Output := newPhase1Output()
+
+		var savedCacheEntries []specview.BehaviorCacheEntry
+		repo := &mockRepository{
+			getTestDataByAnalysisIDFn: func(ctx context.Context, analysisID string) ([]specview.FileInfo, error) {
+				return files, nil
+			},
+			findDocumentByContentHashFn: func(ctx context.Context, userID string, contentHash []byte, language specview.Language, modelID string) (*specview.SpecDocument, error) {
+				return nil, nil
+			},
+			saveBehaviorCacheFn: func(ctx context.Context, entries []specview.BehaviorCacheEntry) error {
+				savedCacheEntries = append(savedCacheEntries, entries...)
+				return nil
+			},
+			saveDocumentFn: func(ctx context.Context, doc *specview.SpecDocument) error {
+				doc.ID = "doc-retry"
+				return nil
+			},
+		}
+
+		firstCallDone := make(chan struct{})
+		var isFirstRun atomic.Bool
+		isFirstRun.Store(true)
+		aiProvider := &mockAIProvider{
+			classifyDomainsFn: func(ctx context.Context, input specview.Phase1Input) (*specview.Phase1Output, *specview.TokenUsage, error) {
+				return phase1Output, nil, nil
+			},
+			convertTestNamesFn: func(ctx context.Context, input specview.Phase2Input) (*specview.Phase2Output, *specview.TokenUsage, error) {
+				behaviors := make([]specview.BehaviorSpec, len(input.Tests))
+				for i, test := range input.Tests {
+					behaviors[i] = specview.BehaviorSpec{
+						TestIndex:   test.Index,
+						Description: "Converted: " + test.Name,
+						Confidence:  0.9,
+					}
+				}
+
+				if isFirstRun.Load() && input.FeatureName == "Login" {
+					close(firstCallDone)
+					return &specview.Phase2Output{Behaviors: behaviors}, nil, nil
+				}
+				if isFirstRun.Load() {
+					<-firstCallDone
+					<-ctx.Done()
+					return nil, nil, ctx.Err()
+				}
+				return &specview.Phase2Output{Behaviors: behaviors}, nil, nil
+			},
+		}
+
+		uc := NewGenerateSpecViewUseCase(repo, aiProvider, "gemini-2.5-flash",
+			WithPhase2Timeout(200*time.Millisecond),
+		)
+
+		// First run: fails but salvages cache entries from Login feature
+		_, err := uc.Execute(context.Background(), newValidRequest())
+		if err == nil {
+			t.Fatal("expected error on first run")
+		}
+		if len(savedCacheEntries) == 0 {
+			t.Fatal("expected salvaged cache entries after first run")
+		}
+
+		// Simulate retry: repository returns cached behaviors from salvaged entries
+		cachedMap := make(map[string]string)
+		for _, entry := range savedCacheEntries {
+			hexHash := hex.EncodeToString(entry.CacheKeyHash)
+			cachedMap[hexHash] = entry.Description
+		}
+		repo.findCachedBehaviorsFn = func(ctx context.Context, cacheKeyHashes [][]byte) (map[string]string, error) {
+			result := make(map[string]string)
+			for _, hash := range cacheKeyHashes {
+				hexHash := hex.EncodeToString(hash)
+				if desc, ok := cachedMap[hexHash]; ok {
+					result[hexHash] = desc
+				}
+			}
+			return result, nil
+		}
+
+		// Second run: should succeed with cache hits from salvaged entries
+		isFirstRun.Store(false)
+		uc2 := NewGenerateSpecViewUseCase(repo, aiProvider, "gemini-2.5-flash",
+			WithPhase2Timeout(10*time.Second),
+		)
+
+		result, err := uc2.Execute(context.Background(), newValidRequest())
+		if err != nil {
+			t.Fatalf("expected success on retry, got %v", err)
+		}
+		if result == nil {
+			t.Fatal("expected result on retry, got nil")
+		}
+		if result.BehaviorCacheStats == nil {
+			t.Fatal("expected BehaviorCacheStats on retry, got nil")
+		}
+		if result.BehaviorCacheStats.CachedBehaviors == 0 {
+			t.Error("expected cache_hits > 0 on retry after salvaged partial results")
+		}
+	})
+}
+

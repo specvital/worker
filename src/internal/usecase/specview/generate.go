@@ -52,6 +52,7 @@ const (
 	progressLogBatchSize     = 10               // Log every N completions
 	progressLogTimeInterval  = 30 * time.Second // Log at least every 30 seconds
 	progressLogMinFeatures   = 10               // Only log progress when total >= this
+	salvageCacheTimeout      = 10 * time.Second
 )
 
 // Config holds configuration for GenerateSpecViewUseCase.
@@ -644,13 +645,16 @@ func (uc *GenerateSpecViewUseCase) executePhase2(
 		})
 	}
 
-	if err := g.Wait(); err != nil {
-		return nil, nil, nil, err
+	waitErr := g.Wait()
+	if waitErr != nil {
+		uc.salvageBehaviorCache(ctx, results)
+		return nil, nil, nil, waitErr
 	}
 
 	failedCount := int(tracker.failed.Load())
 	failureRate := float64(failedCount) / float64(len(featureTasks))
 	if failureRate > uc.config.FailureThreshold {
+		uc.salvageBehaviorCache(ctx, results)
 		return nil, nil, nil, fmt.Errorf("%w: %.0f%% features failed (threshold: %.0f%%)",
 			ErrPartialFeatureFailure,
 			failureRate*100,
@@ -686,6 +690,30 @@ func (uc *GenerateSpecViewUseCase) executePhase2(
 	)
 
 	return results, cacheStats, &aggregateUsage, nil
+}
+
+// salvageBehaviorCache persists cache entries from successfully processed features even when
+// Phase 2 fails, enabling cache hits on subsequent retries.
+func (uc *GenerateSpecViewUseCase) salvageBehaviorCache(ctx context.Context, results []phase2Result) {
+	var entries []specview.BehaviorCacheEntry
+	for _, r := range results {
+		entries = append(entries, r.newCacheEntries...)
+	}
+	if len(entries) == 0 {
+		return
+	}
+	salvageCtx, cancel := context.WithTimeout(ctx, salvageCacheTimeout)
+	defer cancel()
+	if err := uc.repository.SaveBehaviorCache(salvageCtx, entries); err != nil {
+		slog.WarnContext(ctx, "failed to salvage behavior cache",
+			"entry_count", len(entries),
+			"error", err,
+		)
+		return
+	}
+	slog.InfoContext(ctx, "salvaged behavior cache from partial results",
+		"entry_count", len(entries),
+	)
 }
 
 // buildTestFilePathMap creates a mapping from test index to file path.
