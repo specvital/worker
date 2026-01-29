@@ -307,3 +307,50 @@ func clearFairnessEnvVars(t *testing.T) {
 		os.Unsetenv(env)
 	}
 }
+
+func clearSpecViewEnvVars(t *testing.T) {
+	t.Helper()
+	envVars := []string{
+		"SPECVIEW_USE_BATCH_API",
+		"SPECVIEW_BATCH_THRESHOLD",
+		"SPECVIEW_BATCH_POLL_INTERVAL",
+	}
+	for _, env := range envVars {
+		os.Unsetenv(env)
+	}
+}
+
+func TestLoadSpecViewConfig_Defaults(t *testing.T) {
+	clearSpecViewEnvVars(t)
+
+	cfg := loadSpecViewConfig()
+
+	if cfg.UseBatchAPI {
+		t.Error("UseBatchAPI should default to false")
+	}
+	if cfg.BatchThreshold != 10000 {
+		t.Errorf("BatchThreshold = %d, want 10000", cfg.BatchThreshold)
+	}
+	if cfg.BatchPollInterval != 30*time.Second {
+		t.Errorf("BatchPollInterval = %v, want 30s", cfg.BatchPollInterval)
+	}
+}
+
+func TestLoadSpecViewConfig_EnvOverride(t *testing.T) {
+	clearSpecViewEnvVars(t)
+	t.Setenv("SPECVIEW_USE_BATCH_API", "true")
+	t.Setenv("SPECVIEW_BATCH_THRESHOLD", "5000")
+	t.Setenv("SPECVIEW_BATCH_POLL_INTERVAL", "1m")
+
+	cfg := loadSpecViewConfig()
+
+	if !cfg.UseBatchAPI {
+		t.Error("UseBatchAPI should be true")
+	}
+	if cfg.BatchThreshold != 5000 {
+		t.Errorf("BatchThreshold = %d, want 5000", cfg.BatchThreshold)
+	}
+	if cfg.BatchPollInterval != 60*time.Second {
+		t.Errorf("BatchPollInterval = %v, want 1m", cfg.BatchPollInterval)
+	}
+}
