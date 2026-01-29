@@ -20,6 +20,7 @@ type ContainerConfig struct {
 	MockMode          bool   // enable mock AI provider for development/testing
 	ParserVersion     string
 	Pool              *pgxpool.Pool
+	SpecView          config.SpecViewConfig
 }
 
 // Validate checks that required common configuration fields are set.
@@ -52,6 +53,15 @@ func (c ContainerConfig) ValidateSpecGenerator() error {
 	// Skip GeminiAPIKey validation when MockMode is enabled
 	if !c.MockMode && c.GeminiAPIKey == "" {
 		return fmt.Errorf("gemini API key is required (set MOCK_MODE=true to skip)")
+	}
+	// Validate Batch API settings
+	if c.SpecView.UseBatchAPI {
+		if c.SpecView.BatchPollInterval <= 0 {
+			return fmt.Errorf("batch poll interval must be positive when Batch API is enabled")
+		}
+		if c.SpecView.BatchThreshold <= 0 {
+			return fmt.Errorf("batch threshold must be positive when Batch API is enabled")
+		}
 	}
 	return nil
 }

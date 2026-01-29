@@ -387,13 +387,32 @@ func (w *Worker) completeBatchJob(ctx context.Context, job *river.Job[Args], res
 		)
 	}
 
-	// TODO: Commit 5 will integrate this with UseCase for Phase 2/3 processing
-	// For now, log completion and return success
-	slog.InfoContext(ctx, "batch mode phase 1 completed",
+	// Build request for Phase 2/3 processing
+	language := args.Language
+	if language == "" {
+		language = "English"
+	}
+
+	req := specview.SpecViewRequest{
+		AnalysisID:      args.AnalysisID,
+		ForceRegenerate: args.ForceRegenerate,
+		Language:        specview.Language(language),
+		ModelID:         args.ModelID,
+		UserID:          args.UserID,
+	}
+
+	// Execute Phase 2 and 3 using the batch-classified domains
+	ucResult, err := w.usecase.ExecutePhase2And3FromBatch(ctx, req, classificationResult.Output)
+	if err != nil {
+		return w.handleError(ctx, job, err)
+	}
+
+	slog.InfoContext(ctx, "batch mode document generation completed",
 		"job_id", job.ID,
 		"analysis_id", args.AnalysisID,
+		"document_id", ucResult.DocumentID,
 		"domain_count", len(classificationResult.Output.Domains),
-		"elapsed_time", elapsedTime.Round(time.Second),
+		"batch_elapsed_time", elapsedTime.Round(time.Second),
 	)
 
 	return nil
