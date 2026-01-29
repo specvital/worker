@@ -2,17 +2,60 @@ package specview
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 
 	"github.com/specvital/worker/internal/adapter/ai/gemini/batch"
 	"github.com/specvital/worker/internal/domain/specview"
 	uc "github.com/specvital/worker/internal/usecase/specview"
 )
+
+// Metadata keys for batch state (sv_ prefix to avoid conflicts with River internals)
+const (
+	metaKeyBatchJobName = "sv_batch_job_name"
+	metaKeyBatchPhase   = "sv_batch_phase"
+	metaKeyBatchStarted = "sv_batch_started"
+)
+
+// batchMetadata holds batch-related state stored in River job metadata.
+type batchMetadata struct {
+	JobName string    `json:"sv_batch_job_name,omitempty"`
+	Phase   string    `json:"sv_batch_phase,omitempty"`
+	Started time.Time `json:"sv_batch_started,omitempty"`
+}
+
+// parseBatchMetadata extracts batch state from job metadata.
+// Returns empty metadata on parse errors (graceful degradation for non-batch jobs).
+func parseBatchMetadata(raw []byte) *batchMetadata {
+	if len(raw) == 0 {
+		return &batchMetadata{}
+	}
+	var m map[string]any
+	if err := json.Unmarshal(raw, &m); err != nil {
+		// Metadata may contain non-JSON or River internal data; treat as empty batch state
+		return &batchMetadata{}
+	}
+
+	meta := &batchMetadata{}
+	if v, ok := m[metaKeyBatchJobName].(string); ok {
+		meta.JobName = v
+	}
+	if v, ok := m[metaKeyBatchPhase].(string); ok {
+		meta.Phase = v
+	}
+	if v, ok := m[metaKeyBatchStarted].(string); ok {
+		if t, err := time.Parse(time.RFC3339, v); err == nil {
+			meta.Started = t
+		}
+	}
+	return meta
+}
 
 const (
 	// Queue names for specview jobs (underscore required - River disallows colons)
@@ -37,14 +80,18 @@ const (
 // Args represents the arguments for a spec-view generation job.
 type Args struct {
 	AnalysisID      string     `json:"analysis_id" river:"unique"`
-	BatchJobName    string     `json:"batch_job_name,omitempty"`    // Batch API job resource name
-	BatchPhase      BatchPhase `json:"batch_phase,omitempty"`       // "submit" | "poll"
-	BatchStarted    time.Time  `json:"batch_started,omitempty"`     // Batch job submission time
-	ForceRegenerate bool       `json:"force_regenerate,omitempty"`  // skip cache and create new version
-	Language        string     `json:"language" river:"unique"`     // optional, defaults to "English"
+	ForceRegenerate bool       `json:"force_regenerate,omitempty"` // skip cache and create new version
+	Language        string     `json:"language" river:"unique"`    // optional, defaults to "English"
 	ModelID         string     `json:"model_id,omitempty"`
 	Tier            string     `json:"tier,omitempty"`
 	UserID          string     `json:"user_id" river:"unique"` // required: document owner
+
+	// Deprecated: Batch state is now stored in job.Metadata, not Args.
+	// Kept for backward compatibility with jobs enqueued before the metadata migration.
+	// These fields are no longer read; batch state is retrieved via parseBatchMetadata().
+	BatchJobName string     `json:"batch_job_name,omitempty"`
+	BatchPhase   BatchPhase `json:"batch_phase,omitempty"`
+	BatchStarted time.Time  `json:"batch_started,omitempty"`
 }
 
 // Kind returns the unique identifier for this job type.
@@ -82,13 +129,20 @@ type WorkerConfig struct {
 	UseBatchAPI       bool
 }
 
+// MetadataUpdater abstracts the database operation for updating job metadata.
+// This allows testing without a real database connection.
+type MetadataUpdater interface {
+	UpdateBatchMetadata(ctx context.Context, jobID int64, jobName string, started time.Time) error
+}
+
 // Worker processes spec-view generation jobs.
 type Worker struct {
 	river.WorkerDefaults[Args]
-	batchProvider BatchProvider
-	config        WorkerConfig
-	repository    specview.Repository
-	usecase       *uc.GenerateSpecViewUseCase
+	batchProvider   BatchProvider
+	config          WorkerConfig
+	metadataUpdater MetadataUpdater
+	repository      specview.Repository
+	usecase         *uc.GenerateSpecViewUseCase
 }
 
 // NewWorker creates a new spec-view worker.
@@ -101,14 +155,50 @@ func NewWorkerWithBatch(
 	usecase *uc.GenerateSpecViewUseCase,
 	batchProvider BatchProvider,
 	repository specview.Repository,
+	dbPool *pgxpool.Pool,
 	config WorkerConfig,
 ) *Worker {
-	return &Worker{
-		batchProvider: batchProvider,
-		config:        config,
-		repository:    repository,
-		usecase:       usecase,
+	var metadataUpdater MetadataUpdater
+	if dbPool != nil {
+		metadataUpdater = &pgxMetadataUpdater{pool: dbPool}
 	}
+	return &Worker{
+		batchProvider:   batchProvider,
+		config:          config,
+		metadataUpdater: metadataUpdater,
+		repository:      repository,
+		usecase:         usecase,
+	}
+}
+
+// pgxMetadataUpdater implements MetadataUpdater using pgxpool.
+type pgxMetadataUpdater struct {
+	pool *pgxpool.Pool
+}
+
+func (u *pgxMetadataUpdater) UpdateBatchMetadata(ctx context.Context, jobID int64, jobName string, started time.Time) error {
+	metaJSON, err := json.Marshal(map[string]string{
+		metaKeyBatchJobName: jobName,
+		metaKeyBatchPhase:   string(BatchPhasePoll),
+		metaKeyBatchStarted: started.Format(time.RFC3339),
+	})
+	if err != nil {
+		return fmt.Errorf("marshal batch metadata: %w", err)
+	}
+
+	query := `
+		UPDATE river_job
+		SET metadata = COALESCE(metadata, '{}'::jsonb) || $1::jsonb
+		WHERE id = $2
+	`
+	result, err := u.pool.Exec(ctx, query, metaJSON, jobID)
+	if err != nil {
+		return err
+	}
+	if result.RowsAffected() == 0 {
+		return fmt.Errorf("job not found: %d", jobID)
+	}
+	return nil
 }
 
 // Timeout returns the maximum duration for this job.
@@ -126,15 +216,13 @@ func (w *Worker) NextRetry(job *river.Job[Args]) time.Time {
 
 // Work processes a spec-view generation job.
 func (w *Worker) Work(ctx context.Context, job *river.Job[Args]) error {
-	args := job.Args
-
 	// Validate required fields
 	if err := w.validateArgs(ctx, job); err != nil {
 		return err
 	}
 
 	// Route to batch mode if enabled and in batch phase
-	if w.isBatchMode(args) {
+	if w.isBatchMode(job) {
 		return w.workBatch(ctx, job)
 	}
 
@@ -198,13 +286,11 @@ func (w *Worker) workStandard(ctx context.Context, job *river.Job[Args]) error {
 
 // workBatch handles batch mode job processing (submit or poll phase).
 func (w *Worker) workBatch(ctx context.Context, job *river.Job[Args]) error {
-	args := job.Args
+	meta := parseBatchMetadata(job.Metadata)
 
-	switch args.BatchPhase {
-	case BatchPhaseSubmit:
-		return w.submitBatchJob(ctx, job)
+	switch BatchPhase(meta.Phase) {
 	case BatchPhasePoll:
-		return w.pollBatchJob(ctx, job)
+		return w.pollBatchJob(ctx, job, meta)
 	default:
 		// Initial batch mode entry - start with submit phase
 		return w.submitBatchJob(ctx, job)
@@ -256,6 +342,12 @@ func (w *Worker) submitBatchJob(ctx context.Context, job *river.Job[Args]) error
 		return fmt.Errorf("submit batch job: %w", err)
 	}
 
+	// Persist batch state to job metadata via SQL
+	// River doesn't persist job.Args changes on snooze, so we use metadata instead
+	if err := w.metadataUpdater.UpdateBatchMetadata(ctx, job.ID, result.JobName, time.Now()); err != nil {
+		return fmt.Errorf("update batch metadata: %w", err)
+	}
+
 	slog.InfoContext(ctx, "batch job submitted, snoozing for poll",
 		"job_id", job.ID,
 		"analysis_id", args.AnalysisID,
@@ -263,32 +355,25 @@ func (w *Worker) submitBatchJob(ctx context.Context, job *river.Job[Args]) error
 		"poll_interval", w.config.BatchPollInterval,
 	)
 
-	// Update args for next phase.
-	// NOTE: River's JobSnooze persists args changes because the job row is updated
-	// with the modified args before snoozing. This is River's expected behavior.
-	job.Args.BatchJobName = result.JobName
-	job.Args.BatchPhase = BatchPhasePoll
-	job.Args.BatchStarted = time.Now()
-
 	return river.JobSnooze(w.config.BatchPollInterval)
 }
 
 // pollBatchJob checks batch job status and completes, re-snoozes, or fails.
-func (w *Worker) pollBatchJob(ctx context.Context, job *river.Job[Args]) error {
+func (w *Worker) pollBatchJob(ctx context.Context, job *river.Job[Args], meta *batchMetadata) error {
 	args := job.Args
 
-	if args.BatchJobName == "" {
+	if meta.JobName == "" {
 		return river.JobCancel(errors.New("batch_job_name is required for poll phase"))
 	}
 
-	elapsedTime := time.Since(args.BatchStarted)
+	elapsedTime := time.Since(meta.Started)
 
 	// Check maximum wait time to prevent infinite polling
 	if elapsedTime > maxBatchWaitTime {
 		slog.ErrorContext(ctx, "batch job exceeded maximum wait time",
 			"job_id", job.ID,
 			"analysis_id", args.AnalysisID,
-			"batch_job_name", args.BatchJobName,
+			"batch_job_name", meta.JobName,
 			"elapsed_time", elapsedTime.Round(time.Second),
 			"max_wait_time", maxBatchWaitTime,
 		)
@@ -298,24 +383,24 @@ func (w *Worker) pollBatchJob(ctx context.Context, job *river.Job[Args]) error {
 	slog.InfoContext(ctx, "polling batch job status",
 		"job_id", job.ID,
 		"analysis_id", args.AnalysisID,
-		"batch_job_name", args.BatchJobName,
+		"batch_job_name", meta.JobName,
 		"elapsed_time", elapsedTime.Round(time.Second),
 	)
 
-	result, err := w.batchProvider.GetJobStatus(ctx, args.BatchJobName)
+	result, err := w.batchProvider.GetJobStatus(ctx, meta.JobName)
 	if err != nil {
 		return fmt.Errorf("get batch job status: %w", err)
 	}
 
 	switch result.State {
 	case batch.JobStateSucceeded:
-		return w.completeBatchJob(ctx, job, result)
+		return w.completeBatchJob(ctx, job, result, meta)
 
 	case batch.JobStateFailed:
 		slog.ErrorContext(ctx, "batch job failed",
 			"job_id", job.ID,
 			"analysis_id", args.AnalysisID,
-			"batch_job_name", args.BatchJobName,
+			"batch_job_name", meta.JobName,
 			"error", result.Error,
 			"elapsed_time", elapsedTime.Round(time.Second),
 		)
@@ -328,7 +413,7 @@ func (w *Worker) pollBatchJob(ctx context.Context, job *river.Job[Args]) error {
 		slog.WarnContext(ctx, "batch job expired",
 			"job_id", job.ID,
 			"analysis_id", args.AnalysisID,
-			"batch_job_name", args.BatchJobName,
+			"batch_job_name", meta.JobName,
 			"elapsed_time", elapsedTime.Round(time.Second),
 		)
 		return river.JobCancel(batch.ErrJobExpired)
@@ -337,7 +422,7 @@ func (w *Worker) pollBatchJob(ctx context.Context, job *river.Job[Args]) error {
 		slog.WarnContext(ctx, "batch job cancelled",
 			"job_id", job.ID,
 			"analysis_id", args.AnalysisID,
-			"batch_job_name", args.BatchJobName,
+			"batch_job_name", meta.JobName,
 		)
 		return river.JobCancel(batch.ErrJobCancelled)
 
@@ -346,7 +431,7 @@ func (w *Worker) pollBatchJob(ctx context.Context, job *river.Job[Args]) error {
 		slog.InfoContext(ctx, "batch job still running, re-snoozing",
 			"job_id", job.ID,
 			"analysis_id", args.AnalysisID,
-			"batch_job_name", args.BatchJobName,
+			"batch_job_name", meta.JobName,
 			"state", result.State,
 			"elapsed_time", elapsedTime.Round(time.Second),
 		)
@@ -355,14 +440,14 @@ func (w *Worker) pollBatchJob(ctx context.Context, job *river.Job[Args]) error {
 }
 
 // completeBatchJob processes the completed batch result and generates the document.
-func (w *Worker) completeBatchJob(ctx context.Context, job *river.Job[Args], result *batch.BatchResult) error {
+func (w *Worker) completeBatchJob(ctx context.Context, job *river.Job[Args], result *batch.BatchResult, meta *batchMetadata) error {
 	args := job.Args
-	elapsedTime := time.Since(args.BatchStarted)
+	elapsedTime := time.Since(meta.Started)
 
 	slog.InfoContext(ctx, "batch job completed, parsing results",
 		"job_id", job.ID,
 		"analysis_id", args.AnalysisID,
-		"batch_job_name", args.BatchJobName,
+		"batch_job_name", meta.JobName,
 		"elapsed_time", elapsedTime.Round(time.Second),
 	)
 
@@ -444,16 +529,18 @@ func (w *Worker) validateArgs(ctx context.Context, job *river.Job[Args]) error {
 }
 
 // isBatchMode determines if the job should use batch mode.
-func (w *Worker) isBatchMode(args Args) bool {
-	// Batch mode if:
-	// 1. Batch API is enabled in config
-	// 2. BatchProvider is available
-	// 3. Already in a batch phase (poll phase)
-	if args.BatchPhase == BatchPhasePoll {
+func (w *Worker) isBatchMode(job *river.Job[Args]) bool {
+	// Check metadata for batch phase (persisted state)
+	meta := parseBatchMetadata(job.Metadata)
+	if meta.Phase == string(BatchPhasePoll) {
 		return true
 	}
 
-	return w.config.UseBatchAPI && w.batchProvider != nil
+	// Batch mode if:
+	// 1. Batch API is enabled in config
+	// 2. BatchProvider is available
+	// 3. MetadataUpdater is available (for persisting batch state)
+	return w.config.UseBatchAPI && w.batchProvider != nil && w.metadataUpdater != nil
 }
 
 func (w *Worker) handleError(ctx context.Context, job *river.Job[Args], err error) error {

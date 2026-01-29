@@ -110,6 +110,7 @@ func NewSpecGeneratorContainer(ctx context.Context, cfg ContainerConfig) (*SpecG
 			specViewUC,
 			batchProvider,
 			specDocRepo,
+			cfg.Pool,
 			workerConfig,
 		)
 	} else {

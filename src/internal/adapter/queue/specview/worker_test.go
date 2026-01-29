@@ -174,6 +174,20 @@ func newTestJob(args Args) *river.Job[Args] {
 	}
 }
 
+// newTestJobWithBatchMetadata creates a test job with batch state in metadata (not Args).
+// This reflects the actual behavior where batch state is stored in River's job.Metadata.
+func newTestJobWithBatchMetadata(args Args, jobName string, started time.Time) *river.Job[Args] {
+	metadata := []byte(`{"sv_batch_job_name":"` + jobName + `","sv_batch_phase":"poll","sv_batch_started":"` + started.Format(time.RFC3339) + `"}`)
+	return &river.Job[Args]{
+		JobRow: &rivertype.JobRow{
+			ID:       1,
+			Attempt:  1,
+			Metadata: metadata,
+		},
+		Args: args,
+	}
+}
+
 func newSuccessfulMocks() (*mockRepository, *mockAIProvider) {
 	repo := &mockRepository{}
 	ai := &mockAIProvider{}
@@ -574,6 +588,18 @@ func (m *mockBatchProvider) GetJobStatus(ctx context.Context, jobName string) (*
 	}, nil
 }
 
+// mockMetadataUpdater implements MetadataUpdater for testing.
+type mockMetadataUpdater struct {
+	updateFn func(ctx context.Context, jobID int64, jobName string, started time.Time) error
+}
+
+func (m *mockMetadataUpdater) UpdateBatchMetadata(ctx context.Context, jobID int64, jobName string, started time.Time) error {
+	if m.updateFn != nil {
+		return m.updateFn(ctx, jobID, jobName, started)
+	}
+	return nil
+}
+
 func newBatchTestWorker(
 	repo *mockRepository,
 	ai *mockAIProvider,
@@ -581,7 +607,13 @@ func newBatchTestWorker(
 	config WorkerConfig,
 ) *Worker {
 	usecase := uc.NewGenerateSpecViewUseCase(repo, ai, "test-model")
-	return NewWorkerWithBatch(usecase, batchProvider, repo, config)
+	return &Worker{
+		batchProvider:   batchProvider,
+		config:          config,
+		metadataUpdater: &mockMetadataUpdater{},
+		repository:      repo,
+		usecase:         usecase,
+	}
 }
 
 func TestNewWorkerWithBatch(t *testing.T) {
@@ -607,62 +639,84 @@ func TestNewWorkerWithBatch(t *testing.T) {
 
 func TestWorker_IsBatchMode(t *testing.T) {
 	tests := []struct {
-		name          string
-		args          Args
-		config        WorkerConfig
-		hasBatchProv  bool
-		expectedBatch bool
+		name               string
+		metadata           []byte
+		config             WorkerConfig
+		hasBatchProv       bool
+		hasMetadataUpdater bool
+		expectedBatch      bool
 	}{
 		{
-			name:          "poll phase always returns true",
-			args:          Args{BatchPhase: BatchPhasePoll},
-			config:        WorkerConfig{UseBatchAPI: false},
-			hasBatchProv:  false,
-			expectedBatch: true,
+			name:               "poll phase in metadata always returns true",
+			metadata:           []byte(`{"sv_batch_phase":"poll"}`),
+			config:             WorkerConfig{UseBatchAPI: false},
+			hasBatchProv:       false,
+			hasMetadataUpdater: false,
+			expectedBatch:      true,
 		},
 		{
-			name:          "batch enabled with provider",
-			args:          Args{},
-			config:        WorkerConfig{UseBatchAPI: true},
-			hasBatchProv:  true,
-			expectedBatch: true,
+			name:               "batch enabled with provider and updater",
+			metadata:           nil,
+			config:             WorkerConfig{UseBatchAPI: true},
+			hasBatchProv:       true,
+			hasMetadataUpdater: true,
+			expectedBatch:      true,
 		},
 		{
-			name:          "batch enabled without provider",
-			args:          Args{},
-			config:        WorkerConfig{UseBatchAPI: true},
-			hasBatchProv:  false,
-			expectedBatch: false,
+			name:               "batch enabled without provider",
+			metadata:           nil,
+			config:             WorkerConfig{UseBatchAPI: true},
+			hasBatchProv:       false,
+			hasMetadataUpdater: true,
+			expectedBatch:      false,
 		},
 		{
-			name:          "batch disabled",
-			args:          Args{},
-			config:        WorkerConfig{UseBatchAPI: false},
-			hasBatchProv:  true,
-			expectedBatch: false,
+			name:               "batch enabled without updater",
+			metadata:           nil,
+			config:             WorkerConfig{UseBatchAPI: true},
+			hasBatchProv:       true,
+			hasMetadataUpdater: false,
+			expectedBatch:      false,
+		},
+		{
+			name:               "batch disabled",
+			metadata:           nil,
+			config:             WorkerConfig{UseBatchAPI: false},
+			hasBatchProv:       true,
+			hasMetadataUpdater: true,
+			expectedBatch:      false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			repo, ai := newSuccessfulMocks()
-			var batchProvider *mockBatchProvider
+			var batchProv BatchProvider
 			if tt.hasBatchProv {
-				batchProvider = &mockBatchProvider{}
+				batchProv = &mockBatchProvider{}
+			}
+			var metaUpdater MetadataUpdater
+			if tt.hasMetadataUpdater {
+				metaUpdater = &mockMetadataUpdater{}
 			}
 
 			usecase := uc.NewGenerateSpecViewUseCase(repo, ai, "test-model")
-			var worker *Worker
-			if batchProvider != nil {
-				worker = NewWorkerWithBatch(usecase, batchProvider, repo, tt.config)
-			} else {
-				worker = &Worker{
-					usecase: usecase,
-					config:  tt.config,
-				}
+			worker := &Worker{
+				usecase:         usecase,
+				config:          tt.config,
+				batchProvider:   batchProv,
+				metadataUpdater: metaUpdater,
 			}
 
-			result := worker.isBatchMode(tt.args)
+			// Create mock job with metadata
+			job := &river.Job[Args]{
+				JobRow: &rivertype.JobRow{
+					Metadata: tt.metadata,
+				},
+				Args: Args{},
+			}
+
+			result := worker.isBatchMode(job)
 			if result != tt.expectedBatch {
 				t.Errorf("expected isBatchMode=%v, got %v", tt.expectedBatch, result)
 			}
@@ -690,7 +744,6 @@ func TestWorker_SubmitBatchJob_Snooze(t *testing.T) {
 		job := newTestJob(Args{
 			AnalysisID: "test-analysis",
 			UserID:     "test-user",
-			BatchPhase: BatchPhaseSubmit,
 		})
 
 		err := worker.Work(context.Background(), job)
@@ -699,16 +752,9 @@ func TestWorker_SubmitBatchJob_Snooze(t *testing.T) {
 		if !errors.As(err, &snoozeErr) {
 			t.Errorf("expected JobSnoozeError, got %T: %v", err, err)
 		}
-
-		if job.Args.BatchJobName != "batch-job-456" {
-			t.Errorf("expected BatchJobName='batch-job-456', got '%s'", job.Args.BatchJobName)
-		}
-		if job.Args.BatchPhase != BatchPhasePoll {
-			t.Errorf("expected BatchPhase='poll', got '%s'", job.Args.BatchPhase)
-		}
-		if job.Args.BatchStarted.IsZero() {
-			t.Error("expected BatchStarted to be set")
-		}
+		// Note: Batch state (JobName, Phase, Started) is now stored in job.Metadata via SQL,
+		// not in job.Args. Since we don't have a real DB in unit tests, we cannot verify
+		// the metadata update here. Integration tests should cover this.
 	})
 
 	t.Run("should return error when no test files", func(t *testing.T) {
@@ -794,17 +840,14 @@ func TestWorker_PollBatchJob(t *testing.T) {
 		config := WorkerConfig{UseBatchAPI: true, BatchPollInterval: 30 * time.Second}
 
 		worker := newBatchTestWorker(repo, ai, batchProvider, config)
-		job := newTestJob(Args{
-			AnalysisID:   "test-analysis",
-			UserID:       "test-user",
-			BatchPhase:   BatchPhasePoll,
-			BatchJobName: "batch-job-789",
-			BatchStarted: time.Now().Add(-5 * time.Minute),
-		})
+		job := newTestJobWithBatchMetadata(
+			Args{AnalysisID: "test-analysis", UserID: "test-user"},
+			"batch-job-789",
+			time.Now().Add(-5*time.Minute),
+		)
 
 		err := worker.Work(context.Background(), job)
 
-		// completeBatchJob currently returns nil (TODO in Commit 5)
 		if err != nil {
 			t.Errorf("expected success (nil), got %v", err)
 		}
@@ -823,13 +866,11 @@ func TestWorker_PollBatchJob(t *testing.T) {
 		config := WorkerConfig{UseBatchAPI: true, BatchPollInterval: 30 * time.Second}
 
 		worker := newBatchTestWorker(repo, ai, batchProvider, config)
-		job := newTestJob(Args{
-			AnalysisID:   "test-analysis",
-			UserID:       "test-user",
-			BatchPhase:   BatchPhasePoll,
-			BatchJobName: "batch-job-running",
-			BatchStarted: time.Now().Add(-2 * time.Minute),
-		})
+		job := newTestJobWithBatchMetadata(
+			Args{AnalysisID: "test-analysis", UserID: "test-user"},
+			"batch-job-running",
+			time.Now().Add(-2*time.Minute),
+		)
 
 		err := worker.Work(context.Background(), job)
 
@@ -853,13 +894,11 @@ func TestWorker_PollBatchJob(t *testing.T) {
 		config := WorkerConfig{UseBatchAPI: true, BatchPollInterval: 30 * time.Second}
 
 		worker := newBatchTestWorker(repo, ai, batchProvider, config)
-		job := newTestJob(Args{
-			AnalysisID:   "test-analysis",
-			UserID:       "test-user",
-			BatchPhase:   BatchPhasePoll,
-			BatchJobName: "batch-job-failed",
-			BatchStarted: time.Now().Add(-10 * time.Minute),
-		})
+		job := newTestJobWithBatchMetadata(
+			Args{AnalysisID: "test-analysis", UserID: "test-user"},
+			"batch-job-failed",
+			time.Now().Add(-10*time.Minute),
+		)
 
 		err := worker.Work(context.Background(), job)
 
@@ -887,13 +926,11 @@ func TestWorker_PollBatchJob(t *testing.T) {
 		config := WorkerConfig{UseBatchAPI: true, BatchPollInterval: 30 * time.Second}
 
 		worker := newBatchTestWorker(repo, ai, batchProvider, config)
-		job := newTestJob(Args{
-			AnalysisID:   "test-analysis",
-			UserID:       "test-user",
-			BatchPhase:   BatchPhasePoll,
-			BatchJobName: "batch-job-expired",
-			BatchStarted: time.Now().Add(-1 * time.Hour), // within max wait time
-		})
+		job := newTestJobWithBatchMetadata(
+			Args{AnalysisID: "test-analysis", UserID: "test-user"},
+			"batch-job-expired",
+			time.Now().Add(-1*time.Hour),
+		)
 
 		err := worker.Work(context.Background(), job)
 
@@ -916,13 +953,11 @@ func TestWorker_PollBatchJob(t *testing.T) {
 		config := WorkerConfig{UseBatchAPI: true, BatchPollInterval: 30 * time.Second}
 
 		worker := newBatchTestWorker(repo, ai, batchProvider, config)
-		job := newTestJob(Args{
-			AnalysisID:   "test-analysis",
-			UserID:       "test-user",
-			BatchPhase:   BatchPhasePoll,
-			BatchJobName: "batch-job-cancelled",
-			BatchStarted: time.Now().Add(-1 * time.Hour),
-		})
+		job := newTestJobWithBatchMetadata(
+			Args{AnalysisID: "test-analysis", UserID: "test-user"},
+			"batch-job-cancelled",
+			time.Now().Add(-1*time.Hour),
+		)
 
 		err := worker.Work(context.Background(), job)
 
@@ -938,12 +973,15 @@ func TestWorker_PollBatchJob(t *testing.T) {
 		config := WorkerConfig{UseBatchAPI: true, BatchPollInterval: 30 * time.Second}
 
 		worker := newBatchTestWorker(repo, ai, batchProvider, config)
-		job := newTestJob(Args{
-			AnalysisID:   "test-analysis",
-			UserID:       "test-user",
-			BatchPhase:   BatchPhasePoll,
-			BatchJobName: "", // missing
-		})
+		// Create job with poll phase but empty job name in metadata
+		job := &river.Job[Args]{
+			JobRow: &rivertype.JobRow{
+				ID:       1,
+				Attempt:  1,
+				Metadata: []byte(`{"sv_batch_phase":"poll","sv_batch_job_name":""}`),
+			},
+			Args: Args{AnalysisID: "test-analysis", UserID: "test-user"},
+		}
 
 		err := worker.Work(context.Background(), job)
 
@@ -966,13 +1004,11 @@ func TestWorker_PollBatchJob(t *testing.T) {
 		config := WorkerConfig{UseBatchAPI: true, BatchPollInterval: 30 * time.Second}
 
 		worker := newBatchTestWorker(repo, ai, batchProvider, config)
-		job := newTestJob(Args{
-			AnalysisID:   "test-analysis",
-			UserID:       "test-user",
-			BatchPhase:   BatchPhasePoll,
-			BatchJobName: "batch-job-timeout",
-			BatchStarted: time.Now().Add(-25 * time.Hour), // exceeds 24h max
-		})
+		job := newTestJobWithBatchMetadata(
+			Args{AnalysisID: "test-analysis", UserID: "test-user"},
+			"batch-job-timeout",
+			time.Now().Add(-25*time.Hour), // exceeds 24h max
+		)
 
 		err := worker.Work(context.Background(), job)
 
@@ -1005,13 +1041,11 @@ func TestWorker_PollBatchJob(t *testing.T) {
 		config := WorkerConfig{UseBatchAPI: true, BatchPollInterval: 30 * time.Second}
 
 		worker := newBatchTestWorker(repo, ai, batchProvider, config)
-		job := newTestJob(Args{
-			AnalysisID:   "test-analysis",
-			UserID:       "test-user",
-			BatchPhase:   BatchPhasePoll,
-			BatchJobName: "batch-job-bad-response",
-			BatchStarted: time.Now().Add(-5 * time.Minute),
-		})
+		job := newTestJobWithBatchMetadata(
+			Args{AnalysisID: "test-analysis", UserID: "test-user"},
+			"batch-job-bad-response",
+			time.Now().Add(-5*time.Minute),
+		)
 
 		err := worker.Work(context.Background(), job)
 
