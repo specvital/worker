@@ -26,11 +26,24 @@ Generates human-readable spec documents from test files using Gemini AI.
 - **Cache**: Content hash-based deduplication
 - **Reliability**: Circuit breaker, rate limiting, exponential backoff
 
+**Batch Mode (Experimental)**: For large repositories (10,000+ tests), optional Batch API mode:
+
+- Async processing via Gemini Batch API (1-24h turnaround)
+- 50% cost reduction vs real-time API
+- River JobSnooze-based polling mechanism
+- Enable: `SPECVIEW_USE_BATCH_API=true`
+
 Required env vars:
 
 - `GEMINI_API_KEY`: Gemini API key
 - `GEMINI_PHASE1_MODEL`: Phase 1 model (default: gemini-2.5-flash)
 - `GEMINI_PHASE2_MODEL`: Phase 2 model (default: gemini-2.5-flash-lite)
+
+Batch mode env vars (optional):
+
+- `SPECVIEW_USE_BATCH_API`: Enable Batch API (default: false)
+- `SPECVIEW_BATCH_THRESHOLD`: Min test count for Batch mode (default: 10000)
+- `SPECVIEW_BATCH_POLL_INTERVAL`: Polling interval (default: 30s)
 
 ## Documentation Map
 
