@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 
 	"google.golang.org/genai"
 
@@ -127,6 +126,7 @@ func parseInlinedResponse(resp *genai.InlinedResponse) (*specview.Phase1Output, 
 }
 
 // extractResponseText extracts text content from a GenerateContentResponse.
+// Uses only the first text part to avoid JSON corruption from multiple parts.
 func extractResponseText(resp *genai.GenerateContentResponse) (string, error) {
 	if resp == nil || len(resp.Candidates) == 0 {
 		return "", ErrEmptyResponse
@@ -137,20 +137,15 @@ func extractResponseText(resp *genai.GenerateContentResponse) (string, error) {
 		return "", ErrEmptyResponse
 	}
 
-	// Concatenate all text parts using strings.Builder for efficiency
-	var sb strings.Builder
+	// Use only the first text part - Batch API may return multiple parts
+	// that when concatenated produce invalid JSON
 	for _, part := range candidate.Content.Parts {
 		if part.Text != "" {
-			sb.WriteString(part.Text)
+			return part.Text, nil
 		}
 	}
 
-	text := sb.String()
-	if text == "" {
-		return "", ErrEmptyResponse
-	}
-
-	return text, nil
+	return "", ErrEmptyResponse
 }
 
 // parsePhase1JSON parses JSON string into Phase1Output.

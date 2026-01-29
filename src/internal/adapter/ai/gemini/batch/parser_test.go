@@ -510,14 +510,15 @@ func TestCountCoveredIndices(t *testing.T) {
 }
 
 func TestExtractResponseText(t *testing.T) {
-	t.Run("should concatenate multiple text parts", func(t *testing.T) {
+	t.Run("should use first text part only to avoid JSON corruption", func(t *testing.T) {
+		// Batch API may return multiple parts that produce invalid JSON when concatenated
 		resp := &genai.GenerateContentResponse{
 			Candidates: []*genai.Candidate{
 				{
 					Content: &genai.Content{
 						Parts: []*genai.Part{
-							{Text: "Hello "},
-							{Text: "World"},
+							{Text: `{"domains":[]}`},
+							{Text: `[extra data]`}, // This would corrupt JSON if concatenated
 						},
 					},
 				},
@@ -528,8 +529,8 @@ func TestExtractResponseText(t *testing.T) {
 		if err != nil {
 			t.Fatalf("extractResponseText() error = %v", err)
 		}
-		if text != "Hello World" {
-			t.Errorf("text = %q, expected %q", text, "Hello World")
+		if text != `{"domains":[]}` {
+			t.Errorf("text = %q, expected first part only", text)
 		}
 	})
 
