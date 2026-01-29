@@ -82,7 +82,6 @@ type BatchResult struct {
 
 // ClassificationJobResult represents the result of a classification batch job
 // after parsing into Phase1Output.
-// TODO(Commit 3): Implement ParseClassificationResponse() to use this type
 type ClassificationJobResult struct {
 	Output     *specview.Phase1Output
 	TokenUsage *specview.TokenUsage
