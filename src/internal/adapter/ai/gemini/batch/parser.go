@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"google.golang.org/genai"
 
@@ -148,11 +149,37 @@ func extractResponseText(resp *genai.GenerateContentResponse) (string, error) {
 	return "", ErrEmptyResponse
 }
 
+// extractJSONFromMarkdown removes markdown code block wrapper if present.
+// Handles: ```json\n{...}\n``` or ```\n{...}\n```
+func extractJSONFromMarkdown(s string) string {
+	s = strings.TrimSpace(s)
+
+	// Remove ```json or ``` prefix
+	if after, found := strings.CutPrefix(s, "```json"); found {
+		s = after
+	} else if after, found := strings.CutPrefix(s, "```"); found {
+		s = after
+	}
+
+	// Remove ``` suffix (unconditional - TrimSuffix is no-op if not present)
+	s = strings.TrimSuffix(s, "```")
+
+	return strings.TrimSpace(s)
+}
+
 // parsePhase1JSON parses JSON string into Phase1Output.
 func parsePhase1JSON(jsonStr string) (*specview.Phase1Output, error) {
+	// Try to extract JSON from markdown code block if present
+	cleaned := extractJSONFromMarkdown(jsonStr)
+
 	var resp phase1Response
-	if err := json.Unmarshal([]byte(jsonStr), &resp); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidJSON, err)
+	if err := json.Unmarshal([]byte(cleaned), &resp); err != nil {
+		// Log first 500 chars for debugging
+		preview := cleaned
+		if len(preview) > 500 {
+			preview = preview[:500] + "..."
+		}
+		return nil, fmt.Errorf("%w: %v (preview: %s)", ErrInvalidJSON, err, preview)
 	}
 
 	output := &specview.Phase1Output{
