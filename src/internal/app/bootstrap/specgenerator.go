@@ -27,6 +27,7 @@ type SpecGeneratorConfig struct {
 	QueueWorkers      config.QueueWorkers
 	ServiceName       string
 	ShutdownTimeout   time.Duration
+	SpecView          config.SpecViewConfig
 }
 
 // Validate checks that required spec-generator configuration fields are set.
@@ -80,6 +81,7 @@ func StartSpecGenerator(cfg SpecGeneratorConfig) error {
 		GeminiPhase2Model: cfg.GeminiPhase2Model,
 		MockMode:          cfg.MockMode,
 		Pool:              pool,
+		SpecView:          cfg.SpecView,
 	})
 	if err != nil {
 		return fmt.Errorf("container: %w", err)
