@@ -206,3 +206,69 @@ type BehaviorCacheKey struct {
 	SuitePath string
 	TestName  string
 }
+
+// TaxonomyInput represents input for Stage 1 taxonomy extraction.
+// Contains file metadata without test names to minimize token usage.
+type TaxonomyInput struct {
+	AnalysisID string
+	Files      []TaxonomyFileInfo
+	Language   Language
+}
+
+// TaxonomyFileInfo represents file metadata for taxonomy extraction.
+// Excludes test names to keep Stage 1 prompt small (~15K tokens for 500 files).
+type TaxonomyFileInfo struct {
+	DomainHints *DomainHints
+	Index       int    // file index for cross-referencing in TaxonomyOutput
+	Path        string
+	TestCount   int
+}
+
+// TaxonomyOutput represents the result of Stage 1 taxonomy extraction.
+// Defines the fixed domain structure for Stage 2 assignment.
+type TaxonomyOutput struct {
+	Domains []TaxonomyDomain `json:"domains"`
+}
+
+// TaxonomyDomain represents a domain in the extracted taxonomy.
+type TaxonomyDomain struct {
+	Description string            `json:"description"`
+	Features    []TaxonomyFeature `json:"features"`
+	Name        string            `json:"name"`
+}
+
+// TaxonomyFeature represents a feature within a taxonomy domain.
+// FileIndices indicates which files belong to this feature.
+type TaxonomyFeature struct {
+	FileIndices []int  `json:"file_indices"`
+	Name        string `json:"name"`
+}
+
+// AssignmentBatch represents a batch of tests for Stage 2 assignment.
+// Each batch contains ~100 tests to be assigned to the fixed taxonomy.
+type AssignmentBatch struct {
+	BatchIndex int
+	Tests      []TestForAssignment
+}
+
+// TestForAssignment represents a test to be assigned to a domain/feature.
+type TestForAssignment struct {
+	FilePath  string
+	Index     int // global test index for cross-referencing
+	Name      string
+	SuitePath string
+}
+
+// AssignmentOutput represents the result of Stage 2 test assignment.
+// Uses compact field names to minimize output tokens.
+type AssignmentOutput struct {
+	Assignments []TestAssignment `json:"a"`
+}
+
+// TestAssignment represents a single test-to-domain/feature assignment.
+// Uses compact field names (d=domain, f=feature, t=test indices).
+type TestAssignment struct {
+	Domain      string `json:"d"`
+	Feature     string `json:"f"`
+	TestIndices []int  `json:"t"`
+}
