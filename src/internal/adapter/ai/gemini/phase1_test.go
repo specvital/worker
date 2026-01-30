@@ -236,3 +236,4 @@ func TestTruncateForLog(t *testing.T) {
 		}
 	}
 }
+

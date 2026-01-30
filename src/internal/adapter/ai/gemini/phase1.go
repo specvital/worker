@@ -5,11 +5,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/specvital/worker/internal/adapter/ai/prompt"
 	"github.com/specvital/worker/internal/adapter/ai/reliability"
 	"github.com/specvital/worker/internal/domain/specview"
+	"golang.org/x/sync/errgroup"
+)
+
+const (
+	// waveConcurrency is the number of chunks processed in parallel per wave.
+	// Kept at 5 to stay within Gemini rate limits while maximizing throughput.
+	waveConcurrency = 5
 )
 
 // phase1Response represents the expected JSON response from Phase 1.
@@ -97,8 +105,16 @@ func (p *Provider) classifyDomainsSingle(ctx context.Context, input specview.Pha
 	return output, usage, nil
 }
 
+// chunkResult holds the result of processing a single chunk.
+type chunkResult struct {
+	index  int
+	output *specview.Phase1Output
+	usage  *specview.TokenUsage
+}
+
 // classifyDomainsChunked handles Phase 1 classification for large inputs.
-// Splits input into chunks and processes sequentially with anchor domain propagation.
+// Uses wave parallel processing: first chunk establishes anchors, remaining chunks
+// are processed in parallel waves of waveConcurrency chunks each.
 // Supports resumption from cached progress on job retry.
 func (p *Provider) classifyDomainsChunked(ctx context.Context, input specview.Phase1Input, lang specview.Language, config ChunkConfig) (*specview.Phase1Output, *specview.TokenUsage, error) {
 	chunks := SplitIntoChunks(input.Files, config)
@@ -132,78 +148,87 @@ func (p *Provider) classifyDomainsChunked(ctx context.Context, input specview.Ph
 			"remaining_chunks", len(chunks)-startChunk,
 		)
 	} else {
-		slog.InfoContext(ctx, "processing phase 1 in chunks",
+		slog.InfoContext(ctx, "processing phase 1 in chunks with wave parallelism",
 			"total_chunks", len(chunks),
 			"total_tests", countTests(input.Files),
+			"wave_concurrency", waveConcurrency,
 		)
 	}
 
-	for i := startChunk; i < len(chunks); i++ {
-		chunk := chunks[i]
-		chunkStartTime := time.Now()
-
-		slog.InfoContext(ctx, "processing chunk",
-			"chunk", i+1,
-			"total_chunks", len(chunks),
-			"tests_in_chunk", countTests(chunk.Files),
-			"remaining_chunks", len(chunks)-i,
-		)
-
-		// Reindex tests within chunk to start from 0
-		reindexedFiles, indexMap := ReindexTests(chunk.Files)
-		chunkInput := specview.Phase1Input{
-			Files:    reindexedFiles,
-			Language: lang,
-		}
-
-		// Process chunk
-		output, usage, err := p.classifyDomainsSingle(ctx, chunkInput, lang, anchorDomains)
+	// Process first chunk sequentially to establish anchor domains (if not resuming)
+	if startChunk == 0 && len(chunks) > 0 {
+		output, usage, err := p.processChunk(ctx, chunks[0], 0, lang, nil)
 		if err != nil {
-			// Save progress before returning error for potential retry
-			if len(allOutputs) > 0 {
-				cache.Save(cacheKey, &ChunkProgress{
-					AnchorDomains:    anchorDomains,
-					CompletedChunks:  i,
-					CompletedOutputs: allOutputs,
-					TotalChunks:      len(chunks),
-					TotalUsage:       totalUsage,
-				})
-				slog.InfoContext(ctx, "saved chunk progress for retry",
-					"completed_chunks", i,
-					"total_chunks", len(chunks),
-				)
-			}
-			return nil, nil, fmt.Errorf("chunk %d/%d failed: %w", i+1, len(chunks), err)
+			return nil, nil, fmt.Errorf("anchor chunk failed: %w", err)
 		}
 
-		// Restore original indices
-		RestoreIndices(output, indexMap)
-
-		// Accumulate results
 		allOutputs = append(allOutputs, output)
+		anchorDomains = output.Domains
 		if usage != nil {
 			totalUsage.CandidatesTokens += usage.CandidatesTokens
 			totalUsage.PromptTokens += usage.PromptTokens
 			totalUsage.TotalTokens += usage.TotalTokens
 		}
+		startChunk = 1
+	}
 
-		slog.InfoContext(ctx, "chunk processing complete",
-			"chunk", i+1,
-			"total_chunks", len(chunks),
-			"elapsed", time.Since(chunkStartTime).Round(time.Millisecond),
+	// Process remaining chunks in parallel waves
+	for waveStart := startChunk; waveStart < len(chunks); waveStart += waveConcurrency {
+		waveEnd := min(waveStart+waveConcurrency, len(chunks))
+		waveNum := (waveStart / waveConcurrency) + 1
+		totalWaves := (len(chunks) + waveConcurrency - 1) / waveConcurrency
+
+		slog.InfoContext(ctx, "starting wave",
+			"wave", waveNum,
+			"total_waves", totalWaves,
+			"chunks_in_wave", waveEnd-waveStart,
+			"chunk_range", fmt.Sprintf("%d-%d", waveStart+1, waveEnd),
 		)
 
-		// Update anchor domains incrementally (avoid quadratic complexity)
-		if len(anchorDomains) == 0 {
-			anchorDomains = output.Domains
-		} else {
-			merged := MergePhase1Outputs([]*specview.Phase1Output{
-				{Domains: anchorDomains},
-				output,
-			})
-			anchorDomains = merged.Domains
+		waveStartTime := time.Now()
+		waveResults, err := p.processWave(ctx, chunks[waveStart:waveEnd], waveStart, lang, anchorDomains)
+		if err != nil {
+			// Save progress before returning error for potential retry
+			if len(allOutputs) > 0 {
+				cache.Save(cacheKey, &ChunkProgress{
+					AnchorDomains:    anchorDomains,
+					CompletedChunks:  waveStart,
+					CompletedOutputs: allOutputs,
+					TotalChunks:      len(chunks),
+					TotalUsage:       totalUsage,
+				})
+				slog.InfoContext(ctx, "saved chunk progress for retry",
+					"completed_chunks", waveStart,
+					"total_chunks", len(chunks),
+				)
+			}
+			return nil, nil, err
 		}
 
+		// Collect wave results and update totals
+		for _, result := range waveResults {
+			allOutputs = append(allOutputs, result.output)
+			if result.usage != nil {
+				totalUsage.CandidatesTokens += result.usage.CandidatesTokens
+				totalUsage.PromptTokens += result.usage.PromptTokens
+				totalUsage.TotalTokens += result.usage.TotalTokens
+			}
+		}
+
+		// Merge anchor domains after wave completes
+		waveOutputs := make([]*specview.Phase1Output, len(waveResults)+1)
+		waveOutputs[0] = &specview.Phase1Output{Domains: anchorDomains}
+		for i, result := range waveResults {
+			waveOutputs[i+1] = result.output
+		}
+		merged := MergePhase1Outputs(waveOutputs)
+		anchorDomains = merged.Domains
+
+		slog.InfoContext(ctx, "wave complete",
+			"wave", waveNum,
+			"elapsed", time.Since(waveStartTime).Round(time.Millisecond),
+			"domains_after_merge", len(anchorDomains),
+		)
 	}
 
 	// Clear cache on successful completion
@@ -217,6 +242,76 @@ func (p *Provider) classifyDomainsChunked(ctx context.Context, input specview.Ph
 	)
 
 	return mergedOutput, totalUsage, nil
+}
+
+// processWave processes multiple chunks in parallel within a single wave.
+// Returns results in chunk order for consistent merging.
+func (p *Provider) processWave(ctx context.Context, chunks []ChunkedInput, baseIndex int, lang specview.Language, anchorDomains []specview.DomainGroup) ([]chunkResult, error) {
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(waveConcurrency)
+
+	results := make([]chunkResult, len(chunks))
+	var mu sync.Mutex
+
+	for i, chunk := range chunks {
+		chunkIndex := baseIndex + i
+
+		g.Go(func() error {
+			output, usage, err := p.processChunk(gctx, chunk, chunkIndex, lang, anchorDomains)
+			if err != nil {
+				return fmt.Errorf("chunk %d failed: %w", chunkIndex+1, err)
+			}
+
+			mu.Lock()
+			results[i] = chunkResult{
+				index:  chunkIndex,
+				output: output,
+				usage:  usage,
+			}
+			mu.Unlock()
+
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+
+	return results, nil
+}
+
+// processChunk processes a single chunk and returns the result with restored indices.
+func (p *Provider) processChunk(ctx context.Context, chunk ChunkedInput, chunkIndex int, lang specview.Language, anchorDomains []specview.DomainGroup) (*specview.Phase1Output, *specview.TokenUsage, error) {
+	chunkStartTime := time.Now()
+
+	slog.InfoContext(ctx, "processing chunk",
+		"chunk", chunkIndex+1,
+		"tests_in_chunk", countTests(chunk.Files),
+	)
+
+	// Reindex tests within chunk to start from 0
+	reindexedFiles, indexMap := ReindexTests(chunk.Files)
+	chunkInput := specview.Phase1Input{
+		Files:    reindexedFiles,
+		Language: lang,
+	}
+
+	// Process chunk
+	output, usage, err := p.classifyDomainsSingle(ctx, chunkInput, lang, anchorDomains)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Restore original indices
+	RestoreIndices(output, indexMap)
+
+	slog.InfoContext(ctx, "chunk processing complete",
+		"chunk", chunkIndex+1,
+		"elapsed", time.Since(chunkStartTime).Round(time.Millisecond),
+	)
+
+	return output, usage, nil
 }
 
 // parsePhase1Response parses the JSON response into Phase1Output.
