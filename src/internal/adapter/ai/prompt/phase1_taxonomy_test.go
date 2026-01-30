@@ -43,8 +43,8 @@ func TestBuildTaxonomyUserPrompt_BasicFormat(t *testing.T) {
 	if !strings.Contains(prompt, "indices 0-1") {
 		t.Error("prompt should contain file index range")
 	}
-	if !strings.Contains(prompt, "EVERY FILE") {
-		t.Error("prompt should clarify that every FILE must be assigned")
+	if !strings.Contains(prompt, "EVERY file") {
+		t.Error("prompt should clarify that every file must be assigned")
 	}
 }
 

@@ -52,9 +52,9 @@ func BuildTaxonomyUserPrompt(input specview.TaxonomyInput) string {
 	sb.WriteString("</files>\n\n")
 
 	if totalFiles == 1 {
-		sb.WriteString("Total: 1 file (index 0). Assign this file to exactly one feature.")
+		sb.WriteString("Total: 1 file (index 0). Ensure this file appears in at least one feature.")
 	} else {
-		fmt.Fprintf(&sb, "Total: %d files (indices 0-%d). Assign EVERY FILE to exactly one feature.", totalFiles, totalFiles-1)
+		fmt.Fprintf(&sb, "Total: %d files (indices 0-%d). Ensure EVERY file appears in at least one feature. Files testing multiple concerns may appear in multiple features.", totalFiles, totalFiles-1)
 	}
 
 	return sb.String()

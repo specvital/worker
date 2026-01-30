@@ -81,7 +81,7 @@ func (p *Provider) extractTaxonomy(ctx context.Context, input specview.TaxonomyI
 	}
 
 	fileCount := len(input.Files)
-	if err := validateTaxonomy(ctx, output, fileCount); err != nil {
+	if err := validateTaxonomy(output, fileCount); err != nil {
 		slog.WarnContext(ctx, "taxonomy validation failed, adding missing files to Uncategorized",
 			"error", err,
 		)
@@ -126,8 +126,8 @@ func parseTaxonomyResponse(jsonStr string) (*specview.TaxonomyOutput, error) {
 }
 
 // validateTaxonomy checks if all file indices are covered by at least one feature.
-// Logs a warning for duplicate assignments but does not treat them as errors.
-func validateTaxonomy(ctx context.Context, output *specview.TaxonomyOutput, fileCount int) error {
+// Duplicate assignments (same file in multiple features) are allowed and expected.
+func validateTaxonomy(output *specview.TaxonomyOutput, fileCount int) error {
 	if output == nil || len(output.Domains) == 0 {
 		return fmt.Errorf("no domains in taxonomy output")
 	}
@@ -138,13 +138,6 @@ func validateTaxonomy(ctx context.Context, output *specview.TaxonomyOutput, file
 			for _, idx := range feature.FileIndices {
 				if idx < 0 || idx >= fileCount {
 					return fmt.Errorf("file index %d out of range [0, %d)", idx, fileCount)
-				}
-				if covered[idx] {
-					slog.WarnContext(ctx, "duplicate file index in taxonomy",
-						"index", idx,
-						"domain", domain.Name,
-						"feature", feature.Name,
-					)
 				}
 				covered[idx] = true
 			}

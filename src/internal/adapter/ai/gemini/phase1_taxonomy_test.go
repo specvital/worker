@@ -1,7 +1,6 @@
 package gemini
 
 import (
-	"context"
 	"testing"
 
 	"github.com/specvital/worker/internal/domain/specview"
@@ -203,9 +202,34 @@ func TestValidateTaxonomy_AllFilesCovered(t *testing.T) {
 		},
 	}
 
-	err := validateTaxonomy(context.Background(), output, 3)
+	err := validateTaxonomy(output, 3)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestValidateTaxonomy_DuplicateFileIndicesAllowed(t *testing.T) {
+	output := &specview.TaxonomyOutput{
+		Domains: []specview.TaxonomyDomain{
+			{
+				Name: "Auth",
+				Features: []specview.TaxonomyFeature{
+					{Name: "Login", FileIndices: []int{0, 1}},
+					{Name: "Session", FileIndices: []int{0}},
+				},
+			},
+			{
+				Name: "Security",
+				Features: []specview.TaxonomyFeature{
+					{Name: "Token", FileIndices: []int{1, 2}},
+				},
+			},
+		},
+	}
+
+	err := validateTaxonomy(output, 3)
+	if err != nil {
+		t.Errorf("unexpected error for duplicate file indices: %v", err)
 	}
 }
 
@@ -221,7 +245,7 @@ func TestValidateTaxonomy_MissingFiles(t *testing.T) {
 		},
 	}
 
-	err := validateTaxonomy(context.Background(), output, 3)
+	err := validateTaxonomy(output, 3)
 	if err == nil {
 		t.Error("expected error for missing files")
 	}
@@ -239,14 +263,14 @@ func TestValidateTaxonomy_IndexOutOfRange(t *testing.T) {
 		},
 	}
 
-	err := validateTaxonomy(context.Background(), output, 3)
+	err := validateTaxonomy(output, 3)
 	if err == nil {
 		t.Error("expected error for index out of range")
 	}
 }
 
 func TestValidateTaxonomy_NilOutput(t *testing.T) {
-	err := validateTaxonomy(context.Background(), nil, 3)
+	err := validateTaxonomy(nil, 3)
 	if err == nil {
 		t.Error("expected error for nil output")
 	}
@@ -264,7 +288,7 @@ func TestValidateTaxonomy_NegativeIndex(t *testing.T) {
 		},
 	}
 
-	err := validateTaxonomy(context.Background(), output, 3)
+	err := validateTaxonomy(output, 3)
 	if err == nil {
 		t.Error("expected error for negative index")
 	}

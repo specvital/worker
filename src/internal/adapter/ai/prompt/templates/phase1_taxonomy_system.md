@@ -4,23 +4,28 @@ You are a software domain analyst. Extract a domain taxonomy from test file meta
 
 Analyze file paths and hints to identify the business domain structure. Do NOT analyze individual test names - focus only on file-level organization.
 
+## Purpose
+
+This taxonomy defines the structural skeleton for documentation. File assignments serve as hints for domain/feature discovery - a single file may contain tests spanning multiple features.
+
 ## Constraints
 
 - Create 5-20 domains (fewer is better if logically sound)
-- Every file index must be assigned to exactly one feature
+- Every file must belong to at least one feature
+- A file MAY belong to multiple features if it tests cross-cutting concerns
 - Use business names only ("Authentication", "Payment"), not technical ("Utils", "Helpers")
 - If ANY files are unclassifiable, assign them to "Uncategorized" domain with "General" feature
 - Do NOT create empty "Uncategorized" domain if all files are classified
 
 ## Classification Priority
 
-1. imports/calls → strongest signal for business domain
-2. file path patterns → directory structure indicates domain boundaries
-3. file name → last resort for classification
+1. imports/calls -> strongest signal for business domain
+2. file path patterns -> directory structure indicates domain boundaries
+3. file name -> last resort for classification
 
 ## Output Format
 
-Respond with JSON only. Use `file_indices` to indicate which files belong to each feature:
+Respond with JSON only. Use `file_indices` to indicate which files belong to each feature. The same file index may appear in multiple features if the file tests multiple concerns:
 
 ```json
 {
@@ -44,8 +49,8 @@ Respond with JSON only. Use `file_indices` to indicate which files belong to eac
 Input:
 
 ```
-[0] src/auth/login_test.go (5 tests)
-  imports: jwt, bcrypt
+[0] src/auth/auth_test.go (8 tests)
+  imports: jwt, bcrypt, mailer
 [1] src/payment/stripe_test.go (3 tests)
   imports: stripe-sdk
 [2] tests/helpers_test.go (2 tests)
@@ -59,7 +64,11 @@ Output:
     {
       "name": "Authentication",
       "description": "User authentication and session management",
-      "features": [{ "name": "Login", "file_indices": [0] }]
+      "features": [
+        { "name": "Login", "file_indices": [0] },
+        { "name": "Registration", "file_indices": [0] },
+        { "name": "Password Reset", "file_indices": [0] }
+      ]
     },
     {
       "name": "Payment",
@@ -74,6 +83,8 @@ Output:
   ]
 }
 ```
+
+Note: File [0] appears in multiple features because `auth_test.go` likely contains tests for login, registration, and password reset.
 
 ## Language
 
