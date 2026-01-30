@@ -331,25 +331,3 @@ func TestClassifyDomains_V3Enabled_EmptyFiles_ReturnsError(t *testing.T) {
 	}
 }
 
-func TestClassifyDomains_V3Enabled_ReturnsStubError(t *testing.T) {
-	p := &Provider{
-		phase1V3Enabled: true,
-		phase1Model:     "test-model",
-	}
-
-	input := specview.Phase1Input{
-		Files: []specview.FileInfo{
-			{
-				Path: "test.go",
-				Tests: []specview.TestInfo{
-					{Index: 0, Name: "TestExample"},
-				},
-			},
-		},
-	}
-
-	_, _, err := p.classifyDomains(context.Background(), input, "Korean")
-	if err == nil {
-		t.Error("expected stub error for V3")
-	}
-}
