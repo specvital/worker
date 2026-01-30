@@ -58,6 +58,16 @@ func TestBuildAssignmentUserPrompt_IncludesTaxonomy(t *testing.T) {
 	if !strings.Contains(prompt, "</taxonomy>") {
 		t.Error("prompt should close taxonomy section")
 	}
+	// Check valid-pairs section is included
+	if !strings.Contains(prompt, "<valid-pairs>") {
+		t.Error("prompt should contain valid-pairs section")
+	}
+	if !strings.Contains(prompt, `"Authentication" / "Login"`) {
+		t.Error("prompt should list valid pairs with exact names")
+	}
+	if !strings.Contains(prompt, `"Uncategorized" / "General"`) {
+		t.Error("prompt should always include Uncategorized/General pair")
+	}
 }
 
 func TestBuildAssignmentUserPrompt_CompactFormat(t *testing.T) {

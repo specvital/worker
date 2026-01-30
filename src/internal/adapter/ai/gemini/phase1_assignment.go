@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sort"
+	"strings"
 
 	"github.com/specvital/worker/internal/adapter/ai/prompt"
 	"github.com/specvital/worker/internal/adapter/ai/reliability"
@@ -164,7 +165,7 @@ func validateAssignments(
 	hasInvalidPairs := false
 
 	for _, assignment := range output.Assignments {
-		pair := assignment.Domain + "/" + assignment.Feature
+		pair := normalizePairKey(assignment.Domain, assignment.Feature)
 		if !validPairs[pair] {
 			slog.WarnContext(ctx, "invalid domain/feature pair in assignment",
 				"domain", assignment.Domain,
@@ -210,10 +211,11 @@ func buildExpectedIndices(batch specview.AssignmentBatch) map[int]bool {
 }
 
 // buildValidPairs constructs a set of valid domain/feature pairs from taxonomy.
+// Uses normalized keys (lowercase, trimmed) to handle minor case/whitespace variations.
 // Always includes Uncategorized/General as a valid fallback pair.
 func buildValidPairs(taxonomy *specview.TaxonomyOutput) map[string]bool {
 	pairs := make(map[string]bool)
-	pairs[uncategorizedDomainName+"/"+uncategorizedFeatureName] = true
+	pairs[normalizePairKey(uncategorizedDomainName, uncategorizedFeatureName)] = true
 
 	if taxonomy == nil {
 		return pairs
@@ -221,11 +223,17 @@ func buildValidPairs(taxonomy *specview.TaxonomyOutput) map[string]bool {
 
 	for _, domain := range taxonomy.Domains {
 		for _, feature := range domain.Features {
-			pairs[domain.Name+"/"+feature.Name] = true
+			pairs[normalizePairKey(domain.Name, feature.Name)] = true
 		}
 	}
 
 	return pairs
+}
+
+// normalizePairKey creates a normalized key for domain/feature matching.
+// Handles minor case and whitespace variations from AI responses.
+func normalizePairKey(domain, feature string) string {
+	return strings.ToLower(strings.TrimSpace(domain)) + "/" + strings.ToLower(strings.TrimSpace(feature))
 }
 
 // recoverInvalidAssignments fixes invalid assignments by mapping them to Uncategorized.
@@ -243,7 +251,7 @@ func recoverInvalidAssignments(
 	var uncategorizedIndices []int
 
 	for _, assignment := range output.Assignments {
-		pair := assignment.Domain + "/" + assignment.Feature
+		pair := normalizePairKey(assignment.Domain, assignment.Feature)
 		isValid := validPairs[pair]
 
 		var validIndices []int

@@ -340,11 +340,12 @@ func TestBuildValidPairs(t *testing.T) {
 
 	pairs := buildValidPairs(taxonomy)
 
+	// Keys are normalized (lowercase)
 	expected := []string{
-		"Auth/Login",
-		"Auth/Logout",
-		"Payment/Checkout",
-		"Uncategorized/General",
+		"auth/login",
+		"auth/logout",
+		"payment/checkout",
+		"uncategorized/general",
 	}
 
 	for _, pair := range expected {
@@ -353,16 +354,17 @@ func TestBuildValidPairs(t *testing.T) {
 		}
 	}
 
-	if pairs["Auth/Invalid"] {
-		t.Error("unexpected pair 'Auth/Invalid' marked as valid")
+	if pairs["auth/invalid"] {
+		t.Error("unexpected pair 'auth/invalid' marked as valid")
 	}
 }
 
 func TestBuildValidPairs_NilTaxonomy(t *testing.T) {
 	pairs := buildValidPairs(nil)
 
-	if !pairs["Uncategorized/General"] {
-		t.Error("should always include Uncategorized/General")
+	// Key is normalized (lowercase)
+	if !pairs["uncategorized/general"] {
+		t.Error("should always include uncategorized/general")
 	}
 	if len(pairs) != 1 {
 		t.Errorf("expected only 1 pair for nil taxonomy, got %d", len(pairs))

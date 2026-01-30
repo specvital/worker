@@ -47,6 +47,28 @@ func writeTaxonomySection(sb *strings.Builder, taxonomy *specview.TaxonomyOutput
 	}
 
 	sb.WriteString("</taxonomy>\n\n")
+
+	// Write explicit valid pairs to prevent AI hallucination
+	writeValidPairs(sb, taxonomy)
+}
+
+// writeValidPairs explicitly lists all valid domain/feature combinations.
+// This prevents AI from inventing new feature names not in the taxonomy.
+func writeValidPairs(sb *strings.Builder, taxonomy *specview.TaxonomyOutput) {
+	sb.WriteString("<valid-pairs>\n")
+	sb.WriteString("Use ONLY these exact domain/feature combinations:\n")
+
+	pairNum := 1
+	for _, domain := range taxonomy.Domains {
+		for _, feature := range domain.Features {
+			fmt.Fprintf(sb, "%d. \"%s\" / \"%s\"\n", pairNum, domain.Name, feature.Name)
+			pairNum++
+		}
+	}
+
+	// Always include Uncategorized/General as valid
+	fmt.Fprintf(sb, "%d. \"Uncategorized\" / \"General\"\n", pairNum)
+	sb.WriteString("</valid-pairs>\n\n")
 }
 
 func writeTestsSection(sb *strings.Builder, batch specview.AssignmentBatch) {

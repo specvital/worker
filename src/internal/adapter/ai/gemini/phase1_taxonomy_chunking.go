@@ -13,8 +13,9 @@ import (
 
 const (
 	// taxonomyChunkSize is the maximum number of files per taxonomy extraction call.
-	// 400 files targets ~16K output tokens (25% of 65K limit) for safety margin.
-	taxonomyChunkSize = 400
+	// 300 files targets ~12K output tokens (18% of 65K limit) for larger safety margin.
+	// Reduced from 400 to prevent MAX_TOKENS truncation on complex codebases.
+	taxonomyChunkSize = 300
 
 	// taxonomyWaveSize limits concurrent taxonomy extraction calls.
 	// Lower than Stage 2 (waveSize=10) as Stage 1 is heavier.
