@@ -364,6 +364,7 @@ const (
 
 // validatePhase1Output validates the Phase 1 output against input.
 // Auto-assigns missing indices to "Uncategorized" domain instead of failing.
+// Filters out unexpected indices (out-of-range) with a warning.
 func validatePhase1Output(ctx context.Context, output *specview.Phase1Output, input specview.Phase1Input) error {
 	if output == nil || len(output.Domains) == 0 {
 		return fmt.Errorf("no domains in output")
@@ -377,23 +378,38 @@ func validatePhase1Output(ctx context.Context, output *specview.Phase1Output, in
 		}
 	}
 
-	// Collect all test indices from output
+	// Collect valid test indices from output, filtering out unexpected ones
 	coveredIndices := make(map[int]bool)
-	for _, domain := range output.Domains {
-		if domain.Name == "" {
+	var unexpectedIndices []int
+	for i := range output.Domains {
+		if output.Domains[i].Name == "" {
 			return fmt.Errorf("domain name is empty")
 		}
-		for _, feature := range domain.Features {
-			if feature.Name == "" {
-				return fmt.Errorf("feature name is empty in domain %q", domain.Name)
+		for j := range output.Domains[i].Features {
+			if output.Domains[i].Features[j].Name == "" {
+				return fmt.Errorf("feature name is empty in domain %q", output.Domains[i].Name)
 			}
-			for _, idx := range feature.TestIndices {
-				if !expectedIndices[idx] {
-					return fmt.Errorf("unexpected test index %d in feature %q", idx, feature.Name)
+			// Filter test indices, keeping only valid ones
+			validIndices := make([]int, 0, len(output.Domains[i].Features[j].TestIndices))
+			for _, idx := range output.Domains[i].Features[j].TestIndices {
+				if expectedIndices[idx] {
+					validIndices = append(validIndices, idx)
+					coveredIndices[idx] = true
+				} else {
+					unexpectedIndices = append(unexpectedIndices, idx)
 				}
-				coveredIndices[idx] = true
 			}
+			output.Domains[i].Features[j].TestIndices = validIndices
 		}
+	}
+
+	// Log warning if unexpected indices were found and filtered
+	if len(unexpectedIndices) > 0 {
+		sort.Ints(unexpectedIndices)
+		slog.WarnContext(ctx, "filtered out unexpected test indices from AI output",
+			"unexpected_indices", unexpectedIndices,
+			"expected_range", fmt.Sprintf("0-%d", len(expectedIndices)-1),
+		)
 	}
 
 	// Find missing indices
