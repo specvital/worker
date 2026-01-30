@@ -66,9 +66,10 @@ func mapJobState(state genai.JobState) BatchJobState {
 
 // BatchRequest represents a batch job request for Phase 1 classification.
 type BatchRequest struct {
-	AnalysisID string                    // Analysis ID for tracking
-	Model      string                    // Model name (e.g., "gemini-2.5-flash")
-	Requests   []*genai.InlinedRequest   // Inline requests for batch processing
+	AnalysisID string                  // Analysis ID for tracking
+	ChunkCount int                     // Number of chunks (0 or 1 = single request)
+	Model      string                  // Model name (e.g., "gemini-2.5-flash")
+	Requests   []*genai.InlinedRequest // Inline requests for batch processing
 }
 
 // BatchResult represents the result of a completed batch job.

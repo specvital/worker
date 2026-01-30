@@ -76,7 +76,8 @@ func ParseBatchResults(result *BatchResult) ([]ParseResult, error) {
 }
 
 // ParseClassificationResponse parses a batch result into a single ClassificationJobResult.
-// Expects exactly one response in the batch (single classification job).
+// Supports both single and chunked (multi-response) batch jobs.
+// For chunked jobs, responses are parsed and merged into a single Phase1Output.
 func ParseClassificationResponse(result *BatchResult) (*ClassificationJobResult, error) {
 	if result == nil {
 		return nil, errors.New("batch: nil result")
@@ -86,17 +87,31 @@ func ParseClassificationResponse(result *BatchResult) (*ClassificationJobResult,
 		return nil, ErrNoResponses
 	}
 
-	if len(result.Responses) > 1 {
-		return nil, fmt.Errorf("batch: expected 1 response, got %d", len(result.Responses))
+	// Single response case
+	if len(result.Responses) == 1 {
+		output, err := parseInlinedResponse(result.Responses[0])
+		if err != nil {
+			return nil, err
+		}
+		return &ClassificationJobResult{
+			Output:     output,
+			TokenUsage: result.TokenUsage,
+		}, nil
 	}
 
-	output, err := parseInlinedResponse(result.Responses[0])
-	if err != nil {
-		return nil, err
+	// Multiple responses (chunked) - parse each and merge
+	outputs := make([]*specview.Phase1Output, 0, len(result.Responses))
+	for i, resp := range result.Responses {
+		output, err := parseInlinedResponse(resp)
+		if err != nil {
+			return nil, fmt.Errorf("chunk %d: %w", i, err)
+		}
+		outputs = append(outputs, output)
 	}
 
+	merged := MergeChunkOutputs(outputs)
 	return &ClassificationJobResult{
-		Output:     output,
+		Output:     merged,
 		TokenUsage: result.TokenUsage,
 	}, nil
 }
@@ -128,12 +143,19 @@ func parseInlinedResponse(resp *genai.InlinedResponse) (*specview.Phase1Output, 
 
 // extractResponseText extracts text content from a GenerateContentResponse.
 // Concatenates all text parts as Batch API may split a single JSON across multiple parts.
+// Returns ErrResponseTruncated if the response was cut off due to MAX_TOKENS limit.
 func extractResponseText(resp *genai.GenerateContentResponse) (string, error) {
 	if resp == nil || len(resp.Candidates) == 0 {
 		return "", ErrEmptyResponse
 	}
 
 	candidate := resp.Candidates[0]
+
+	// Check for MAX_TOKENS truncation
+	if candidate.FinishReason == genai.FinishReasonMaxTokens {
+		return "", ErrResponseTruncated
+	}
+
 	if candidate.Content == nil || len(candidate.Content.Parts) == 0 {
 		return "", ErrEmptyResponse
 	}
@@ -320,6 +342,62 @@ func parsePhase1JSON(jsonStr string) (*specview.Phase1Output, error) {
 	}
 
 	return output, nil
+}
+
+// ErrResponseTruncated indicates the response was truncated due to MAX_TOKENS limit.
+var ErrResponseTruncated = errors.New("batch: response truncated (MAX_TOKENS limit reached)")
+
+// MergeChunkOutputs merges multiple Phase1Outputs from chunked requests into a single output.
+// Domains with the same name are merged, combining their features.
+func MergeChunkOutputs(outputs []*specview.Phase1Output) *specview.Phase1Output {
+	if len(outputs) == 0 {
+		return nil
+	}
+	if len(outputs) == 1 {
+		return outputs[0]
+	}
+
+	// Map domain name -> merged domain
+	domainMap := make(map[string]*specview.DomainGroup)
+	var domainOrder []string // preserve order
+
+	for _, output := range outputs {
+		if output == nil {
+			continue
+		}
+		for _, domain := range output.Domains {
+			existing, exists := domainMap[domain.Name]
+			if !exists {
+				// New domain - copy it
+				copied := specview.DomainGroup{
+					Confidence:  domain.Confidence,
+					Description: domain.Description,
+					Features:    make([]specview.FeatureGroup, len(domain.Features)),
+					Name:        domain.Name,
+				}
+				copy(copied.Features, domain.Features)
+				domainMap[domain.Name] = &copied
+				domainOrder = append(domainOrder, domain.Name)
+			} else {
+				// Existing domain - merge features
+				existing.Features = append(existing.Features, domain.Features...)
+				// Update confidence if higher
+				if domain.Confidence > existing.Confidence {
+					existing.Confidence = domain.Confidence
+				}
+			}
+		}
+	}
+
+	// Build result preserving order
+	result := &specview.Phase1Output{
+		Domains: make([]specview.DomainGroup, 0, len(domainOrder)),
+	}
+	for _, name := range domainOrder {
+		result.Domains = append(result.Domains, *domainMap[name])
+	}
+
+	return result
 }
 
 // ValidatePhase1Output validates the parsed output against expected test indices.

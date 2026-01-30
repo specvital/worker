@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"google.golang.org/genai"
+
+	"github.com/specvital/worker/internal/domain/specview"
 )
 
 func TestParseClassificationResponse(t *testing.T) {
@@ -100,19 +102,76 @@ func TestParseClassificationResponse(t *testing.T) {
 		}
 	})
 
-	t.Run("should return error for multiple responses", func(t *testing.T) {
+	t.Run("should merge multiple valid responses (chunked)", func(t *testing.T) {
+		// First chunk - Auth domain
+		chunk1JSON := `{
+			"domains": [
+				{
+					"name": "Authentication",
+					"description": "Auth domain",
+					"confidence": 0.9,
+					"features": [
+						{"name": "Login", "description": "Login feature", "confidence": 0.9, "test_indices": [0, 1]}
+					]
+				}
+			]
+		}`
+		// Second chunk - same domain, different feature
+		chunk2JSON := `{
+			"domains": [
+				{
+					"name": "Authentication",
+					"description": "Auth domain",
+					"confidence": 0.95,
+					"features": [
+						{"name": "Logout", "description": "Logout feature", "confidence": 0.85, "test_indices": [2, 3]}
+					]
+				}
+			]
+		}`
+
 		result := &BatchResult{
 			JobName: "test-job",
 			State:   JobStateSucceeded,
 			Responses: []*genai.InlinedResponse{
-				{Response: &genai.GenerateContentResponse{}},
-				{Response: &genai.GenerateContentResponse{}},
+				{
+					Response: &genai.GenerateContentResponse{
+						Candidates: []*genai.Candidate{
+							{Content: &genai.Content{Parts: []*genai.Part{{Text: chunk1JSON}}}},
+						},
+					},
+				},
+				{
+					Response: &genai.GenerateContentResponse{
+						Candidates: []*genai.Candidate{
+							{Content: &genai.Content{Parts: []*genai.Part{{Text: chunk2JSON}}}},
+						},
+					},
+				},
 			},
 		}
 
-		_, err := ParseClassificationResponse(result)
-		if err == nil {
-			t.Error("expected error for multiple responses")
+		output, err := ParseClassificationResponse(result)
+		if err != nil {
+			t.Fatalf("ParseClassificationResponse() error = %v", err)
+		}
+
+		// Should merge into single domain with 2 features
+		if len(output.Output.Domains) != 1 {
+			t.Errorf("len(Domains) = %d, expected 1 (merged)", len(output.Output.Domains))
+		}
+
+		domain := output.Output.Domains[0]
+		if domain.Name != "Authentication" {
+			t.Errorf("Domain.Name = %q, expected %q", domain.Name, "Authentication")
+		}
+		// Should have higher confidence from chunk2
+		if domain.Confidence != 0.95 {
+			t.Errorf("Domain.Confidence = %v, expected 0.95 (higher value)", domain.Confidence)
+		}
+		// Should have both features merged
+		if len(domain.Features) != 2 {
+			t.Errorf("len(Features) = %d, expected 2", len(domain.Features))
 		}
 	})
 }
@@ -725,6 +784,101 @@ func TestParsePhase1JSONWithTrailingCommas(t *testing.T) {
 
 		if len(output.Domains[0].Features[0].TestIndices) != 3 {
 			t.Errorf("len(TestIndices) = %d, expected 3", len(output.Domains[0].Features[0].TestIndices))
+		}
+	})
+}
+
+func TestMergeChunkOutputs(t *testing.T) {
+	t.Run("should merge domains with same name", func(t *testing.T) {
+		chunk1, _ := parsePhase1JSON(`{
+			"domains": [
+				{"name": "Auth", "description": "Auth domain", "confidence": 0.9,
+				 "features": [{"name": "Login", "description": "Login", "confidence": 0.9, "test_indices": [0, 1]}]}
+			]
+		}`)
+		chunk2, _ := parsePhase1JSON(`{
+			"domains": [
+				{"name": "Auth", "description": "Auth domain", "confidence": 0.95,
+				 "features": [{"name": "Logout", "description": "Logout", "confidence": 0.85, "test_indices": [2, 3]}]}
+			]
+		}`)
+
+		merged := MergeChunkOutputs([]*specview.Phase1Output{chunk1, chunk2})
+
+		if len(merged.Domains) != 1 {
+			t.Fatalf("len(Domains) = %d, expected 1 (merged)", len(merged.Domains))
+		}
+
+		domain := merged.Domains[0]
+		if domain.Name != "Auth" {
+			t.Errorf("Domain.Name = %q, expected %q", domain.Name, "Auth")
+		}
+		if domain.Confidence != 0.95 {
+			t.Errorf("Domain.Confidence = %v, expected 0.95 (higher)", domain.Confidence)
+		}
+		if len(domain.Features) != 2 {
+			t.Errorf("len(Features) = %d, expected 2", len(domain.Features))
+		}
+	})
+
+	t.Run("should preserve separate domains", func(t *testing.T) {
+		chunk1, _ := parsePhase1JSON(`{
+			"domains": [
+				{"name": "Auth", "description": "Auth", "confidence": 0.9, "features": []}
+			]
+		}`)
+		chunk2, _ := parsePhase1JSON(`{
+			"domains": [
+				{"name": "Payment", "description": "Payment", "confidence": 0.85, "features": []}
+			]
+		}`)
+
+		merged := MergeChunkOutputs([]*specview.Phase1Output{chunk1, chunk2})
+
+		if len(merged.Domains) != 2 {
+			t.Fatalf("len(Domains) = %d, expected 2", len(merged.Domains))
+		}
+		if merged.Domains[0].Name != "Auth" {
+			t.Errorf("Domains[0].Name = %q, expected %q", merged.Domains[0].Name, "Auth")
+		}
+		if merged.Domains[1].Name != "Payment" {
+			t.Errorf("Domains[1].Name = %q, expected %q", merged.Domains[1].Name, "Payment")
+		}
+	})
+
+	t.Run("should return nil for empty input", func(t *testing.T) {
+		merged := MergeChunkOutputs(nil)
+		if merged != nil {
+			t.Error("expected nil for empty input")
+		}
+	})
+
+	t.Run("should return single output as-is", func(t *testing.T) {
+		single, _ := parsePhase1JSON(`{"domains": [{"name": "Test", "description": "Test", "confidence": 0.9, "features": []}]}`)
+		merged := MergeChunkOutputs([]*specview.Phase1Output{single})
+
+		if merged != single {
+			t.Error("expected same reference for single input")
+		}
+	})
+}
+
+func TestExtractResponseTextMaxTokens(t *testing.T) {
+	t.Run("should return error for MAX_TOKENS truncation", func(t *testing.T) {
+		resp := &genai.GenerateContentResponse{
+			Candidates: []*genai.Candidate{
+				{
+					FinishReason: genai.FinishReasonMaxTokens,
+					Content: &genai.Content{
+						Parts: []*genai.Part{{Text: `{"domains":[`}},
+					},
+				},
+			},
+		}
+
+		_, err := extractResponseText(resp)
+		if !errors.Is(err, ErrResponseTruncated) {
+			t.Errorf("error = %v, want ErrResponseTruncated", err)
 		}
 	})
 }
