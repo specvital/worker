@@ -37,10 +37,19 @@ type phase1Feature struct {
 }
 
 // classifyDomains performs Phase 1: domain and feature classification.
-// Routes to V2 two-stage architecture or legacy chunked processing based on feature flag.
+// Routes to V3 sequential batch, V2 two-stage, or legacy chunked processing based on feature flags.
+// Priority: V3 > V2 > V1 (Legacy)
 func (p *Provider) classifyDomains(ctx context.Context, input specview.Phase1Input, lang specview.Language) (*specview.Phase1Output, *specview.TokenUsage, error) {
 	if len(input.Files) == 0 {
 		return nil, nil, fmt.Errorf("%w: no files to classify", specview.ErrInvalidInput)
+	}
+
+	if p.phase1V3Enabled {
+		slog.InfoContext(ctx, "routing to phase 1 v3 sequential batch architecture",
+			"file_count", len(input.Files),
+			"test_count", countTests(input.Files),
+		)
+		return p.classifyDomainsV3(ctx, input, lang)
 	}
 
 	if p.phase1V2Enabled {
@@ -325,4 +334,11 @@ func truncateForLog(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen] + "..."
+}
+
+// classifyDomainsV3 performs Phase 1 V3: sequential batch classification.
+// Stub implementation - will be replaced with actual logic in subsequent commits.
+func (p *Provider) classifyDomainsV3(ctx context.Context, input specview.Phase1Input, lang specview.Language) (*specview.Phase1Output, *specview.TokenUsage, error) {
+	slog.WarnContext(ctx, "phase 1 v3 not yet implemented, returning stub error")
+	return nil, nil, fmt.Errorf("%w: phase 1 v3 not yet implemented", specview.ErrAIUnavailable)
 }

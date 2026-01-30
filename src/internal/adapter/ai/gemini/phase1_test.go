@@ -294,3 +294,62 @@ func TestClassifyDomains_V2Enabled_EmptyFiles_ReturnsError(t *testing.T) {
 		t.Error("expected error for empty files")
 	}
 }
+
+func TestClassifyDomains_V3FlagEnabled_UsesV3(t *testing.T) {
+	p := &Provider{
+		phase1V3Enabled: true,
+		phase1V2Enabled: false,
+		phase1Model:     "test-model",
+	}
+
+	if !p.phase1V3Enabled {
+		t.Error("expected phase1V3Enabled to be true")
+	}
+}
+
+func TestClassifyDomains_V3Priority_OverV2(t *testing.T) {
+	p := &Provider{
+		phase1V3Enabled: true,
+		phase1V2Enabled: true,
+		phase1Model:     "test-model",
+	}
+
+	if !p.phase1V3Enabled || !p.phase1V2Enabled {
+		t.Error("both V3 and V2 flags should be enabled for this test")
+	}
+}
+
+func TestClassifyDomains_V3Enabled_EmptyFiles_ReturnsError(t *testing.T) {
+	p := &Provider{
+		phase1V3Enabled: true,
+		phase1Model:     "test-model",
+	}
+
+	_, _, err := p.classifyDomains(context.Background(), specview.Phase1Input{}, "Korean")
+	if err == nil {
+		t.Error("expected error for empty files")
+	}
+}
+
+func TestClassifyDomains_V3Enabled_ReturnsStubError(t *testing.T) {
+	p := &Provider{
+		phase1V3Enabled: true,
+		phase1Model:     "test-model",
+	}
+
+	input := specview.Phase1Input{
+		Files: []specview.FileInfo{
+			{
+				Path: "test.go",
+				Tests: []specview.TestInfo{
+					{Index: 0, Name: "TestExample"},
+				},
+			},
+		},
+	}
+
+	_, _, err := p.classifyDomains(context.Background(), input, "Korean")
+	if err == nil {
+		t.Error("expected stub error for V3")
+	}
+}

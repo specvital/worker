@@ -36,6 +36,7 @@ func main() {
 		GeminiPhase2Model: cfg.GeminiPhase2Model,
 		MockMode:          cfg.MockMode,
 		Phase1V2Enabled:   cfg.Phase1V2Enabled,
+		Phase1V3Enabled:   cfg.Phase1V3Enabled,
 		QueueWorkers:      cfg.Queue.Specgen,
 	}); err != nil {
 		slog.Error("spec-generator failed", "error", err)

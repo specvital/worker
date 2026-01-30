@@ -28,6 +28,7 @@ type Config struct {
 	APIKey          string
 	Phase1Model     string // Model for domain classification (default: gemini-2.5-flash)
 	Phase1V2Enabled bool   // Enable Phase 1 V2 two-stage architecture
+	Phase1V3Enabled bool   // Enable Phase 1 V3 sequential batch architecture
 	Phase2Model     string // Model for test conversion (default: gemini-2.5-flash-lite)
 }
 
@@ -44,6 +45,7 @@ type Provider struct {
 	client          *genai.Client
 	phase1Model     string
 	phase1V2Enabled bool
+	phase1V3Enabled bool
 	phase2Model     string
 	taxonomyCache   *TaxonomyCache
 
@@ -78,7 +80,9 @@ func NewProvider(ctx context.Context, config Config) (*Provider, error) {
 		phase2Model = defaultPhase2Model
 	}
 
-	if config.Phase1V2Enabled {
+	if config.Phase1V3Enabled {
+		slog.InfoContext(ctx, "phase1 v3 sequential batch architecture enabled")
+	} else if config.Phase1V2Enabled {
 		slog.InfoContext(ctx, "phase1 v2 two-stage architecture enabled")
 	}
 
@@ -86,6 +90,7 @@ func NewProvider(ctx context.Context, config Config) (*Provider, error) {
 		client:          client,
 		phase1Model:     phase1Model,
 		phase1V2Enabled: config.Phase1V2Enabled,
+		phase1V3Enabled: config.Phase1V3Enabled,
 		phase2Model:     phase2Model,
 		taxonomyCache:   NewTaxonomyCache(),
 		rateLimiter:     reliability.GetGlobalRateLimiter(),
