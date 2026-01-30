@@ -247,8 +247,10 @@ func (p *Provider) classifyDomainsChunked(ctx context.Context, input specview.Ph
 
 // processWave processes multiple chunks in parallel within a single wave.
 // Returns results in chunk order for consistent merging.
+// Uses parent context directly to prevent context cancellation from propagating
+// between goroutines - one chunk's failure should not cancel other chunks' API calls.
 func (p *Provider) processWave(ctx context.Context, chunks []ChunkedInput, baseIndex int, lang specview.Language, anchorDomains []specview.DomainGroup) ([]chunkResult, error) {
-	g, gctx := errgroup.WithContext(ctx)
+	g := new(errgroup.Group)
 	g.SetLimit(waveConcurrency)
 
 	results := make([]chunkResult, len(chunks))
@@ -258,7 +260,9 @@ func (p *Provider) processWave(ctx context.Context, chunks []ChunkedInput, baseI
 		chunkIndex := baseIndex + i
 
 		g.Go(func() error {
-			output, usage, err := p.processChunk(gctx, chunk, chunkIndex, lang, anchorDomains)
+			// Use parent ctx directly, not errgroup's derived context
+			// This prevents one chunk's failure from canceling other chunks' API calls
+			output, usage, err := p.processChunk(ctx, chunk, chunkIndex, lang, anchorDomains)
 			if err != nil {
 				return fmt.Errorf("chunk %d failed: %w", chunkIndex+1, err)
 			}
