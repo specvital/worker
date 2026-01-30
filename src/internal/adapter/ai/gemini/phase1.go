@@ -5,20 +5,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"sort"
-	"sync"
 	"time"
 
 	"github.com/specvital/worker/internal/adapter/ai/prompt"
 	"github.com/specvital/worker/internal/adapter/ai/reliability"
 	"github.com/specvital/worker/internal/domain/specview"
-	"golang.org/x/sync/errgroup"
 )
 
 const (
-	// waveConcurrency is the number of chunks processed in parallel per wave.
-	// Kept at 5 to stay within Gemini rate limits while maximizing throughput.
-	waveConcurrency = 5
+	// interChunkDelay is the delay between chunk API calls to avoid rate limiting.
+	interChunkDelay = 5 * time.Second
 )
 
 // phase1Response represents the expected JSON response from Phase 1.
@@ -106,16 +102,8 @@ func (p *Provider) classifyDomainsSingle(ctx context.Context, input specview.Pha
 	return output, usage, nil
 }
 
-// chunkResult holds the result of processing a single chunk.
-type chunkResult struct {
-	index  int
-	output *specview.Phase1Output
-	usage  *specview.TokenUsage
-}
-
 // classifyDomainsChunked handles Phase 1 classification for large inputs.
-// Uses wave parallel processing: first chunk establishes anchors, remaining chunks
-// are processed in parallel waves of waveConcurrency chunks each.
+// Splits input into chunks and processes sequentially with anchor domain propagation.
 // Supports resumption from cached progress on job retry.
 func (p *Provider) classifyDomainsChunked(ctx context.Context, input specview.Phase1Input, lang specview.Language, config ChunkConfig) (*specview.Phase1Output, *specview.TokenUsage, error) {
 	chunks := SplitIntoChunks(input.Files, config)
@@ -149,87 +137,78 @@ func (p *Provider) classifyDomainsChunked(ctx context.Context, input specview.Ph
 			"remaining_chunks", len(chunks)-startChunk,
 		)
 	} else {
-		slog.InfoContext(ctx, "processing phase 1 in chunks with wave parallelism",
+		slog.InfoContext(ctx, "processing phase 1 in chunks",
 			"total_chunks", len(chunks),
 			"total_tests", countTests(input.Files),
-			"wave_concurrency", waveConcurrency,
 		)
 	}
 
-	// Process first chunk sequentially to establish anchor domains (if not resuming)
-	if startChunk == 0 && len(chunks) > 0 {
-		output, usage, err := p.processChunk(ctx, chunks[0], 0, lang, nil)
-		if err != nil {
-			return nil, nil, fmt.Errorf("anchor chunk failed: %w", err)
-		}
+	for i := startChunk; i < len(chunks); i++ {
+		chunk := chunks[i]
 
-		allOutputs = append(allOutputs, output)
-		anchorDomains = output.Domains
-		if usage != nil {
-			totalUsage.CandidatesTokens += usage.CandidatesTokens
-			totalUsage.PromptTokens += usage.PromptTokens
-			totalUsage.TotalTokens += usage.TotalTokens
-		}
-		startChunk = 1
-	}
-
-	// Process remaining chunks in parallel waves
-	for waveStart := startChunk; waveStart < len(chunks); waveStart += waveConcurrency {
-		waveEnd := min(waveStart+waveConcurrency, len(chunks))
-		waveNum := (waveStart / waveConcurrency) + 1
-		totalWaves := (len(chunks) + waveConcurrency - 1) / waveConcurrency
-
-		slog.InfoContext(ctx, "starting wave",
-			"wave", waveNum,
-			"total_waves", totalWaves,
-			"chunks_in_wave", waveEnd-waveStart,
-			"chunk_range", fmt.Sprintf("%d-%d", waveStart+1, waveEnd),
+		slog.InfoContext(ctx, "processing chunk",
+			"chunk", i+1,
+			"total_chunks", len(chunks),
+			"tests_in_chunk", countTests(chunk.Files),
 		)
 
-		waveStartTime := time.Now()
-		waveResults, err := p.processWave(ctx, chunks[waveStart:waveEnd], waveStart, lang, anchorDomains)
+		// Reindex tests within chunk to start from 0
+		reindexedFiles, indexMap := ReindexTests(chunk.Files)
+		chunkInput := specview.Phase1Input{
+			Files:    reindexedFiles,
+			Language: lang,
+		}
+
+		// Process chunk
+		output, usage, err := p.classifyDomainsSingle(ctx, chunkInput, lang, anchorDomains)
 		if err != nil {
 			// Save progress before returning error for potential retry
 			if len(allOutputs) > 0 {
 				cache.Save(cacheKey, &ChunkProgress{
 					AnchorDomains:    anchorDomains,
-					CompletedChunks:  waveStart,
+					CompletedChunks:  i,
 					CompletedOutputs: allOutputs,
 					TotalChunks:      len(chunks),
 					TotalUsage:       totalUsage,
 				})
 				slog.InfoContext(ctx, "saved chunk progress for retry",
-					"completed_chunks", waveStart,
+					"completed_chunks", i,
 					"total_chunks", len(chunks),
 				)
 			}
-			return nil, nil, err
+			return nil, nil, fmt.Errorf("chunk %d/%d failed: %w", i+1, len(chunks), err)
 		}
 
-		// Collect wave results and update totals
-		for _, result := range waveResults {
-			allOutputs = append(allOutputs, result.output)
-			if result.usage != nil {
-				totalUsage.CandidatesTokens += result.usage.CandidatesTokens
-				totalUsage.PromptTokens += result.usage.PromptTokens
-				totalUsage.TotalTokens += result.usage.TotalTokens
+		// Restore original indices
+		RestoreIndices(output, indexMap)
+
+		// Accumulate results
+		allOutputs = append(allOutputs, output)
+		if usage != nil {
+			totalUsage.CandidatesTokens += usage.CandidatesTokens
+			totalUsage.PromptTokens += usage.PromptTokens
+			totalUsage.TotalTokens += usage.TotalTokens
+		}
+
+		// Update anchor domains incrementally (avoid quadratic complexity)
+		if len(anchorDomains) == 0 {
+			anchorDomains = output.Domains
+		} else {
+			merged := MergePhase1Outputs([]*specview.Phase1Output{
+				{Domains: anchorDomains},
+				output,
+			})
+			anchorDomains = merged.Domains
+		}
+
+		// Delay between chunks to avoid rate limiting (except after last chunk)
+		if i < len(chunks)-1 {
+			select {
+			case <-ctx.Done():
+				return nil, nil, ctx.Err()
+			case <-time.After(interChunkDelay):
 			}
 		}
-
-		// Merge anchor domains after wave completes
-		waveOutputs := make([]*specview.Phase1Output, len(waveResults)+1)
-		waveOutputs[0] = &specview.Phase1Output{Domains: anchorDomains}
-		for i, result := range waveResults {
-			waveOutputs[i+1] = result.output
-		}
-		merged := MergePhase1Outputs(waveOutputs)
-		anchorDomains = merged.Domains
-
-		slog.InfoContext(ctx, "wave complete",
-			"wave", waveNum,
-			"elapsed", time.Since(waveStartTime).Round(time.Millisecond),
-			"domains_after_merge", len(anchorDomains),
-		)
 	}
 
 	// Clear cache on successful completion
@@ -243,80 +222,6 @@ func (p *Provider) classifyDomainsChunked(ctx context.Context, input specview.Ph
 	)
 
 	return mergedOutput, totalUsage, nil
-}
-
-// processWave processes multiple chunks in parallel within a single wave.
-// Returns results in chunk order for consistent merging.
-// Uses parent context directly to prevent context cancellation from propagating
-// between goroutines - one chunk's failure should not cancel other chunks' API calls.
-func (p *Provider) processWave(ctx context.Context, chunks []ChunkedInput, baseIndex int, lang specview.Language, anchorDomains []specview.DomainGroup) ([]chunkResult, error) {
-	g := new(errgroup.Group)
-	g.SetLimit(waveConcurrency)
-
-	results := make([]chunkResult, len(chunks))
-	var mu sync.Mutex
-
-	for i, chunk := range chunks {
-		chunkIndex := baseIndex + i
-
-		g.Go(func() error {
-			// Use parent ctx directly, not errgroup's derived context
-			// This prevents one chunk's failure from canceling other chunks' API calls
-			output, usage, err := p.processChunk(ctx, chunk, chunkIndex, lang, anchorDomains)
-			if err != nil {
-				return fmt.Errorf("chunk %d failed: %w", chunkIndex+1, err)
-			}
-
-			mu.Lock()
-			results[i] = chunkResult{
-				index:  chunkIndex,
-				output: output,
-				usage:  usage,
-			}
-			mu.Unlock()
-
-			return nil
-		})
-	}
-
-	if err := g.Wait(); err != nil {
-		return nil, err
-	}
-
-	return results, nil
-}
-
-// processChunk processes a single chunk and returns the result with restored indices.
-func (p *Provider) processChunk(ctx context.Context, chunk ChunkedInput, chunkIndex int, lang specview.Language, anchorDomains []specview.DomainGroup) (*specview.Phase1Output, *specview.TokenUsage, error) {
-	chunkStartTime := time.Now()
-
-	slog.InfoContext(ctx, "processing chunk",
-		"chunk", chunkIndex+1,
-		"tests_in_chunk", countTests(chunk.Files),
-	)
-
-	// Reindex tests within chunk to start from 0
-	reindexedFiles, indexMap := ReindexTests(chunk.Files)
-	chunkInput := specview.Phase1Input{
-		Files:    reindexedFiles,
-		Language: lang,
-	}
-
-	// Process chunk
-	output, usage, err := p.classifyDomainsSingle(ctx, chunkInput, lang, anchorDomains)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// Restore original indices
-	RestoreIndices(output, indexMap)
-
-	slog.InfoContext(ctx, "chunk processing complete",
-		"chunk", chunkIndex+1,
-		"elapsed", time.Since(chunkStartTime).Round(time.Millisecond),
-	)
-
-	return output, usage, nil
 }
 
 // parsePhase1Response parses the JSON response into Phase1Output.
@@ -354,21 +259,7 @@ func parsePhase1Response(jsonStr string) (*specview.Phase1Output, error) {
 	return output, nil
 }
 
-const (
-	// uncategorizedDomainName is the domain name for auto-recovered missing indices.
-	uncategorizedDomainName = "Uncategorized"
-
-	// uncategorizedFeatureName is the feature name for auto-recovered missing indices.
-	uncategorizedFeatureName = "Uncategorized Tests"
-
-	// missingIndexWarningThreshold is the percentage of missing indices that triggers a warning.
-	// If more than 5% of indices are missing, a warning is logged.
-	missingIndexWarningThreshold = 0.05
-)
-
 // validatePhase1Output validates the Phase 1 output against input.
-// Auto-assigns missing indices to "Uncategorized" domain instead of failing.
-// Filters out unexpected indices (out-of-range) with a warning.
 func validatePhase1Output(ctx context.Context, output *specview.Phase1Output, input specview.Phase1Input) error {
 	if output == nil || len(output.Domains) == 0 {
 		return fmt.Errorf("no domains in output")
@@ -382,115 +273,37 @@ func validatePhase1Output(ctx context.Context, output *specview.Phase1Output, in
 		}
 	}
 
-	// Collect valid test indices from output, filtering out unexpected ones
+	// Collect all test indices from output
 	coveredIndices := make(map[int]bool)
-	var unexpectedIndices []int
-	for i := range output.Domains {
-		if output.Domains[i].Name == "" {
+	for _, domain := range output.Domains {
+		if domain.Name == "" {
 			return fmt.Errorf("domain name is empty")
 		}
-		for j := range output.Domains[i].Features {
-			if output.Domains[i].Features[j].Name == "" {
-				return fmt.Errorf("feature name is empty in domain %q", output.Domains[i].Name)
+		for _, feature := range domain.Features {
+			if feature.Name == "" {
+				return fmt.Errorf("feature name is empty in domain %q", domain.Name)
 			}
-			// Filter test indices, keeping only valid ones
-			validIndices := make([]int, 0, len(output.Domains[i].Features[j].TestIndices))
-			for _, idx := range output.Domains[i].Features[j].TestIndices {
-				if expectedIndices[idx] {
-					validIndices = append(validIndices, idx)
-					coveredIndices[idx] = true
-				} else {
-					unexpectedIndices = append(unexpectedIndices, idx)
+			for _, idx := range feature.TestIndices {
+				if !expectedIndices[idx] {
+					return fmt.Errorf("unexpected test index %d in feature %q", idx, feature.Name)
 				}
+				coveredIndices[idx] = true
 			}
-			output.Domains[i].Features[j].TestIndices = validIndices
 		}
 	}
 
-	// Log warning if unexpected indices were found and filtered
-	if len(unexpectedIndices) > 0 {
-		sort.Ints(unexpectedIndices)
-		slog.WarnContext(ctx, "filtered out unexpected test indices from AI output",
-			"unexpected_indices", unexpectedIndices,
-			"expected_range", fmt.Sprintf("0-%d", len(expectedIndices)-1),
+	// Check coverage
+	if len(coveredIndices) < len(expectedIndices) {
+		missing := len(expectedIndices) - len(coveredIndices)
+		// Log warning but don't fail
+		slog.WarnContext(ctx, "phase 1 output missing test indices",
+			"expected", len(expectedIndices),
+			"covered", len(coveredIndices),
+			"missing", missing,
 		)
 	}
 
-	// Find missing indices
-	var missingIndices []int
-	for idx := range expectedIndices {
-		if !coveredIndices[idx] {
-			missingIndices = append(missingIndices, idx)
-		}
-	}
-
-	// Auto-recover missing indices by assigning to Uncategorized domain
-	if len(missingIndices) > 0 {
-		sort.Ints(missingIndices)
-		missingRatio := float64(len(missingIndices)) / float64(len(expectedIndices))
-
-		// Log warning if more than threshold are missing
-		if missingRatio > missingIndexWarningThreshold {
-			slog.WarnContext(ctx, "significant portion of test indices missing, auto-recovering",
-				"expected", len(expectedIndices),
-				"covered", len(coveredIndices),
-				"missing", len(missingIndices),
-				"missing_ratio", fmt.Sprintf("%.1f%%", missingRatio*100),
-			)
-		} else {
-			slog.InfoContext(ctx, "auto-recovering missing test indices",
-				"missing_count", len(missingIndices),
-			)
-		}
-
-		// Add missing indices to Uncategorized domain
-		addUncategorizedDomain(output, missingIndices)
-	}
-
 	return nil
-}
-
-// addUncategorizedDomain adds missing indices to the Uncategorized domain.
-// If the domain already exists, appends to its feature; otherwise creates it.
-func addUncategorizedDomain(output *specview.Phase1Output, missingIndices []int) {
-	// Look for existing Uncategorized domain
-	for i := range output.Domains {
-		if output.Domains[i].Name == uncategorizedDomainName {
-			// Find existing Uncategorized Tests feature or add new one
-			for j := range output.Domains[i].Features {
-				if output.Domains[i].Features[j].Name == uncategorizedFeatureName {
-					output.Domains[i].Features[j].TestIndices = append(
-						output.Domains[i].Features[j].TestIndices,
-						missingIndices...,
-					)
-					return
-				}
-			}
-			// Uncategorized domain exists but no Uncategorized Tests feature
-			output.Domains[i].Features = append(output.Domains[i].Features, specview.FeatureGroup{
-				Confidence:  0.5,
-				Description: "Tests that could not be classified by AI",
-				Name:        uncategorizedFeatureName,
-				TestIndices: missingIndices,
-			})
-			return
-		}
-	}
-
-	// Create new Uncategorized domain
-	output.Domains = append(output.Domains, specview.DomainGroup{
-		Confidence:  0.5,
-		Description: "Tests that could not be classified by AI",
-		Name:        uncategorizedDomainName,
-		Features: []specview.FeatureGroup{
-			{
-				Confidence:  0.5,
-				Description: "Tests that could not be classified by AI",
-				Name:        uncategorizedFeatureName,
-				TestIndices: missingIndices,
-			},
-		},
-	})
 }
 
 // truncateForLog truncates a string for logging purposes.

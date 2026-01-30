@@ -6,14 +6,14 @@ import (
 
 const (
 	// MaxTokensPerChunk is the maximum estimated tokens per API call.
-	// Keep under 25K for reliable <60s responses (avoiding 504 DEADLINE_EXCEEDED).
-	// Reduced from 50K to provide more safety margin for large repositories.
-	MaxTokensPerChunk = 25_000
+	// Keep under 50K for reliable <60s responses (avoiding 504 DEADLINE_EXCEEDED).
+	// At 40 tokens/test, 1K tests = 40K tokens, leaving margin for prompt.
+	MaxTokensPerChunk = 50_000
 
 	// MaxTestsPerChunk is the maximum number of tests per chunk.
-	// Reduced from 500 to 250 to minimize timeout risk.
-	// 250 tests ≈ 10K input tokens + output ≈ 10-15s processing time.
-	MaxTestsPerChunk = 250
+	// Reduced to 500 to ensure reliable API responses within timeout limits.
+	// 500 tests ≈ 20K input tokens + output ≈ 15-25s processing time.
+	MaxTestsPerChunk = 500
 
 	// tokensPerTest is the estimated tokens per test (name + metadata).
 	tokensPerTest = 40
@@ -169,10 +169,8 @@ type domainAccumulator struct {
 	confidenceCount int
 }
 
-
 // MergePhase1Outputs merges multiple Phase1Output results into one.
 // Domains with the same name are merged, their features are combined.
-// Uncategorized domain is always placed last in the output.
 func MergePhase1Outputs(outputs []*specview.Phase1Output) *specview.Phase1Output {
 	if len(outputs) == 0 {
 		return &specview.Phase1Output{}
@@ -211,27 +209,14 @@ func MergePhase1Outputs(outputs []*specview.Phase1Output) *specview.Phase1Output
 	}
 
 	// Build result preserving order with correct confidence averages
-	// Uncategorized domain is moved to the end
 	result := &specview.Phase1Output{
 		Domains: make([]specview.DomainGroup, 0, len(domainOrder)),
 	}
 
-	var uncategorizedAcc *domainAccumulator
 	for _, name := range domainOrder {
 		acc := domainMap[name]
 		acc.domain.Confidence = acc.confidenceSum / float64(acc.confidenceCount)
-
-		// Defer Uncategorized domain to the end
-		if name == uncategorizedDomainName {
-			uncategorizedAcc = acc
-			continue
-		}
 		result.Domains = append(result.Domains, acc.domain)
-	}
-
-	// Add Uncategorized domain at the end if exists
-	if uncategorizedAcc != nil {
-		result.Domains = append(result.Domains, uncategorizedAcc.domain)
 	}
 
 	return result
