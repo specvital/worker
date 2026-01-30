@@ -42,13 +42,6 @@ type FairnessConfig struct {
 	SnoozeJitter              time.Duration
 }
 
-// SpecViewConfig defines Batch API settings for SpecView generation.
-type SpecViewConfig struct {
-	BatchPollInterval time.Duration
-	BatchThreshold    int
-	UseBatchAPI       bool
-}
-
 type Config struct {
 	DatabaseURL       string
 	EncryptionKey     string
@@ -58,7 +51,6 @@ type Config struct {
 	GeminiPhase2Model string
 	MockMode          bool
 	Queue             QueueConfig
-	SpecView          SpecViewConfig
 }
 
 func Load() (*Config, error) {
@@ -81,7 +73,6 @@ func Load() (*Config, error) {
 		GeminiPhase2Model: os.Getenv("GEMINI_PHASE2_MODEL"),
 		MockMode:          os.Getenv("MOCK_MODE") == "true",
 		Queue:             loadQueueConfig(),
-		SpecView:          loadSpecViewConfig(),
 	}, nil
 }
 
@@ -131,16 +122,6 @@ func loadFairnessConfig() FairnessConfig {
 	}
 
 	return cfg
-}
-
-// loadSpecViewConfig loads SpecView Batch API settings from environment variables.
-// Defaults: USE_BATCH_API=false, BATCH_THRESHOLD=10000, BATCH_POLL_INTERVAL=30s
-func loadSpecViewConfig() SpecViewConfig {
-	return SpecViewConfig{
-		BatchPollInterval: getEnvDuration("SPECVIEW_BATCH_POLL_INTERVAL", 30*time.Second),
-		BatchThreshold:    getEnvInt("SPECVIEW_BATCH_THRESHOLD", 10000),
-		UseBatchAPI:       getEnvBool("SPECVIEW_USE_BATCH_API", false),
-	}
 }
 
 func getEnvBool(key string, defaultValue bool) bool {

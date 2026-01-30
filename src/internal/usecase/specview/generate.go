@@ -55,15 +55,8 @@ const (
 	salvageCacheTimeout      = 10 * time.Second
 )
 
-// BatchConfig holds configuration for Batch API routing.
-type BatchConfig struct {
-	BatchThreshold int  // Minimum test count to trigger batch mode
-	UseBatchAPI    bool // Enable Batch API for large jobs
-}
-
 // Config holds configuration for GenerateSpecViewUseCase.
 type Config struct {
-	BatchConfig       BatchConfig   // Batch API routing configuration
 	FailureThreshold  float64       // Threshold for partial failure (default: 0.5)
 	Phase1Timeout     time.Duration // Timeout for Phase 1 (default: 2 minutes)
 	Phase2Concurrency int64         // Max concurrent Phase 2 calls (default: 5)
@@ -109,13 +102,6 @@ func WithFailureThreshold(t float64) Option {
 	}
 }
 
-// WithBatchConfig sets the Batch API routing configuration.
-func WithBatchConfig(batchCfg BatchConfig) Option {
-	return func(cfg *Config) {
-		cfg.BatchConfig = batchCfg
-	}
-}
-
 // GenerateSpecViewUseCase orchestrates spec-view document generation.
 type GenerateSpecViewUseCase struct {
 	aiProvider     specview.AIProvider
@@ -148,122 +134,6 @@ func NewGenerateSpecViewUseCase(
 		defaultModelID: defaultModelID,
 		repository:     repo,
 	}
-}
-
-// ShouldUseBatchAPI determines whether the Batch API should be used based on test count.
-func (uc *GenerateSpecViewUseCase) ShouldUseBatchAPI(testCount int) bool {
-	return uc.config.BatchConfig.UseBatchAPI &&
-		testCount >= uc.config.BatchConfig.BatchThreshold
-}
-
-// ExecutePhase2And3FromBatch processes Phase 2 and 3 using pre-classified domains from Batch API.
-// This method reuses the standard Execute logic but skips Phase 1 since classification
-// was already performed by the Batch API.
-func (uc *GenerateSpecViewUseCase) ExecutePhase2And3FromBatch(
-	ctx context.Context,
-	req specview.SpecViewRequest,
-	phase1Output *specview.Phase1Output,
-) (*specview.SpecViewResult, error) {
-	startTime := time.Now()
-
-	if err := req.Validate(); err != nil {
-		return nil, err
-	}
-
-	if phase1Output == nil {
-		return nil, fmt.Errorf("%w: phase 1 output is required", specview.ErrInvalidInput)
-	}
-
-	analysisCtx, err := uc.repository.GetAnalysisContext(ctx, req.AnalysisID)
-	if err != nil {
-		return nil, err
-	}
-
-	modelID := req.ModelID
-	if modelID == "" {
-		modelID = uc.defaultModelID
-	}
-
-	files, err := uc.loadTestData(ctx, req.AnalysisID)
-	if err != nil {
-		uc.logExecutionError(ctx, req.AnalysisID, "load_data", startTime, err)
-		return nil, err
-	}
-
-	if len(files) == 0 {
-		slog.WarnContext(ctx, "no test files found",
-			"analysis_id", req.AnalysisID,
-			"owner", analysisCtx.Owner,
-			"repo", analysisCtx.Repo,
-		)
-		return nil, fmt.Errorf("%w: no test files found for analysis", ErrLoadInventoryFailed)
-	}
-
-	contentHash := specview.GenerateContentHash(files, req.Language)
-
-	testIndexMap := buildTestIndexMap(files)
-
-	phase2Results, internalStats, phase2Usage, err := uc.executePhase2(
-		ctx,
-		req.AnalysisID,
-		phase1Output,
-		req.Language,
-		modelID,
-		testIndexMap,
-		files,
-		req.ForceRegenerate,
-	)
-	if err != nil {
-		uc.logExecutionError(ctx, req.AnalysisID, "phase2", startTime, err)
-		return nil, fmt.Errorf("%w: phase 2: %w", ErrAIProcessingFailed, err)
-	}
-
-	// Log behavior cache stats
-	if internalStats != nil && internalStats.totalTests > 0 {
-		slog.InfoContext(ctx, "behavior cache stats (batch mode)",
-			"analysis_id", req.AnalysisID,
-			"total_tests", internalStats.totalTests,
-			"cache_hits", internalStats.cacheHits,
-			"cache_misses", internalStats.cacheMisses,
-			"hit_rate", fmt.Sprintf("%.1f%%", internalStats.hitRate()*100),
-		)
-	}
-
-	doc := uc.assembleDocument(req, modelID, contentHash, phase1Output, phase2Results, testIndexMap)
-
-	// Phase 3: Executive summary generation (non-fatal)
-	phase3Usage := uc.executePhase3(ctx, req.AnalysisID, doc)
-
-	if err := uc.repository.SaveDocument(ctx, doc); err != nil {
-		uc.logExecutionError(ctx, req.AnalysisID, "save", startTime, err)
-		return nil, fmt.Errorf("%w: %w", ErrSaveFailed, err)
-	}
-
-	// Quota based on AI-generated behaviors only (cache hits are free)
-	quotaAmount := internalStats.cacheMisses
-	uc.recordUsageEvent(ctx, req.UserID, doc.ID, quotaAmount)
-	uc.recordUserHistory(ctx, req.UserID, doc.ID)
-
-	// Log token usage summary (Phase 1 is nil since it came from batch)
-	uc.logTokenUsage(ctx, req.AnalysisID, nil, phase2Usage, phase3Usage)
-
-	slog.InfoContext(ctx, "document generated (batch mode)",
-		"analysis_id", req.AnalysisID,
-		"user_id", req.UserID,
-		"owner", analysisCtx.Owner,
-		"repo", analysisCtx.Repo,
-		"document_id", doc.ID,
-		"domain_count", len(doc.Domains),
-		"duration_ms", time.Since(startTime).Milliseconds(),
-	)
-
-	return &specview.SpecViewResult{
-		AnalysisContext:    analysisCtx,
-		BehaviorCacheStats: internalStats.toPublic(),
-		CacheHit:           false,
-		ContentHash:        contentHash,
-		DocumentID:         doc.ID,
-	}, nil
 }
 
 // Execute generates a spec-view document for the given request.

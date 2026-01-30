@@ -8,7 +8,6 @@ import (
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
 	"github.com/specvital/worker/internal/adapter/ai/gemini"
-	"github.com/specvital/worker/internal/adapter/ai/gemini/batch"
 	"github.com/specvital/worker/internal/adapter/ai/mock"
 	specviewqueue "github.com/specvital/worker/internal/adapter/queue/specview"
 	"github.com/specvital/worker/internal/adapter/repository/postgres"
@@ -20,7 +19,6 @@ import (
 // SpecGeneratorContainer holds dependencies for the spec-generator worker service.
 type SpecGeneratorContainer struct {
 	AIProvider     specview.AIProvider
-	BatchProvider  *batch.Provider
 	Middleware     []rivertype.WorkerMiddleware
 	QueueClient    *infraqueue.Client
 	SpecViewWorker *specviewqueue.Worker
@@ -57,65 +55,12 @@ func NewSpecGeneratorContainer(ctx context.Context, cfg ContainerConfig) (*SpecG
 	}
 
 	specDocRepo := postgres.NewSpecDocumentRepository(cfg.Pool)
-
-	// Build UseCase options
-	var usecaseOpts []specviewuc.Option
-	if cfg.SpecView.UseBatchAPI {
-		usecaseOpts = append(usecaseOpts, specviewuc.WithBatchConfig(specviewuc.BatchConfig{
-			BatchThreshold: cfg.SpecView.BatchThreshold,
-			UseBatchAPI:    cfg.SpecView.UseBatchAPI,
-		}))
-	}
-
 	specViewUC := specviewuc.NewGenerateSpecViewUseCase(
 		specDocRepo,
 		aiProvider,
 		defaultModelID,
-		usecaseOpts...,
 	)
-
-	// Create Batch Provider (only when Batch API is enabled and not in mock mode)
-	var batchProvider *batch.Provider
-	if cfg.SpecView.UseBatchAPI && !cfg.MockMode {
-		phase1Model := cfg.GeminiPhase1Model
-		if phase1Model == "" {
-			phase1Model = "gemini-2.5-flash"
-		}
-
-		var batchErr error
-		batchProvider, batchErr = batch.NewProvider(ctx, batch.BatchConfig{
-			APIKey:         cfg.GeminiAPIKey,
-			BatchThreshold: cfg.SpecView.BatchThreshold,
-			Phase1Model:    phase1Model,
-			PollInterval:   cfg.SpecView.BatchPollInterval,
-			UseBatchAPI:    cfg.SpecView.UseBatchAPI,
-		})
-		if batchErr != nil {
-			return nil, fmt.Errorf("create batch provider: %w", batchErr)
-		}
-		slog.Info("batch API enabled for SpecView worker",
-			"poll_interval", cfg.SpecView.BatchPollInterval,
-			"batch_threshold", cfg.SpecView.BatchThreshold,
-		)
-	}
-
-	// Create Worker (with or without Batch support)
-	var specViewWorker *specviewqueue.Worker
-	if batchProvider != nil {
-		workerConfig := specviewqueue.WorkerConfig{
-			BatchPollInterval: cfg.SpecView.BatchPollInterval,
-			UseBatchAPI:       cfg.SpecView.UseBatchAPI,
-		}
-		specViewWorker = specviewqueue.NewWorkerWithBatch(
-			specViewUC,
-			batchProvider,
-			specDocRepo,
-			cfg.Pool,
-			workerConfig,
-		)
-	} else {
-		specViewWorker = specviewqueue.NewWorker(specViewUC)
-	}
+	specViewWorker := specviewqueue.NewWorker(specViewUC)
 
 	workers := river.NewWorkers()
 	river.AddWorker(workers, specViewWorker)
@@ -136,7 +81,6 @@ func NewSpecGeneratorContainer(ctx context.Context, cfg ContainerConfig) (*SpecG
 
 	return &SpecGeneratorContainer{
 		AIProvider:     aiProvider,
-		BatchProvider:  batchProvider,
 		Middleware:     middleware,
 		QueueClient:    queueClient,
 		SpecViewWorker: specViewWorker,
@@ -147,12 +91,6 @@ func NewSpecGeneratorContainer(ctx context.Context, cfg ContainerConfig) (*SpecG
 // Close releases container resources.
 func (c *SpecGeneratorContainer) Close() error {
 	var errs []error
-
-	if c.BatchProvider != nil {
-		if err := c.BatchProvider.Close(); err != nil {
-			errs = append(errs, fmt.Errorf("close batch provider: %w", err))
-		}
-	}
 
 	if c.QueueClient != nil {
 		if err := c.QueueClient.Close(); err != nil {
