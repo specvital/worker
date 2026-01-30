@@ -2295,8 +2295,8 @@ func TestPerJobSemaphoreIsolation(t *testing.T) {
 
 func TestTimeoutConstants(t *testing.T) {
 	t.Run("should have sufficient phase timeouts for large repos", func(t *testing.T) {
-		if DefaultPhase1Timeout != 5*time.Minute {
-			t.Errorf("expected Phase 1 timeout 5m, got %v", DefaultPhase1Timeout)
+		if DefaultPhase1Timeout != 60*time.Minute {
+			t.Errorf("expected Phase 1 timeout 60m, got %v", DefaultPhase1Timeout)
 		}
 		if DefaultPhase2Timeout != 25*time.Minute {
 			t.Errorf("expected Phase 2 timeout 25m, got %v", DefaultPhase2Timeout)
@@ -2307,9 +2307,9 @@ func TestTimeoutConstants(t *testing.T) {
 	})
 
 	t.Run("should have phase sum below River job timeout budget", func(t *testing.T) {
-		// Phase sum must leave buffer within the River job timeout (35min)
+		// Phase sum must leave buffer within the River job timeout (90min)
 		phaseSum := DefaultPhase1Timeout + DefaultPhase2Timeout + DefaultPhase3Timeout
-		riverJobBudget := 35 * time.Minute
+		riverJobBudget := 90 * time.Minute
 
 		if phaseSum >= riverJobBudget {
 			t.Errorf("phase sum %v must be less than River job timeout %v", phaseSum, riverJobBudget)

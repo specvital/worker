@@ -42,7 +42,7 @@ func (s *internalCacheStats) toPublic() *specview.BehaviorCacheStats {
 }
 
 const (
-	DefaultPhase1Timeout        = 5 * time.Minute
+	DefaultPhase1Timeout        = 60 * time.Minute
 	DefaultPhase2Timeout        = 25 * time.Minute
 	DefaultPhase2Concurrency    = int64(5)
 	DefaultFailureThreshold     = 0.5 // 50% feature failure threshold
