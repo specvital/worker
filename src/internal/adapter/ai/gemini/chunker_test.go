@@ -381,6 +381,105 @@ func TestSplitIntoChunks_With250Threshold(t *testing.T) {
 	}
 }
 
+func TestMergePhase1Outputs_UncategorizedAtEnd(t *testing.T) {
+	outputs := []*specview.Phase1Output{
+		{
+			Domains: []specview.DomainGroup{
+				{
+					Name:        "Uncategorized",
+					Description: "Tests that could not be classified",
+					Confidence:  0.5,
+					Features: []specview.FeatureGroup{
+						{Name: "Uncategorized Tests", TestIndices: []int{99}},
+					},
+				},
+				{
+					Name:        "Auth",
+					Description: "Authentication",
+					Confidence:  0.9,
+					Features: []specview.FeatureGroup{
+						{Name: "Login", TestIndices: []int{0}},
+					},
+				},
+			},
+		},
+		{
+			Domains: []specview.DomainGroup{
+				{
+					Name:        "Billing",
+					Description: "Billing features",
+					Confidence:  0.8,
+					Features: []specview.FeatureGroup{
+						{Name: "Invoices", TestIndices: []int{100}},
+					},
+				},
+				{
+					Name:        "Uncategorized",
+					Description: "More uncategorized tests",
+					Confidence:  0.5,
+					Features: []specview.FeatureGroup{
+						{Name: "Other Tests", TestIndices: []int{199}},
+					},
+				},
+			},
+		},
+	}
+
+	merged := MergePhase1Outputs(outputs)
+
+	// Should have 3 domains: Auth, Billing, Uncategorized
+	if len(merged.Domains) != 3 {
+		t.Fatalf("expected 3 domains, got %d", len(merged.Domains))
+	}
+
+	// Uncategorized should be last
+	lastDomain := merged.Domains[len(merged.Domains)-1]
+	if lastDomain.Name != "Uncategorized" {
+		t.Errorf("expected Uncategorized domain at end, got %q", lastDomain.Name)
+	}
+
+	// Uncategorized should have merged features from both outputs
+	if len(lastDomain.Features) != 2 {
+		t.Errorf("expected 2 features in Uncategorized domain, got %d", len(lastDomain.Features))
+	}
+
+	// First two domains should be Auth and Billing (in original order)
+	if merged.Domains[0].Name != "Auth" {
+		t.Errorf("expected Auth domain first, got %q", merged.Domains[0].Name)
+	}
+	if merged.Domains[1].Name != "Billing" {
+		t.Errorf("expected Billing domain second, got %q", merged.Domains[1].Name)
+	}
+}
+
+func TestMergePhase1Outputs_NoUncategorized(t *testing.T) {
+	outputs := []*specview.Phase1Output{
+		{
+			Domains: []specview.DomainGroup{
+				{Name: "Auth", Confidence: 0.9, Features: []specview.FeatureGroup{{Name: "Login"}}},
+			},
+		},
+		{
+			Domains: []specview.DomainGroup{
+				{Name: "Billing", Confidence: 0.8, Features: []specview.FeatureGroup{{Name: "Invoices"}}},
+			},
+		},
+	}
+
+	merged := MergePhase1Outputs(outputs)
+
+	// Should have 2 domains without Uncategorized
+	if len(merged.Domains) != 2 {
+		t.Fatalf("expected 2 domains, got %d", len(merged.Domains))
+	}
+
+	for _, domain := range merged.Domains {
+		if domain.Name == "Uncategorized" {
+			t.Error("unexpected Uncategorized domain in output")
+		}
+	}
+}
+
 // makeTests creates test info with sequential indices starting from offset.
 func makeTests(count, offset int) []specview.TestInfo {
 	tests := make([]specview.TestInfo, count)

@@ -237,3 +237,225 @@ func TestTruncateForLog(t *testing.T) {
 	}
 }
 
+func TestValidatePhase1Output_MissingIndicesAutoRecovery(t *testing.T) {
+	input := specview.Phase1Input{
+		Files: []specview.FileInfo{
+			{
+				Path: "test.go",
+				Tests: []specview.TestInfo{
+					{Index: 0, Name: "Test1"},
+					{Index: 1, Name: "Test2"},
+					{Index: 2, Name: "Test3"},
+					{Index: 3, Name: "Test4"},
+					{Index: 4, Name: "Test5"},
+				},
+			},
+		},
+	}
+
+	// Output missing indices 2 and 4
+	output := &specview.Phase1Output{
+		Domains: []specview.DomainGroup{
+			{
+				Name:       "Domain1",
+				Confidence: 0.9,
+				Features: []specview.FeatureGroup{
+					{
+						Name:        "Feature1",
+						Confidence:  0.85,
+						TestIndices: []int{0, 1, 3}, // Missing 2 and 4
+					},
+				},
+			},
+		},
+	}
+
+	err := validatePhase1Output(context.Background(), output, input)
+	if err != nil {
+		t.Fatalf("unexpected validation error: %v", err)
+	}
+
+	// Should have Uncategorized domain added
+	if len(output.Domains) != 2 {
+		t.Fatalf("expected 2 domains after auto-recovery, got %d", len(output.Domains))
+	}
+
+	uncategorizedDomain := output.Domains[1]
+	if uncategorizedDomain.Name != "Uncategorized" {
+		t.Errorf("expected Uncategorized domain, got %q", uncategorizedDomain.Name)
+	}
+
+	if len(uncategorizedDomain.Features) != 1 {
+		t.Fatalf("expected 1 feature in Uncategorized domain, got %d", len(uncategorizedDomain.Features))
+	}
+
+	uncategorizedFeature := uncategorizedDomain.Features[0]
+	if uncategorizedFeature.Name != "Uncategorized Tests" {
+		t.Errorf("expected 'Uncategorized Tests' feature, got %q", uncategorizedFeature.Name)
+	}
+
+	// Should contain missing indices 2 and 4
+	missingSet := make(map[int]bool)
+	for _, idx := range uncategorizedFeature.TestIndices {
+		missingSet[idx] = true
+	}
+
+	if !missingSet[2] || !missingSet[4] {
+		t.Errorf("expected indices 2 and 4 in Uncategorized, got %v", uncategorizedFeature.TestIndices)
+	}
+}
+
+func TestValidatePhase1Output_NoMissingIndices(t *testing.T) {
+	input := specview.Phase1Input{
+		Files: []specview.FileInfo{
+			{
+				Path: "test.go",
+				Tests: []specview.TestInfo{
+					{Index: 0, Name: "Test1"},
+					{Index: 1, Name: "Test2"},
+				},
+			},
+		},
+	}
+
+	output := &specview.Phase1Output{
+		Domains: []specview.DomainGroup{
+			{
+				Name:       "Domain1",
+				Confidence: 0.9,
+				Features: []specview.FeatureGroup{
+					{
+						Name:        "Feature1",
+						Confidence:  0.85,
+						TestIndices: []int{0, 1}, // All indices covered
+					},
+				},
+			},
+		},
+	}
+
+	err := validatePhase1Output(context.Background(), output, input)
+	if err != nil {
+		t.Fatalf("unexpected validation error: %v", err)
+	}
+
+	// Should NOT add Uncategorized domain
+	if len(output.Domains) != 1 {
+		t.Errorf("expected 1 domain (no Uncategorized added), got %d", len(output.Domains))
+	}
+}
+
+func TestValidatePhase1Output_ExistingUncategorizedDomain(t *testing.T) {
+	input := specview.Phase1Input{
+		Files: []specview.FileInfo{
+			{
+				Path: "test.go",
+				Tests: []specview.TestInfo{
+					{Index: 0, Name: "Test1"},
+					{Index: 1, Name: "Test2"},
+					{Index: 2, Name: "Test3"},
+				},
+			},
+		},
+	}
+
+	// Output already has Uncategorized domain from previous recovery
+	output := &specview.Phase1Output{
+		Domains: []specview.DomainGroup{
+			{
+				Name:       "Domain1",
+				Confidence: 0.9,
+				Features: []specview.FeatureGroup{
+					{
+						Name:        "Feature1",
+						Confidence:  0.85,
+						TestIndices: []int{0}, // Missing 1 and 2
+					},
+				},
+			},
+			{
+				Name:        "Uncategorized",
+				Description: "Tests that could not be classified by AI",
+				Confidence:  0.5,
+				Features: []specview.FeatureGroup{
+					{
+						Name:        "Uncategorized Tests",
+						Description: "Tests that could not be classified by AI",
+						Confidence:  0.5,
+						TestIndices: []int{}, // Will be appended to
+					},
+				},
+			},
+		},
+	}
+
+	err := validatePhase1Output(context.Background(), output, input)
+	if err != nil {
+		t.Fatalf("unexpected validation error: %v", err)
+	}
+
+	// Should still have 2 domains
+	if len(output.Domains) != 2 {
+		t.Errorf("expected 2 domains, got %d", len(output.Domains))
+	}
+
+	// Missing indices should be appended to existing Uncategorized feature
+	uncategorizedDomain := output.Domains[1]
+	if len(uncategorizedDomain.Features[0].TestIndices) != 2 {
+		t.Errorf("expected 2 missing indices appended, got %d", len(uncategorizedDomain.Features[0].TestIndices))
+	}
+}
+
+func TestAddUncategorizedDomain_NewDomain(t *testing.T) {
+	output := &specview.Phase1Output{
+		Domains: []specview.DomainGroup{
+			{Name: "Domain1", Features: []specview.FeatureGroup{{Name: "F1"}}},
+		},
+	}
+
+	addUncategorizedDomain(output, []int{5, 10, 15})
+
+	if len(output.Domains) != 2 {
+		t.Fatalf("expected 2 domains, got %d", len(output.Domains))
+	}
+
+	uncategorized := output.Domains[1]
+	if uncategorized.Name != "Uncategorized" {
+		t.Errorf("expected Uncategorized domain, got %q", uncategorized.Name)
+	}
+	if uncategorized.Confidence != 0.5 {
+		t.Errorf("expected confidence 0.5, got %f", uncategorized.Confidence)
+	}
+	if len(uncategorized.Features) != 1 {
+		t.Fatalf("expected 1 feature, got %d", len(uncategorized.Features))
+	}
+	if len(uncategorized.Features[0].TestIndices) != 3 {
+		t.Errorf("expected 3 indices, got %d", len(uncategorized.Features[0].TestIndices))
+	}
+}
+
+func TestAddUncategorizedDomain_ExistingFeature(t *testing.T) {
+	output := &specview.Phase1Output{
+		Domains: []specview.DomainGroup{
+			{Name: "Domain1", Features: []specview.FeatureGroup{{Name: "F1"}}},
+			{
+				Name: "Uncategorized",
+				Features: []specview.FeatureGroup{
+					{Name: "Uncategorized Tests", TestIndices: []int{1, 2}},
+				},
+			},
+		},
+	}
+
+	addUncategorizedDomain(output, []int{5, 10})
+
+	if len(output.Domains) != 2 {
+		t.Fatalf("expected 2 domains, got %d", len(output.Domains))
+	}
+
+	uncategorized := output.Domains[1]
+	if len(uncategorized.Features[0].TestIndices) != 4 {
+		t.Errorf("expected 4 indices (2 original + 2 new), got %d", len(uncategorized.Features[0].TestIndices))
+	}
+}
+

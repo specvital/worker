@@ -169,8 +169,10 @@ type domainAccumulator struct {
 	confidenceCount int
 }
 
+
 // MergePhase1Outputs merges multiple Phase1Output results into one.
 // Domains with the same name are merged, their features are combined.
+// Uncategorized domain is always placed last in the output.
 func MergePhase1Outputs(outputs []*specview.Phase1Output) *specview.Phase1Output {
 	if len(outputs) == 0 {
 		return &specview.Phase1Output{}
@@ -209,14 +211,27 @@ func MergePhase1Outputs(outputs []*specview.Phase1Output) *specview.Phase1Output
 	}
 
 	// Build result preserving order with correct confidence averages
+	// Uncategorized domain is moved to the end
 	result := &specview.Phase1Output{
 		Domains: make([]specview.DomainGroup, 0, len(domainOrder)),
 	}
 
+	var uncategorizedAcc *domainAccumulator
 	for _, name := range domainOrder {
 		acc := domainMap[name]
 		acc.domain.Confidence = acc.confidenceSum / float64(acc.confidenceCount)
+
+		// Defer Uncategorized domain to the end
+		if name == uncategorizedDomainName {
+			uncategorizedAcc = acc
+			continue
+		}
 		result.Domains = append(result.Domains, acc.domain)
+	}
+
+	// Add Uncategorized domain at the end if exists
+	if uncategorizedAcc != nil {
+		result.Domains = append(result.Domains, uncategorizedAcc.domain)
 	}
 
 	return result

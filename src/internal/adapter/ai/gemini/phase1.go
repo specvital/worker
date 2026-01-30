@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"sort"
 	"sync"
 	"time"
 
@@ -349,7 +350,20 @@ func parsePhase1Response(jsonStr string) (*specview.Phase1Output, error) {
 	return output, nil
 }
 
+const (
+	// uncategorizedDomainName is the domain name for auto-recovered missing indices.
+	uncategorizedDomainName = "Uncategorized"
+
+	// uncategorizedFeatureName is the feature name for auto-recovered missing indices.
+	uncategorizedFeatureName = "Uncategorized Tests"
+
+	// missingIndexWarningThreshold is the percentage of missing indices that triggers a warning.
+	// If more than 5% of indices are missing, a warning is logged.
+	missingIndexWarningThreshold = 0.05
+)
+
 // validatePhase1Output validates the Phase 1 output against input.
+// Auto-assigns missing indices to "Uncategorized" domain instead of failing.
 func validatePhase1Output(ctx context.Context, output *specview.Phase1Output, input specview.Phase1Input) error {
 	if output == nil || len(output.Domains) == 0 {
 		return fmt.Errorf("no domains in output")
@@ -382,18 +396,81 @@ func validatePhase1Output(ctx context.Context, output *specview.Phase1Output, in
 		}
 	}
 
-	// Check coverage
-	if len(coveredIndices) < len(expectedIndices) {
-		missing := len(expectedIndices) - len(coveredIndices)
-		// Log warning but don't fail
-		slog.WarnContext(ctx, "phase 1 output missing test indices",
-			"expected", len(expectedIndices),
-			"covered", len(coveredIndices),
-			"missing", missing,
-		)
+	// Find missing indices
+	var missingIndices []int
+	for idx := range expectedIndices {
+		if !coveredIndices[idx] {
+			missingIndices = append(missingIndices, idx)
+		}
+	}
+
+	// Auto-recover missing indices by assigning to Uncategorized domain
+	if len(missingIndices) > 0 {
+		sort.Ints(missingIndices)
+		missingRatio := float64(len(missingIndices)) / float64(len(expectedIndices))
+
+		// Log warning if more than threshold are missing
+		if missingRatio > missingIndexWarningThreshold {
+			slog.WarnContext(ctx, "significant portion of test indices missing, auto-recovering",
+				"expected", len(expectedIndices),
+				"covered", len(coveredIndices),
+				"missing", len(missingIndices),
+				"missing_ratio", fmt.Sprintf("%.1f%%", missingRatio*100),
+			)
+		} else {
+			slog.InfoContext(ctx, "auto-recovering missing test indices",
+				"missing_count", len(missingIndices),
+			)
+		}
+
+		// Add missing indices to Uncategorized domain
+		addUncategorizedDomain(output, missingIndices)
 	}
 
 	return nil
+}
+
+// addUncategorizedDomain adds missing indices to the Uncategorized domain.
+// If the domain already exists, appends to its feature; otherwise creates it.
+func addUncategorizedDomain(output *specview.Phase1Output, missingIndices []int) {
+	// Look for existing Uncategorized domain
+	for i := range output.Domains {
+		if output.Domains[i].Name == uncategorizedDomainName {
+			// Find existing Uncategorized Tests feature or add new one
+			for j := range output.Domains[i].Features {
+				if output.Domains[i].Features[j].Name == uncategorizedFeatureName {
+					output.Domains[i].Features[j].TestIndices = append(
+						output.Domains[i].Features[j].TestIndices,
+						missingIndices...,
+					)
+					return
+				}
+			}
+			// Uncategorized domain exists but no Uncategorized Tests feature
+			output.Domains[i].Features = append(output.Domains[i].Features, specview.FeatureGroup{
+				Confidence:  0.5,
+				Description: "Tests that could not be classified by AI",
+				Name:        uncategorizedFeatureName,
+				TestIndices: missingIndices,
+			})
+			return
+		}
+	}
+
+	// Create new Uncategorized domain
+	output.Domains = append(output.Domains, specview.DomainGroup{
+		Confidence:  0.5,
+		Description: "Tests that could not be classified by AI",
+		Name:        uncategorizedDomainName,
+		Features: []specview.FeatureGroup{
+			{
+				Confidence:  0.5,
+				Description: "Tests that could not be classified by AI",
+				Name:        uncategorizedFeatureName,
+				TestIndices: missingIndices,
+			},
+		},
+	})
 }
 
 // truncateForLog truncates a string for logging purposes.
