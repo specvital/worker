@@ -37,11 +37,24 @@ type phase1Feature struct {
 }
 
 // classifyDomains performs Phase 1: domain and feature classification.
-// Automatically chunks large inputs to avoid API rate limits.
+// Routes to V2 two-stage architecture or legacy chunked processing based on feature flag.
 func (p *Provider) classifyDomains(ctx context.Context, input specview.Phase1Input, lang specview.Language) (*specview.Phase1Output, *specview.TokenUsage, error) {
 	if len(input.Files) == 0 {
 		return nil, nil, fmt.Errorf("%w: no files to classify", specview.ErrInvalidInput)
 	}
+
+	if p.phase1V2Enabled {
+		slog.InfoContext(ctx, "routing to phase 1 v2 two-stage architecture",
+			"file_count", len(input.Files),
+			"test_count", countTests(input.Files),
+		)
+		return p.classifyDomainsV2(ctx, input, lang)
+	}
+
+	slog.InfoContext(ctx, "routing to phase 1 legacy chunked processing",
+		"file_count", len(input.Files),
+		"test_count", countTests(input.Files),
+	)
 
 	config := DefaultChunkConfig()
 	if NeedsChunking(input.Files, config) {
