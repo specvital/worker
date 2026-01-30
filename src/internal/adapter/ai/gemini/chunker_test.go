@@ -307,6 +307,80 @@ func TestMergePhase1Outputs(t *testing.T) {
 	}
 }
 
+func TestDefaultChunkConfig(t *testing.T) {
+	config := DefaultChunkConfig()
+
+	if config.MaxTestsPerChunk != 250 {
+		t.Errorf("MaxTestsPerChunk = %v, want 250", config.MaxTestsPerChunk)
+	}
+
+	if config.MaxTokensPerChunk != 25_000 {
+		t.Errorf("MaxTokensPerChunk = %v, want 25000", config.MaxTokensPerChunk)
+	}
+}
+
+func TestSplitIntoChunks_With250Threshold(t *testing.T) {
+	config := DefaultChunkConfig()
+
+	tests := []struct {
+		name           string
+		files          []specview.FileInfo
+		wantChunkCount int
+	}{
+		{
+			name: "under 250 - single chunk",
+			files: []specview.FileInfo{
+				{Path: "a.go", Tests: makeTests(100, 0)},
+				{Path: "b.go", Tests: makeTests(100, 100)},
+			},
+			wantChunkCount: 1,
+		},
+		{
+			name: "exactly 250 - single chunk",
+			files: []specview.FileInfo{
+				{Path: "a.go", Tests: makeTests(125, 0)},
+				{Path: "b.go", Tests: makeTests(125, 125)},
+			},
+			wantChunkCount: 1,
+		},
+		{
+			name: "over 250 - two chunks",
+			files: []specview.FileInfo{
+				{Path: "a.go", Tests: makeTests(150, 0)},
+				{Path: "b.go", Tests: makeTests(150, 150)},
+			},
+			wantChunkCount: 2,
+		},
+		{
+			name: "500 tests - two chunks",
+			files: []specview.FileInfo{
+				{Path: "a.go", Tests: makeTests(250, 0)},
+				{Path: "b.go", Tests: makeTests(250, 250)},
+			},
+			wantChunkCount: 2,
+		},
+		{
+			name: "750 tests - three chunks",
+			files: []specview.FileInfo{
+				{Path: "a.go", Tests: makeTests(250, 0)},
+				{Path: "b.go", Tests: makeTests(250, 250)},
+				{Path: "c.go", Tests: makeTests(250, 500)},
+			},
+			wantChunkCount: 3,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			chunks := SplitIntoChunks(tt.files, config)
+
+			if len(chunks) != tt.wantChunkCount {
+				t.Errorf("SplitIntoChunks() chunk count = %v, want %v", len(chunks), tt.wantChunkCount)
+			}
+		})
+	}
+}
+
 // makeTests creates test info with sequential indices starting from offset.
 func makeTests(count, offset int) []specview.TestInfo {
 	tests := make([]specview.TestInfo, count)

@@ -20,11 +20,12 @@ type RetryConfig struct {
 }
 
 // DefaultPhase1RetryConfig returns default retry config for Phase 1.
+// Increased attempts and backoff to handle 504 DEADLINE_EXCEEDED errors.
 func DefaultPhase1RetryConfig() RetryConfig {
 	return RetryConfig{
-		MaxAttempts:    3,
-		InitialBackoff: 2 * time.Second,
-		MaxBackoff:     30 * time.Second,
+		MaxAttempts:    5,
+		InitialBackoff: 10 * time.Second,
+		MaxBackoff:     120 * time.Second,
 		Multiplier:     2.0,
 		JitterFactor:   0.1,
 	}

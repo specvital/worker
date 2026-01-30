@@ -6,14 +6,14 @@ import (
 
 const (
 	// MaxTokensPerChunk is the maximum estimated tokens per API call.
-	// Keep under 50K for reliable <60s responses (avoiding 504 DEADLINE_EXCEEDED).
-	// At 40 tokens/test, 1K tests = 40K tokens, leaving margin for prompt.
-	MaxTokensPerChunk = 50_000
+	// Keep under 25K for reliable <60s responses (avoiding 504 DEADLINE_EXCEEDED).
+	// Reduced from 50K to provide more safety margin for large repositories.
+	MaxTokensPerChunk = 25_000
 
 	// MaxTestsPerChunk is the maximum number of tests per chunk.
-	// Reduced to 500 to ensure reliable API responses within timeout limits.
-	// 500 tests ≈ 20K input tokens + output ≈ 15-25s processing time.
-	MaxTestsPerChunk = 500
+	// Reduced from 500 to 250 to minimize timeout risk.
+	// 250 tests ≈ 10K input tokens + output ≈ 10-15s processing time.
+	MaxTestsPerChunk = 250
 
 	// tokensPerTest is the estimated tokens per test (name + metadata).
 	tokensPerTest = 40

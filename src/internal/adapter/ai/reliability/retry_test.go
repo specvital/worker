@@ -221,11 +221,14 @@ func TestIsRetryableStatusCode(t *testing.T) {
 
 func TestRetryer_DefaultConfigs(t *testing.T) {
 	phase1 := DefaultPhase1RetryConfig()
-	if phase1.MaxAttempts != 3 {
-		t.Errorf("expected phase1 MaxAttempts to be 3, got %d", phase1.MaxAttempts)
+	if phase1.MaxAttempts != 5 {
+		t.Errorf("expected phase1 MaxAttempts to be 5, got %d", phase1.MaxAttempts)
 	}
-	if phase1.InitialBackoff != 2*time.Second {
-		t.Errorf("expected phase1 InitialBackoff to be 2s, got %v", phase1.InitialBackoff)
+	if phase1.InitialBackoff != 10*time.Second {
+		t.Errorf("expected phase1 InitialBackoff to be 10s, got %v", phase1.InitialBackoff)
+	}
+	if phase1.MaxBackoff != 120*time.Second {
+		t.Errorf("expected phase1 MaxBackoff to be 120s, got %v", phase1.MaxBackoff)
 	}
 
 	phase2 := DefaultPhase2RetryConfig()
