@@ -27,8 +27,9 @@ const (
 // v3BatchResult represents a single classification result from V3 batch processing.
 // Uses compact field names to minimize output tokens.
 type v3BatchResult struct {
-	Domain  string `json:"d"`
-	Feature string `json:"f"`
+	Domain     string `json:"d"`
+	DomainDesc string `json:"dd,omitempty"`
+	Feature    string `json:"f"`
 }
 
 // processV3Batch processes a single batch of tests and returns classifications.

@@ -129,6 +129,7 @@ func splitIntoBatches(tests []specview.TestForAssignment, batchSize int) [][]spe
 
 // extractDomainSummaries builds domain summaries from batch results for anchor propagation.
 // Merges new results with existing domains to build cumulative context.
+// Captures and propagates domain descriptions for better anchor context.
 func extractDomainSummaries(results []v3BatchResult, existing []prompt.DomainSummary) []prompt.DomainSummary {
 	// Build domain -> features map from existing
 	domainMap := make(map[string]*prompt.DomainSummary)
@@ -142,10 +143,15 @@ func extractDomainSummaries(results []v3BatchResult, existing []prompt.DomainSum
 			if !slices.Contains(summary.Features, r.Feature) {
 				summary.Features = append(summary.Features, r.Feature)
 			}
+			// Update description if provided and not already set
+			if r.DomainDesc != "" && summary.Description == "" {
+				summary.Description = r.DomainDesc
+			}
 		} else {
 			domainMap[r.Domain] = &prompt.DomainSummary{
-				Name:     r.Domain,
-				Features: []string{r.Feature},
+				Description: r.DomainDesc,
+				Name:        r.Domain,
+				Features:    []string{r.Feature},
 			}
 		}
 	}
@@ -168,13 +174,15 @@ func extractDomainSummaries(results []v3BatchResult, existing []prompt.DomainSum
 }
 
 // mergeV3Results converts all batch results into Phase1Output.
-// Maps test indices to domain/feature structure.
+// Maps test indices to domain/feature structure and preserves domain descriptions.
 func mergeV3Results(allResults [][]v3BatchResult, input specview.Phase1Input) *specview.Phase1Output {
 	// Build flat test list to get index mapping
 	tests := flattenTests(input.Files)
 
 	// Map domain/feature -> test indices
 	domainFeatureMap := make(map[string]map[string][]int)
+	// Map domain -> description (first non-empty wins)
+	domainDescMap := make(map[string]string)
 
 	resultIdx := 0
 	for _, batchResults := range allResults {
@@ -189,6 +197,11 @@ func mergeV3Results(allResults [][]v3BatchResult, input specview.Phase1Input) *s
 				domainFeatureMap[r.Domain] = make(map[string][]int)
 			}
 			domainFeatureMap[r.Domain][r.Feature] = append(domainFeatureMap[r.Domain][r.Feature], testIdx)
+
+			// Capture first non-empty description for each domain
+			if r.DomainDesc != "" && domainDescMap[r.Domain] == "" {
+				domainDescMap[r.Domain] = r.DomainDesc
+			}
 
 			resultIdx++
 		}
@@ -243,9 +256,10 @@ func mergeV3Results(allResults [][]v3BatchResult, input specview.Phase1Input) *s
 		}
 
 		domains = append(domains, specview.DomainGroup{
-			Confidence: defaultClassificationConfidence,
-			Features:   features,
-			Name:       domainName,
+			Confidence:  defaultClassificationConfidence,
+			Description: domainDescMap[domainName],
+			Features:    features,
+			Name:        domainName,
 		})
 	}
 

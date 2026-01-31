@@ -93,6 +93,65 @@ func TestParseV3BatchResponse_SingleItem(t *testing.T) {
 	}
 }
 
+func TestParseV3BatchResponse_WithDomainDescription(t *testing.T) {
+	jsonStr := `[{"d": "Authentication", "dd": "User identity verification and session management", "f": "Login"}]`
+
+	results, err := parseV3BatchResponse(jsonStr)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if results[0].Domain != "Authentication" {
+		t.Errorf("expected domain 'Authentication', got %q", results[0].Domain)
+	}
+	if results[0].DomainDesc != "User identity verification and session management" {
+		t.Errorf("expected description 'User identity verification and session management', got %q", results[0].DomainDesc)
+	}
+	if results[0].Feature != "Login" {
+		t.Errorf("expected feature 'Login', got %q", results[0].Feature)
+	}
+}
+
+func TestParseV3BatchResponse_WithoutDomainDescription(t *testing.T) {
+	// dd field is omitempty, so it should parse correctly without it
+	jsonStr := `[{"d": "Payment", "f": "Checkout"}]`
+
+	results, err := parseV3BatchResponse(jsonStr)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if results[0].DomainDesc != "" {
+		t.Errorf("expected empty description for backward compatibility, got %q", results[0].DomainDesc)
+	}
+}
+
+func TestParseV3BatchResponse_MixedWithAndWithoutDescription(t *testing.T) {
+	// Some items have dd, some don't - should parse correctly
+	jsonStr := `[{"d": "Auth", "dd": "Authentication domain", "f": "Login"}, {"d": "Payment", "f": "Checkout"}]`
+
+	results, err := parseV3BatchResponse(jsonStr)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(results))
+	}
+	if results[0].DomainDesc != "Authentication domain" {
+		t.Errorf("expected first result to have description, got %q", results[0].DomainDesc)
+	}
+	if results[1].DomainDesc != "" {
+		t.Errorf("expected second result to have empty description, got %q", results[1].DomainDesc)
+	}
+}
+
 func TestValidateV3BatchCount_Match(t *testing.T) {
 	results := []v3BatchResult{
 		{Domain: "Auth", Feature: "Login"},

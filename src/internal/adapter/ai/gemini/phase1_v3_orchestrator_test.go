@@ -253,6 +253,65 @@ func TestExtractDomainSummaries_NoDuplicateFeatures(t *testing.T) {
 	}
 }
 
+func TestExtractDomainSummaries_CapturesDescription(t *testing.T) {
+	results := []v3BatchResult{
+		{Domain: "Authentication", DomainDesc: "User identity verification", Feature: "Login"},
+		{Domain: "Authentication", Feature: "Logout"}, // no description
+	}
+
+	summaries := extractDomainSummaries(results, nil)
+
+	if len(summaries) != 1 {
+		t.Fatalf("expected 1 domain, got %d", len(summaries))
+	}
+	if summaries[0].Description != "User identity verification" {
+		t.Errorf("expected description 'User identity verification', got %q", summaries[0].Description)
+	}
+}
+
+func TestExtractDomainSummaries_FirstDescriptionWins(t *testing.T) {
+	results := []v3BatchResult{
+		{Domain: "Auth", DomainDesc: "First description", Feature: "Login"},
+		{Domain: "Auth", DomainDesc: "Second description", Feature: "Logout"},
+	}
+
+	summaries := extractDomainSummaries(results, nil)
+
+	if summaries[0].Description != "First description" {
+		t.Errorf("expected first description to win, got %q", summaries[0].Description)
+	}
+}
+
+func TestExtractDomainSummaries_PreservesExistingDescription(t *testing.T) {
+	existing := []prompt.DomainSummary{
+		{Name: "Auth", Description: "Existing description", Features: []string{"Login"}},
+	}
+	results := []v3BatchResult{
+		{Domain: "Auth", DomainDesc: "New description", Feature: "Logout"},
+	}
+
+	summaries := extractDomainSummaries(results, existing)
+
+	if summaries[0].Description != "Existing description" {
+		t.Errorf("expected existing description to be preserved, got %q", summaries[0].Description)
+	}
+}
+
+func TestExtractDomainSummaries_FillsEmptyExistingDescription(t *testing.T) {
+	existing := []prompt.DomainSummary{
+		{Name: "Auth", Description: "", Features: []string{"Login"}},
+	}
+	results := []v3BatchResult{
+		{Domain: "Auth", DomainDesc: "New description", Feature: "Logout"},
+	}
+
+	summaries := extractDomainSummaries(results, existing)
+
+	if summaries[0].Description != "New description" {
+		t.Errorf("expected empty description to be filled, got %q", summaries[0].Description)
+	}
+}
+
 func TestMergeV3Results_Empty(t *testing.T) {
 	input := specview.Phase1Input{
 		Files: []specview.FileInfo{
@@ -416,6 +475,118 @@ func TestMergeV3Results_Confidence(t *testing.T) {
 	}
 	if output.Domains[0].Features[0].Confidence != defaultClassificationConfidence {
 		t.Errorf("expected feature confidence %v, got %v", defaultClassificationConfidence, output.Domains[0].Features[0].Confidence)
+	}
+}
+
+func TestMergeV3Results_PreservesDescription(t *testing.T) {
+	input := specview.Phase1Input{
+		Files: []specview.FileInfo{
+			{
+				Path: "test.ts",
+				Tests: []specview.TestInfo{
+					{Index: 0, Name: "test1"},
+					{Index: 1, Name: "test2"},
+				},
+			},
+		},
+	}
+	results := [][]v3BatchResult{
+		{
+			{Domain: "Authentication", DomainDesc: "User identity verification", Feature: "Login"},
+			{Domain: "Authentication", Feature: "Logout"}, // same domain, no description
+		},
+	}
+
+	output := mergeV3Results(results, input)
+
+	if len(output.Domains) != 1 {
+		t.Fatalf("expected 1 domain, got %d", len(output.Domains))
+	}
+	if output.Domains[0].Description != "User identity verification" {
+		t.Errorf("expected description 'User identity verification', got %q", output.Domains[0].Description)
+	}
+}
+
+func TestMergeV3Results_MultipleDomainsWithDescriptions(t *testing.T) {
+	input := specview.Phase1Input{
+		Files: []specview.FileInfo{
+			{
+				Path: "test.ts",
+				Tests: []specview.TestInfo{
+					{Index: 0, Name: "test1"},
+					{Index: 1, Name: "test2"},
+				},
+			},
+		},
+	}
+	results := [][]v3BatchResult{
+		{
+			{Domain: "Auth", DomainDesc: "Authentication domain", Feature: "Login"},
+			{Domain: "Payment", DomainDesc: "Payment processing", Feature: "Checkout"},
+		},
+	}
+
+	output := mergeV3Results(results, input)
+
+	if len(output.Domains) != 2 {
+		t.Fatalf("expected 2 domains, got %d", len(output.Domains))
+	}
+
+	domainDescMap := make(map[string]string)
+	for _, d := range output.Domains {
+		domainDescMap[d.Name] = d.Description
+	}
+
+	if domainDescMap["Auth"] != "Authentication domain" {
+		t.Errorf("expected Auth description 'Authentication domain', got %q", domainDescMap["Auth"])
+	}
+	if domainDescMap["Payment"] != "Payment processing" {
+		t.Errorf("expected Payment description 'Payment processing', got %q", domainDescMap["Payment"])
+	}
+}
+
+func TestMergeV3Results_DescriptionAcrossBatches(t *testing.T) {
+	input := specview.Phase1Input{
+		Files: []specview.FileInfo{
+			{
+				Path: "test.ts",
+				Tests: []specview.TestInfo{
+					{Index: 0, Name: "test1"},
+					{Index: 1, Name: "test2"},
+				},
+			},
+		},
+	}
+	// First batch has description, second doesn't
+	results := [][]v3BatchResult{
+		{{Domain: "Auth", DomainDesc: "First batch description", Feature: "Login"}},
+		{{Domain: "Auth", Feature: "Logout"}}, // same domain, no description
+	}
+
+	output := mergeV3Results(results, input)
+
+	if output.Domains[0].Description != "First batch description" {
+		t.Errorf("expected first description to be preserved across batches, got %q", output.Domains[0].Description)
+	}
+}
+
+func TestMergeV3Results_NoDescription(t *testing.T) {
+	input := specview.Phase1Input{
+		Files: []specview.FileInfo{
+			{
+				Path:  "test.ts",
+				Tests: []specview.TestInfo{{Index: 0, Name: "test"}},
+			},
+		},
+	}
+	results := [][]v3BatchResult{
+		{{Domain: "Auth", Feature: "Login"}}, // no description
+	}
+
+	output := mergeV3Results(results, input)
+
+	if output.Domains[0].Description != "" {
+		t.Errorf("expected empty description for backward compatibility, got %q", output.Domains[0].Description)
 	}
 }
 
