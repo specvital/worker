@@ -14,6 +14,7 @@ import (
 // classifyDomainsV3 performs Phase 1 V3: sequential batch classification.
 // Splits all tests into batches of v3BatchSize and processes them sequentially.
 // Uses anchor domain propagation to maintain consistency across batches.
+// Applies post-processing to validate and normalize classification results.
 func (p *Provider) classifyDomainsV3(ctx context.Context, input specview.Phase1Input, lang specview.Language) (*specview.Phase1Output, *specview.TokenUsage, error) {
 	tests := flattenTests(input.Files)
 	if len(tests) == 0 {
@@ -29,6 +30,8 @@ func (p *Provider) classifyDomainsV3(ctx context.Context, input specview.Phase1I
 	totalUsage := &specview.TokenUsage{Model: p.phase1Model}
 	totalRetries := 0
 	totalFallbacks := 0
+
+	metricsCollector := NewPhase1MetricsCollector()
 
 	var allResults [][]v3BatchResult
 	var existingDomains []prompt.DomainSummary
@@ -54,6 +57,8 @@ func (p *Provider) classifyDomainsV3(ctx context.Context, input specview.Phase1I
 			return nil, totalUsage, fmt.Errorf("batch %d/%d failed: %w", batchIdx+1, len(batches), err)
 		}
 
+		// Record raw batch results for metrics (before post-processing normalization)
+		metricsCollector.RecordBatch(results, retries, fallbacks)
 		allResults = append(allResults, results)
 
 		// Propagate anchor domains to next batch
@@ -68,7 +73,20 @@ func (p *Provider) classifyDomainsV3(ctx context.Context, input specview.Phase1I
 		)
 	}
 
-	output := mergeV3Results(allResults, input)
+	// Apply post-processing: validate and normalize results
+	flatResults := flattenBatchResults(allResults)
+	postProcessor := NewPhase1PostProcessor(DefaultPostProcessorConfig())
+	processedResults, violations := postProcessor.Process(flatResults, tests)
+
+	if len(violations) > 0 {
+		slog.WarnContext(ctx, "phase 1 post-processing found violations",
+			"violation_count", len(violations),
+		)
+	}
+
+	output := mergeV3ResultsFromFlat(processedResults, input)
+
+	metricsCollector.LogMetrics(input.AnalysisID)
 
 	slog.InfoContext(ctx, "phase 1 v3 classification complete",
 		"total_batches", len(batches),
@@ -173,58 +191,64 @@ func extractDomainSummaries(results []v3BatchResult, existing []prompt.DomainSum
 	return summaries
 }
 
-// mergeV3Results converts all batch results into Phase1Output.
-// Maps test indices to domain/feature structure and preserves domain descriptions.
-func mergeV3Results(allResults [][]v3BatchResult, input specview.Phase1Input) *specview.Phase1Output {
+// flattenBatchResults converts nested batch results into a flat slice.
+func flattenBatchResults(allResults [][]v3BatchResult) []v3BatchResult {
+	totalCount := 0
+	for _, batch := range allResults {
+		totalCount += len(batch)
+	}
+
+	flat := make([]v3BatchResult, 0, totalCount)
+	for _, batch := range allResults {
+		flat = append(flat, batch...)
+	}
+
+	return flat
+}
+
+// mergeV3ResultsFromFlat converts flat results into Phase1Output.
+// Used after post-processing when results are already flattened.
+func mergeV3ResultsFromFlat(results []v3BatchResult, input specview.Phase1Input) *specview.Phase1Output {
 	// Build flat test list to get index mapping
 	tests := flattenTests(input.Files)
 
+	// Handle empty results - create path-based domains
+	if len(results) == 0 {
+		pathBasedResults := createDomainsFromPaths(tests)
+		return buildPhase1Output(pathBasedResults, tests)
+	}
+
+	return buildPhase1Output(results, tests)
+}
+
+// buildPhase1Output constructs Phase1Output from flat results and test list.
+func buildPhase1Output(results []v3BatchResult, tests []specview.TestForAssignment) *specview.Phase1Output {
 	// Map domain/feature -> test indices
 	domainFeatureMap := make(map[string]map[string][]int)
 	// Map domain -> description (first non-empty wins)
 	domainDescMap := make(map[string]string)
 
-	resultIdx := 0
-	for _, batchResults := range allResults {
-		for _, r := range batchResults {
-			if resultIdx >= len(tests) {
-				break
-			}
+	for i, r := range results {
+		if i >= len(tests) {
+			break
+		}
 
-			testIdx := tests[resultIdx].Index
+		testIdx := tests[i].Index
 
-			if domainFeatureMap[r.Domain] == nil {
-				domainFeatureMap[r.Domain] = make(map[string][]int)
-			}
-			domainFeatureMap[r.Domain][r.Feature] = append(domainFeatureMap[r.Domain][r.Feature], testIdx)
+		if domainFeatureMap[r.Domain] == nil {
+			domainFeatureMap[r.Domain] = make(map[string][]int)
+		}
+		domainFeatureMap[r.Domain][r.Feature] = append(domainFeatureMap[r.Domain][r.Feature], testIdx)
 
-			// Capture first non-empty description for each domain
-			if r.DomainDesc != "" && domainDescMap[r.Domain] == "" {
-				domainDescMap[r.Domain] = r.DomainDesc
-			}
-
-			resultIdx++
+		// Capture first non-empty description for each domain
+		if r.DomainDesc != "" && domainDescMap[r.Domain] == "" {
+			domainDescMap[r.Domain] = r.DomainDesc
 		}
 	}
 
-	// Handle empty results
+	// Handle empty domain map - should not happen after post-processing
 	if len(domainFeatureMap) == 0 {
-		return &specview.Phase1Output{
-			Domains: []specview.DomainGroup{
-				{
-					Confidence:  defaultClassificationConfidence,
-					Description: "Files that do not fit into specific domains",
-					Features: []specview.FeatureGroup{
-						{
-							Confidence:  defaultClassificationConfidence,
-							Name:        uncategorizedFeatureName,
-							TestIndices: collectAllTestIndices(input),
-						},
-					},
-					Name: uncategorizedDomainName,
-				},
-			},
-		}
+		return &specview.Phase1Output{Domains: []specview.DomainGroup{}}
 	}
 
 	// Convert map to output structure with deterministic ordering
@@ -264,4 +288,12 @@ func mergeV3Results(allResults [][]v3BatchResult, input specview.Phase1Input) *s
 	}
 
 	return &specview.Phase1Output{Domains: domains}
+}
+
+// mergeV3Results converts all batch results into Phase1Output.
+// Maps test indices to domain/feature structure and preserves domain descriptions.
+// Deprecated: Use mergeV3ResultsFromFlat after post-processing instead.
+func mergeV3Results(allResults [][]v3BatchResult, input specview.Phase1Input) *specview.Phase1Output {
+	flat := flattenBatchResults(allResults)
+	return mergeV3ResultsFromFlat(flat, input)
 }

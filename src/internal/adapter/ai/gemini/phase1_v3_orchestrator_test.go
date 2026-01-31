@@ -324,11 +324,13 @@ func TestMergeV3Results_Empty(t *testing.T) {
 
 	result := mergeV3Results(nil, input)
 
+	// Empty results now create path-based domains instead of Uncategorized
 	if len(result.Domains) != 1 {
 		t.Fatalf("expected 1 fallback domain, got %d", len(result.Domains))
 	}
-	if result.Domains[0].Name != uncategorizedDomainName {
-		t.Errorf("expected %q domain, got %q", uncategorizedDomainName, result.Domains[0].Name)
+	// Domain should be derived from path (Project Root for root-level files)
+	if result.Domains[0].Name == uncategorizedDomainName {
+		t.Errorf("expected path-based domain, got Uncategorized")
 	}
 }
 
@@ -594,5 +596,175 @@ func TestV3BatchConstants(t *testing.T) {
 	// Verify batch size is 20 as per plan
 	if v3BatchSize != 20 {
 		t.Errorf("expected v3BatchSize=20, got %d", v3BatchSize)
+	}
+}
+
+func TestFlattenBatchResults_Empty(t *testing.T) {
+	result := flattenBatchResults(nil)
+	if len(result) != 0 {
+		t.Errorf("expected 0 results, got %d", len(result))
+	}
+}
+
+func TestFlattenBatchResults_SingleBatch(t *testing.T) {
+	batches := [][]v3BatchResult{
+		{
+			{Domain: "Auth", Feature: "Login"},
+			{Domain: "Auth", Feature: "Logout"},
+		},
+	}
+
+	result := flattenBatchResults(batches)
+
+	if len(result) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(result))
+	}
+	if result[0].Domain != "Auth" || result[0].Feature != "Login" {
+		t.Errorf("unexpected first result: %+v", result[0])
+	}
+}
+
+func TestFlattenBatchResults_MultipleBatches(t *testing.T) {
+	batches := [][]v3BatchResult{
+		{{Domain: "Auth", Feature: "Login"}},
+		{{Domain: "Payment", Feature: "Checkout"}, {Domain: "Payment", Feature: "Refund"}},
+		{{Domain: "User", Feature: "Profile"}},
+	}
+
+	result := flattenBatchResults(batches)
+
+	if len(result) != 4 {
+		t.Fatalf("expected 4 results, got %d", len(result))
+	}
+	if result[0].Domain != "Auth" {
+		t.Errorf("expected first domain 'Auth', got %q", result[0].Domain)
+	}
+	if result[1].Domain != "Payment" {
+		t.Errorf("expected second domain 'Payment', got %q", result[1].Domain)
+	}
+	if result[3].Domain != "User" {
+		t.Errorf("expected fourth domain 'User', got %q", result[3].Domain)
+	}
+}
+
+func TestMergeV3ResultsFromFlat_Empty(t *testing.T) {
+	input := specview.Phase1Input{
+		Files: []specview.FileInfo{
+			{
+				Path:  "src/auth/login_test.ts",
+				Tests: []specview.TestInfo{{Index: 0, Name: "test"}},
+			},
+		},
+	}
+
+	result := mergeV3ResultsFromFlat(nil, input)
+
+	// Empty results should create path-based domains
+	if len(result.Domains) == 0 {
+		t.Fatal("expected at least 1 domain from path-based fallback")
+	}
+	// Should not contain Uncategorized
+	for _, d := range result.Domains {
+		if d.Name == uncategorizedDomainName {
+			t.Errorf("expected no Uncategorized domain, but found one")
+		}
+	}
+}
+
+func TestMergeV3ResultsFromFlat_Normal(t *testing.T) {
+	input := specview.Phase1Input{
+		Files: []specview.FileInfo{
+			{
+				Path: "test.ts",
+				Tests: []specview.TestInfo{
+					{Index: 0, Name: "test1"},
+					{Index: 1, Name: "test2"},
+				},
+			},
+		},
+	}
+	results := []v3BatchResult{
+		{Domain: "Authentication", DomainDesc: "User identity", Feature: "Login"},
+		{Domain: "Authentication", Feature: "Logout"},
+	}
+
+	output := mergeV3ResultsFromFlat(results, input)
+
+	if len(output.Domains) != 1 {
+		t.Fatalf("expected 1 domain, got %d", len(output.Domains))
+	}
+	if output.Domains[0].Name != "Authentication" {
+		t.Errorf("expected 'Authentication' domain, got %q", output.Domains[0].Name)
+	}
+	if output.Domains[0].Description != "User identity" {
+		t.Errorf("expected description 'User identity', got %q", output.Domains[0].Description)
+	}
+}
+
+func TestBuildPhase1Output_Empty(t *testing.T) {
+	output := buildPhase1Output(nil, nil)
+
+	if len(output.Domains) != 0 {
+		t.Errorf("expected 0 domains for empty input, got %d", len(output.Domains))
+	}
+}
+
+func TestBuildPhase1Output_MultipleDomains(t *testing.T) {
+	tests := []specview.TestForAssignment{
+		{Index: 0, FilePath: "auth/test.ts", Name: "test1"},
+		{Index: 1, FilePath: "payment/test.ts", Name: "test2"},
+		{Index: 2, FilePath: "auth/test.ts", Name: "test3"},
+	}
+	results := []v3BatchResult{
+		{Domain: "Auth", Feature: "Login"},
+		{Domain: "Payment", Feature: "Checkout"},
+		{Domain: "Auth", Feature: "Session"},
+	}
+
+	output := buildPhase1Output(results, tests)
+
+	if len(output.Domains) != 2 {
+		t.Fatalf("expected 2 domains, got %d", len(output.Domains))
+	}
+
+	// Verify Auth domain has 2 features
+	var authDomain *specview.DomainGroup
+	for i := range output.Domains {
+		if output.Domains[i].Name == "Auth" {
+			authDomain = &output.Domains[i]
+			break
+		}
+	}
+	if authDomain == nil {
+		t.Fatal("Auth domain not found")
+	}
+	if len(authDomain.Features) != 2 {
+		t.Errorf("expected 2 features in Auth, got %d", len(authDomain.Features))
+	}
+}
+
+func TestMergeV3Results_EmptyUsesPathBased(t *testing.T) {
+	// When empty results, should use path-based domains instead of Uncategorized
+	input := specview.Phase1Input{
+		Files: []specview.FileInfo{
+			{
+				Path:  "src/components/auth/login_test.ts",
+				Tests: []specview.TestInfo{{Index: 0, Name: "test"}},
+			},
+		},
+	}
+
+	result := mergeV3Results(nil, input)
+
+	// Should have path-based domain (Components), not Uncategorized
+	if len(result.Domains) != 1 {
+		t.Fatalf("expected 1 domain, got %d", len(result.Domains))
+	}
+	if result.Domains[0].Name == uncategorizedDomainName {
+		t.Error("expected path-based domain, got Uncategorized")
+	}
+	// The domain should be derived from path: "src/components/..." -> "Components"
+	if result.Domains[0].Name != "Components" {
+		t.Errorf("expected domain 'Components' from path, got %q", result.Domains[0].Name)
 	}
 }

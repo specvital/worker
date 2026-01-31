@@ -118,7 +118,7 @@ func validateV3BatchCount(results []v3BatchResult, expectedCount int) error {
 }
 
 // processV3BatchWithRetry processes a batch with retry, split, and individual fallback.
-// Strategy: retry (max 3) -> split batch -> individual processing -> Uncategorized fallback.
+// Strategy: retry (max 3) -> split batch -> individual processing -> path-based domain fallback.
 func (p *Provider) processV3BatchWithRetry(
 	ctx context.Context,
 	tests []specview.TestForAssignment,
@@ -226,7 +226,7 @@ func (p *Provider) processV3SplitBatch(
 }
 
 // processV3Individual processes each test individually as final fallback.
-// Assigns Uncategorized/General on individual failure.
+// Uses path-based domain derivation on individual failure instead of Uncategorized.
 func (p *Provider) processV3Individual(
 	ctx context.Context,
 	tests []specview.TestForAssignment,
@@ -249,14 +249,18 @@ func (p *Provider) processV3Individual(
 		}
 
 		if err != nil || len(result) != 1 {
-			slog.WarnContext(ctx, "v3 individual processing failed, assigning to Uncategorized",
+			domain, feature := deriveDomainFromPath(test.FilePath)
+			slog.WarnContext(ctx, "v3 individual processing failed, using path-based domain",
 				"test_index", i,
 				"test_name", test.Name,
+				"derived_domain", domain,
+				"derived_feature", feature,
 				"error", err,
 			)
 			results = append(results, v3BatchResult{
-				Domain:  uncategorizedDomainName,
-				Feature: uncategorizedFeatureName,
+				Domain:     domain,
+				DomainDesc: "Derived from file path",
+				Feature:    feature,
 			})
 			fallbackCount++
 			continue
