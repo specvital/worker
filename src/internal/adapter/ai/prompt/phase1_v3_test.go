@@ -162,7 +162,7 @@ func TestPhase1V3SystemPrompt_ContainsRequiredSections(t *testing.T) {
 		"Order-Based Mapping",
 		"STRICT REQUIREMENT",
 		"exactly N",
-		"Classification Rules",
+		"Classification Principles",
 		"existing domains",
 		"Uncategorized",
 		"Output Format",
