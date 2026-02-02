@@ -1,11 +1,6 @@
 # syntax=docker/dockerfile:1
 
-# Build target: analyzer, spec-generator, retention-cleanup, enqueue
-ARG SERVICE=analyzer
-
 FROM golang:1.24-alpine AS builder
-
-ARG SERVICE
 
 WORKDIR /app
 
@@ -17,7 +12,7 @@ RUN go mod download
 
 COPY src/ ./
 
-RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-s -w" -o /service ./cmd/${SERVICE}
+RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-s -w" -o /service ./cmd/spec-generator
 
 FROM alpine:3.21
 

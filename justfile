@@ -234,4 +234,4 @@ update-core:
     cd src && GOPROXY=direct go get -u github.com/specvital/core@main && go mod tidy
 
 docker-build service="analyzer":
-    docker build --build-arg SERVICE={{ service }} -t specvital-{{ service }}:local .
+    docker build -f infra/{{ service }}/Dockerfile -t specvital-{{ service }}:local .
