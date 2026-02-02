@@ -60,3 +60,37 @@ jobs:
           git push https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git main
         env:
           GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
+
+  deploy:
+    name: Deploy to Railway
+    runs-on: ubuntu-latest
+    needs: release
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [analyzer, spec-generator]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Link to project
+        run: railway link --project ${{ secrets.RAILWAY_PROJECT_ID }}
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+      - name: Set service environment variables
+        if: matrix.service == 'spec-generator'
+        run: |
+          railway variables --set "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" --service spec-generator
+          railway variables --set "GEMINI_PHASE1_MODEL=${{ secrets.GEMINI_PHASE1_MODEL }}" --service spec-generator
+          railway variables --set "GEMINI_PHASE2_MODEL=${{ secrets.GEMINI_PHASE2_MODEL }}" --service spec-generator
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+      - name: Deploy ${{ matrix.service }}
+        run: railway up --service ${{ matrix.service }} --detach
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
