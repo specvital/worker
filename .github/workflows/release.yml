@@ -33,7 +33,10 @@ jobs:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
       - name: Deploy ${{ matrix.service }}
-        run: railway up --service ${{ matrix.service }} --detach
+        run: |
+          cp services/${{ matrix.service }}/railway.json railway.json
+          railway up --service ${{ matrix.service }} --detach
+          rm railway.json
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
