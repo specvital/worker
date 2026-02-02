@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.4](https://github.com/specvital/worker/compare/v1.2.3...v1.2.4) (2026-02-02)
+
+### 🎯 Highlights
+
+#### 🐛 Bug Fixes
+
+- **fairness:** resolve user tier from DB instead of job args ([527c1ae](https://github.com/specvital/worker/commit/527c1aef75771ff026813e5e39faa076f42e23ee))
+
 ## [1.2.3](https://github.com/specvital/worker/compare/v1.2.2...v1.2.3) (2026-02-02)
 
 ### 🔧 Maintenance
