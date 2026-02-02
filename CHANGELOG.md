@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.3](https://github.com/specvital/worker/compare/v1.2.2...v1.2.3) (2026-02-02)
+
+### 🔧 Maintenance
+
+#### ♻️ Refactoring
+
+- **deploy:** separate Dockerfiles per service to remove buildArgs dependency ([a142f10](https://github.com/specvital/worker/commit/a142f108feeaf33991377133cb51e72a57064cbc))
+
 ## [1.2.2](https://github.com/specvital/worker/compare/v1.2.1...v1.2.2) (2026-02-02)
 
 ### 🔧 Maintenance
