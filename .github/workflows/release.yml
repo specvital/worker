@@ -34,7 +34,7 @@ jobs:
 
       - name: Deploy ${{ matrix.service }}
         run: |
-          cp services/${{ matrix.service }}/railway.json railway.json
+          cp infra/railway/${{ matrix.service }}.json railway.json
           railway up --service ${{ matrix.service }} --detach
           rm railway.json
         env:
