@@ -439,7 +439,9 @@ CREATE TABLE public.spec_documents (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     version integer DEFAULT 1 NOT NULL,
-    user_id uuid NOT NULL
+    user_id uuid NOT NULL,
+    retention_days_at_creation integer,
+    CONSTRAINT chk_retention_days_positive CHECK (((retention_days_at_creation IS NULL) OR (retention_days_at_creation > 0)))
 );
 
 
@@ -568,7 +570,9 @@ CREATE TABLE public.user_analysis_history (
     analysis_id uuid NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    id uuid DEFAULT gen_random_uuid() NOT NULL
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    retention_days_at_creation integer,
+    CONSTRAINT chk_retention_days_positive CHECK (((retention_days_at_creation IS NULL) OR (retention_days_at_creation > 0)))
 );
 
 
@@ -1227,6 +1231,13 @@ CREATE INDEX idx_spec_documents_content_hash_lang_model ON public.spec_documents
 
 
 --
+-- Name: idx_spec_documents_retention_cleanup; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_spec_documents_retention_cleanup ON public.spec_documents USING btree (created_at) WHERE (retention_days_at_creation IS NOT NULL);
+
+
+--
 -- Name: idx_spec_documents_user_created; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1315,6 +1326,13 @@ CREATE INDEX idx_user_analysis_history_analysis ON public.user_analysis_history 
 --
 
 CREATE INDEX idx_user_analysis_history_cursor ON public.user_analysis_history USING btree (user_id, updated_at, id);
+
+
+--
+-- Name: idx_user_analysis_history_retention_cleanup; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_user_analysis_history_retention_cleanup ON public.user_analysis_history USING btree (created_at) WHERE (retention_days_at_creation IS NOT NULL);
 
 
 --
