@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.2.2](https://github.com/specvital/worker/compare/v1.2.1...v1.2.2) (2026-02-02)
+
+### 🔧 Maintenance
+
+#### 🔧 Internal Fixes
+
+- **deploy:** apply railway.json config during CLI deployment ([f0f5e79](https://github.com/specvital/worker/commit/f0f5e791ecd897ba692b49a03b8662f97a5be982))
+
+#### ♻️ Refactoring
+
+- **deploy:** move Railway config files to infra/railway/ ([bcd7a87](https://github.com/specvital/worker/commit/bcd7a87aeff8d968397a8115dcae313c3173d1d8))
+
 ## [1.2.1](https://github.com/specvital/worker/compare/v1.2.0...v1.2.1) (2026-02-02)
 
 ### 🔧 Maintenance
