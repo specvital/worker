@@ -55,6 +55,9 @@ install-docker:
       curl -fsSL https://get.docker.com | sh
     fi
 
+install-railway:
+    npm install -g @railway/cli
+
 install-sqlc:
     go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.28.0
 
