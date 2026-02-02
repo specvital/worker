@@ -17,7 +17,7 @@ const (
 	// Queue names for specview jobs (underscore required - River disallows colons)
 	QueuePriority  = "specview_priority"  // Pro/Enterprise tier users
 	QueueDefault   = "specview_default"   // Free tier users
-	QueueScheduled = "specview_scheduled" // Scheduler/cron jobs
+	QueueScheduled = "specview_scheduled" // Background/batch jobs
 
 	jobKind          = "specview:generate"
 	maxRetryAttempts = 3

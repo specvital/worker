@@ -8,8 +8,6 @@ import (
 	"github.com/specvital/worker/internal/infra/config"
 )
 
-const schedulerLockKey = "scheduler:auto-refresh:lock"
-
 // ContainerConfig holds common configuration for dependency injection containers.
 type ContainerConfig struct {
 	EncryptionKey     string

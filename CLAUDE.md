@@ -7,7 +7,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 SpecVital Worker - Background job processing service for analyzing test files in GitHub repositories
 
 - Queue-based async worker (River on PostgreSQL)
-- Dual-binary: Worker (scalable) + Scheduler (singleton)
 - External parser: `github.com/specvital/core`
 
 ### Workers
@@ -55,12 +54,6 @@ Before running commands, read `justfile` or check available commands via `just -
 
 - Parsing logic lives in `github.com/specvital/core`, NOT here
 - For parser changes → open issue in core repo first
-
-### Dual Binary Architecture
-
-- **Worker** (`cmd/worker`): horizontally scalable, queue consumer
-- **Scheduler** (`cmd/scheduler`): single instance only (distributed lock)
-- Must remain separate for Railway deployment - NEVER merge
 
 ### Build Artifacts Cleanup
 

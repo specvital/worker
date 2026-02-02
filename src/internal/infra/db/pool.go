@@ -8,8 +8,8 @@ import (
 )
 
 const (
-	// Pool size: (workers * 2) + (schedulers * 2) + buffer
-	// (5 * 2) + (1 * 2) + 8 = 20
+	// Pool size: (workers * 2) + buffer
+	// (5 * 2) + 10 = 20
 	defaultMaxConns = 20
 	defaultMinConns = 5
 )

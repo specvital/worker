@@ -8,11 +8,12 @@ require (
 	github.com/riverqueue/river v0.26.0
 	github.com/riverqueue/river/riverdriver/riverpgxv5 v0.26.0
 	github.com/riverqueue/river/rivertype v0.28.0
-	github.com/robfig/cron/v3 v3.0.1
 	github.com/specvital/core v1.5.1-0.20260112122808-d2a13f0adcd5
+	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.35.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.35.0
 	golang.org/x/sync v0.19.0
+	golang.org/x/text v0.32.0
 	golang.org/x/time v0.14.0
 	google.golang.org/genai v1.41.0
 )
@@ -71,7 +72,6 @@ require (
 	github.com/shoenig/go-m1cpu v0.1.7 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/smacker/go-tree-sitter v0.0.0-20240827094217-dd81d9e9be82 // indirect
-	github.com/stretchr/testify v1.11.1 // indirect
 	github.com/tidwall/gjson v1.18.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
@@ -90,7 +90,6 @@ require (
 	golang.org/x/crypto v0.46.0 // indirect
 	golang.org/x/net v0.47.0 // indirect
 	golang.org/x/sys v0.39.0 // indirect
-	golang.org/x/text v0.32.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240903143218-8af14fe29dc1 // indirect
 	google.golang.org/grpc v1.67.0 // indirect
 	google.golang.org/protobuf v1.35.2 // indirect

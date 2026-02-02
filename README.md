@@ -8,9 +8,9 @@ Clean Architecture with separate entry points for Railway deployment:
 
 ```
 src/cmd/
-├── worker/      # River worker - queue processing (Railway service #1)
-├── scheduler/   # Cron scheduler - periodic jobs (Railway service #2)
-├── enqueue/     # CLI tool for manual task enqueue
+├── analyzer/       # Analysis worker - parse test files (Railway service)
+├── spec-generator/ # SpecView worker - AI-powered spec generation
+├── enqueue/        # CLI tool for manual task enqueue
 ```
 
 ## Build
@@ -20,21 +20,21 @@ src/cmd/
 just build
 
 # Build specific target
-just build worker
-just build scheduler
+just build analyzer
+just build spec-generator
 just build enqueue
 
-# Output: bin/worker, bin/scheduler, bin/enqueue
+# Output: bin/analyzer, bin/spec-generator, bin/enqueue
 ```
 
 ## Development
 
 ```bash
-# Run worker locally with hot reload
-just run local
+# Run analyzer locally with hot reload
+just run-analyzer local
 
-# Run scheduler locally
-just run-scheduler local
+# Run spec-generator locally
+just run-spec-generator local
 
 # Run tests
 just test unit
@@ -48,10 +48,10 @@ just test all
 
 ## Railway Deployment
 
-Deploy as two separate services:
+Deploy worker services (horizontally scalable):
 
-- **Worker**: `bin/worker` - processes analysis tasks from queue (scalable)
-- **Scheduler**: `bin/scheduler` - runs periodic cron jobs (single instance)
+- **Analyzer**: `bin/analyzer` - processes analysis tasks from queue
+- **Spec Generator**: `bin/spec-generator` - generates AI-powered spec documents
 
 ## License
 

@@ -1,4 +1,4 @@
-// Package bootstrap provides application startup utilities for analyzer and scheduler services.
+// Package bootstrap provides application startup utilities for worker services.
 package bootstrap
 
 import (

@@ -84,41 +84,6 @@ LEFT JOIN (
 ) a ON c.id = a.codebase_id
 WHERE c.host = $1 AND c.owner = $2 AND c.name = $3 AND c.is_stale = false;
 
--- name: GetCodebasesForAutoRefresh :many
-WITH latest_completions AS (
-    SELECT DISTINCT ON (codebase_id)
-        codebase_id,
-        completed_at,
-        commit_sha,
-        parser_version
-    FROM analyses
-    WHERE status = 'completed'
-    ORDER BY codebase_id, completed_at DESC
-),
-failure_counts AS (
-    SELECT
-        a.codebase_id,
-        COUNT(*)::int as failure_count
-    FROM analyses a
-    LEFT JOIN latest_completions lc ON a.codebase_id = lc.codebase_id
-    WHERE a.status = 'failed'
-      AND a.created_at > COALESCE(lc.completed_at, '1970-01-01'::timestamptz)
-    GROUP BY a.codebase_id
-)
-SELECT
-    c.id, c.host, c.owner, c.name, c.last_viewed_at,
-    lc.completed_at as last_completed_at,
-    lc.commit_sha as last_commit_sha,
-    COALESCE(lc.parser_version, 'legacy') as last_parser_version,
-    COALESCE(fc.failure_count, 0)::int as consecutive_failures
-FROM codebases c
-LEFT JOIN latest_completions lc ON c.id = lc.codebase_id
-LEFT JOIN failure_counts fc ON c.id = fc.codebase_id
-WHERE c.last_viewed_at IS NOT NULL
-  AND c.last_viewed_at > now() - interval '90 days'
-  AND c.is_stale = false
-  AND c.is_private = false;
-
 -- name: RecordUserAnalysisHistory :exec
 INSERT INTO user_analysis_history (user_id, analysis_id)
 VALUES ($1, $2)

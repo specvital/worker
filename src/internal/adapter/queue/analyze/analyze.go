@@ -17,7 +17,7 @@ const (
 	// Queue names for analysis jobs (underscore required - River disallows colons)
 	QueuePriority  = "analysis_priority"  // Pro/Enterprise tier users
 	QueueDefault   = "analysis_default"   // Free tier users
-	QueueScheduled = "analysis_scheduled" // Scheduler/cron jobs
+	QueueScheduled = "analysis_scheduled" // Background/batch jobs
 
 	maxRetryAttempts = 3
 )

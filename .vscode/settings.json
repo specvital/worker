@@ -209,22 +209,6 @@
           "shortcut": "n",
           "terminalName": "spec-generator integration",
           "useVsCodeApi": false
-        },
-        {
-          "color": "",
-          "command": "just run-scheduler local",
-          "name": "scheduler local",
-          "shortcut": "s",
-          "terminalName": "scheduler local",
-          "useVsCodeApi": false
-        },
-        {
-          "color": "",
-          "command": "just run-scheduler integration",
-          "name": "scheduler integration",
-          "shortcut": "c",
-          "terminalName": "scheduler integration",
-          "useVsCodeApi": false
         }
       ]
     },
