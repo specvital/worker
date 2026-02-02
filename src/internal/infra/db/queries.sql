@@ -241,3 +241,41 @@ WHERE created_at < now() - $1::interval;
 
 -- name: DeleteQuotaReservationByJobID :exec
 DELETE FROM quota_reservations WHERE job_id = $1;
+
+-- =============================================================================
+-- RETENTION CLEANUP
+-- =============================================================================
+
+-- name: DeleteExpiredUserAnalysisHistory :execrows
+-- Deletes user_analysis_history records that have exceeded their retention period.
+-- retention_days_at_creation IS NOT NULL = has retention limit (non-enterprise)
+-- NULL retention_days_at_creation = unlimited (enterprise) - never deleted
+DELETE FROM user_analysis_history
+WHERE id IN (
+    SELECT id FROM user_analysis_history
+    WHERE retention_days_at_creation IS NOT NULL
+      AND created_at < now() - (retention_days_at_creation || ' days')::interval
+    LIMIT $1
+);
+
+-- name: DeleteExpiredSpecDocuments :execrows
+-- Deletes spec_documents that have exceeded their retention period.
+DELETE FROM spec_documents
+WHERE id IN (
+    SELECT id FROM spec_documents
+    WHERE retention_days_at_creation IS NOT NULL
+      AND created_at < now() - (retention_days_at_creation || ' days')::interval
+    LIMIT $1
+);
+
+-- name: DeleteOrphanedAnalyses :execrows
+-- Deletes analyses that have no references in user_analysis_history.
+-- These are orphaned records that no user is tracking anymore.
+DELETE FROM analyses
+WHERE id IN (
+    SELECT a.id FROM analyses a
+    LEFT JOIN user_analysis_history uah ON a.id = uah.analysis_id
+    WHERE uah.analysis_id IS NULL
+      AND a.created_at < now() - interval '1 day'
+    LIMIT $1
+);

@@ -545,16 +545,17 @@ type SpecBehavior struct {
 }
 
 type SpecDocument struct {
-	ID               pgtype.UUID        `json:"id"`
-	AnalysisID       pgtype.UUID        `json:"analysis_id"`
-	ContentHash      []byte             `json:"content_hash"`
-	Language         string             `json:"language"`
-	ExecutiveSummary pgtype.Text        `json:"executive_summary"`
-	ModelID          string             `json:"model_id"`
-	CreatedAt        pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
-	Version          int32              `json:"version"`
-	UserID           pgtype.UUID        `json:"user_id"`
+	ID                      pgtype.UUID        `json:"id"`
+	AnalysisID              pgtype.UUID        `json:"analysis_id"`
+	ContentHash             []byte             `json:"content_hash"`
+	Language                string             `json:"language"`
+	ExecutiveSummary        pgtype.Text        `json:"executive_summary"`
+	ModelID                 string             `json:"model_id"`
+	CreatedAt               pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt               pgtype.Timestamptz `json:"updated_at"`
+	Version                 int32              `json:"version"`
+	UserID                  pgtype.UUID        `json:"user_id"`
+	RetentionDaysAtCreation pgtype.Int4        `json:"retention_days_at_creation"`
 }
 
 type SpecDomain struct {
@@ -643,11 +644,12 @@ type User struct {
 }
 
 type UserAnalysisHistory struct {
-	UserID     pgtype.UUID        `json:"user_id"`
-	AnalysisID pgtype.UUID        `json:"analysis_id"`
-	CreatedAt  pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
-	ID         pgtype.UUID        `json:"id"`
+	UserID                  pgtype.UUID        `json:"user_id"`
+	AnalysisID              pgtype.UUID        `json:"analysis_id"`
+	CreatedAt               pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt               pgtype.Timestamptz `json:"updated_at"`
+	ID                      pgtype.UUID        `json:"id"`
+	RetentionDaysAtCreation pgtype.Int4        `json:"retention_days_at_creation"`
 }
 
 type UserBookmark struct {

@@ -117,6 +117,71 @@ func (q *Queries) DeleteExpiredClassificationCaches(ctx context.Context, dollar_
 	return result.RowsAffected(), nil
 }
 
+const deleteExpiredSpecDocuments = `-- name: DeleteExpiredSpecDocuments :execrows
+DELETE FROM spec_documents
+WHERE id IN (
+    SELECT id FROM spec_documents
+    WHERE retention_days_at_creation IS NOT NULL
+      AND created_at < now() - (retention_days_at_creation || ' days')::interval
+    LIMIT $1
+)
+`
+
+// Deletes spec_documents that have exceeded their retention period.
+func (q *Queries) DeleteExpiredSpecDocuments(ctx context.Context, limit int32) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteExpiredSpecDocuments, limit)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteExpiredUserAnalysisHistory = `-- name: DeleteExpiredUserAnalysisHistory :execrows
+
+DELETE FROM user_analysis_history
+WHERE id IN (
+    SELECT id FROM user_analysis_history
+    WHERE retention_days_at_creation IS NOT NULL
+      AND created_at < now() - (retention_days_at_creation || ' days')::interval
+    LIMIT $1
+)
+`
+
+// =============================================================================
+// RETENTION CLEANUP
+// =============================================================================
+// Deletes user_analysis_history records that have exceeded their retention period.
+// retention_days_at_creation IS NOT NULL = has retention limit (non-enterprise)
+// NULL retention_days_at_creation = unlimited (enterprise) - never deleted
+func (q *Queries) DeleteExpiredUserAnalysisHistory(ctx context.Context, limit int32) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteExpiredUserAnalysisHistory, limit)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteOrphanedAnalyses = `-- name: DeleteOrphanedAnalyses :execrows
+DELETE FROM analyses
+WHERE id IN (
+    SELECT a.id FROM analyses a
+    LEFT JOIN user_analysis_history uah ON a.id = uah.analysis_id
+    WHERE uah.analysis_id IS NULL
+      AND a.created_at < now() - interval '1 day'
+    LIMIT $1
+)
+`
+
+// Deletes analyses that have no references in user_analysis_history.
+// These are orphaned records that no user is tracking anymore.
+func (q *Queries) DeleteOrphanedAnalyses(ctx context.Context, limit int32) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteOrphanedAnalyses, limit)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteQuotaReservationByJobID = `-- name: DeleteQuotaReservationByJobID :exec
 
 DELETE FROM quota_reservations WHERE job_id = $1
@@ -311,7 +376,7 @@ func (q *Queries) FindCodebaseWithLastCommitByOwnerName(ctx context.Context, arg
 }
 
 const findSpecDocumentByContentHash = `-- name: FindSpecDocumentByContentHash :one
-SELECT sd.id, sd.analysis_id, sd.content_hash, sd.language, sd.executive_summary, sd.model_id, sd.created_at, sd.updated_at, sd.version, sd.user_id FROM spec_documents sd
+SELECT sd.id, sd.analysis_id, sd.content_hash, sd.language, sd.executive_summary, sd.model_id, sd.created_at, sd.updated_at, sd.version, sd.user_id, sd.retention_days_at_creation FROM spec_documents sd
 WHERE sd.user_id = $1
   AND sd.content_hash = $2
   AND sd.language = $3
@@ -351,6 +416,7 @@ func (q *Queries) FindSpecDocumentByContentHash(ctx context.Context, arg FindSpe
 		&i.UpdatedAt,
 		&i.Version,
 		&i.UserID,
+		&i.RetentionDaysAtCreation,
 	)
 	return i, err
 }
