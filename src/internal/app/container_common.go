@@ -17,8 +17,6 @@ type ContainerConfig struct {
 	GeminiPhase2Model string // optional: default gemini-2.5-flash-lite
 	MockMode          bool   // enable mock AI provider for development/testing
 	ParserVersion     string
-	Phase1V2Enabled   bool // enable Phase 1 V2 two-stage architecture
-	Phase1V3Enabled   bool // enable Phase 1 V3 sequential batch architecture
 	Pool              *pgxpool.Pool
 }
 

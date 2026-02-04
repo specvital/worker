@@ -25,11 +25,9 @@ const (
 
 // Config holds configuration for the Gemini provider.
 type Config struct {
-	APIKey          string
-	Phase1Model     string // Model for domain classification (default: gemini-2.5-flash)
-	Phase1V2Enabled bool   // Enable Phase 1 V2 two-stage architecture
-	Phase1V3Enabled bool   // Enable Phase 1 V3 sequential batch architecture
-	Phase2Model     string // Model for test conversion (default: gemini-2.5-flash-lite)
+	APIKey      string
+	Phase1Model string // Model for domain classification (default: gemini-2.5-flash)
+	Phase2Model string // Model for test conversion (default: gemini-2.5-flash-lite)
 }
 
 // Validate validates the configuration.
@@ -42,12 +40,9 @@ func (c *Config) Validate() error {
 
 // Provider implements specview.AIProvider using Google Gemini.
 type Provider struct {
-	client          *genai.Client
-	phase1Model     string
-	phase1V2Enabled bool
-	phase1V3Enabled bool
-	phase2Model     string
-	taxonomyCache   *TaxonomyCache
+	client      *genai.Client
+	phase1Model string
+	phase2Model string
 
 	rateLimiter *reliability.RateLimiter
 	phase1CB    *reliability.CircuitBreaker
@@ -80,24 +75,15 @@ func NewProvider(ctx context.Context, config Config) (*Provider, error) {
 		phase2Model = defaultPhase2Model
 	}
 
-	if config.Phase1V3Enabled {
-		slog.InfoContext(ctx, "phase1 v3 sequential batch architecture enabled")
-	} else if config.Phase1V2Enabled {
-		slog.InfoContext(ctx, "phase1 v2 two-stage architecture enabled")
-	}
-
 	return &Provider{
-		client:          client,
-		phase1Model:     phase1Model,
-		phase1V2Enabled: config.Phase1V2Enabled,
-		phase1V3Enabled: config.Phase1V3Enabled,
-		phase2Model:     phase2Model,
-		taxonomyCache:   NewTaxonomyCache(),
-		rateLimiter:     reliability.GetGlobalRateLimiter(),
-		phase1CB:        reliability.NewCircuitBreaker(reliability.DefaultPhase1CircuitConfig()),
-		phase2CB:        reliability.NewCircuitBreaker(reliability.DefaultPhase2CircuitConfig()),
-		phase1Retry:     reliability.NewRetryer(reliability.DefaultPhase1RetryConfig()),
-		phase2Retry:     reliability.NewRetryer(reliability.DefaultPhase2RetryConfig()),
+		client:      client,
+		phase1Model: phase1Model,
+		phase2Model: phase2Model,
+		rateLimiter: reliability.GetGlobalRateLimiter(),
+		phase1CB:    reliability.NewCircuitBreaker(reliability.DefaultPhase1CircuitConfig()),
+		phase2CB:    reliability.NewCircuitBreaker(reliability.DefaultPhase2CircuitConfig()),
+		phase1Retry: reliability.NewRetryer(reliability.DefaultPhase1RetryConfig()),
+		phase2Retry: reliability.NewRetryer(reliability.DefaultPhase2RetryConfig()),
 	}, nil
 }
 

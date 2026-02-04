@@ -42,11 +42,9 @@ func NewSpecGeneratorContainer(ctx context.Context, cfg ContainerConfig) (*SpecG
 		defaultModelID = "mock-model"
 	} else {
 		geminiProvider, err := gemini.NewProvider(ctx, gemini.Config{
-			APIKey:          cfg.GeminiAPIKey,
-			Phase1Model:     cfg.GeminiPhase1Model,
-			Phase1V2Enabled: cfg.Phase1V2Enabled,
-			Phase1V3Enabled: cfg.Phase1V3Enabled,
-			Phase2Model:     cfg.GeminiPhase2Model,
+			APIKey:      cfg.GeminiAPIKey,
+			Phase1Model: cfg.GeminiPhase1Model,
+			Phase2Model: cfg.GeminiPhase2Model,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("create gemini provider: %w", err)

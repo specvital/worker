@@ -237,92 +237,9 @@ func TestTruncateForLog(t *testing.T) {
 	}
 }
 
-func TestClassifyDomains_FlagDisabled_UsesLegacy(t *testing.T) {
-	// Provider with V2 disabled should use legacy path
-	p := &Provider{
-		phase1V2Enabled: false,
-		phase1Model:     "test-model",
-	}
-
-	// Verify flag is disabled
-	if p.phase1V2Enabled {
-		t.Error("expected phase1V2Enabled to be false")
-	}
-
-	// Note: Full integration test requires mock client,
-	// but this validates the flag propagation through Provider
-}
-
-func TestClassifyDomains_FlagEnabled_UsesV2(t *testing.T) {
-	// Provider with V2 enabled should use V2 path
-	p := &Provider{
-		phase1V2Enabled: true,
-		phase1Model:     "test-model",
-		phase2Model:     "test-model-lite",
-	}
-
-	// Verify flag is enabled
-	if !p.phase1V2Enabled {
-		t.Error("expected phase1V2Enabled to be true")
-	}
-
-	// Note: Full integration test requires mock client,
-	// but this validates the flag propagation through Provider
-}
-
 func TestClassifyDomains_EmptyFiles_ReturnsError(t *testing.T) {
 	p := &Provider{
-		phase1V2Enabled: false,
-		phase1Model:     "test-model",
-	}
-
-	_, _, err := p.classifyDomains(context.Background(), specview.Phase1Input{}, "Korean")
-	if err == nil {
-		t.Error("expected error for empty files")
-	}
-}
-
-func TestClassifyDomains_V2Enabled_EmptyFiles_ReturnsError(t *testing.T) {
-	p := &Provider{
-		phase1V2Enabled: true,
-		phase1Model:     "test-model",
-		phase2Model:     "test-model-lite",
-	}
-
-	_, _, err := p.classifyDomains(context.Background(), specview.Phase1Input{}, "Korean")
-	if err == nil {
-		t.Error("expected error for empty files")
-	}
-}
-
-func TestClassifyDomains_V3FlagEnabled_UsesV3(t *testing.T) {
-	p := &Provider{
-		phase1V3Enabled: true,
-		phase1V2Enabled: false,
-		phase1Model:     "test-model",
-	}
-
-	if !p.phase1V3Enabled {
-		t.Error("expected phase1V3Enabled to be true")
-	}
-}
-
-func TestClassifyDomains_V3Priority_OverV2(t *testing.T) {
-	p := &Provider{
-		phase1V3Enabled: true,
-		phase1V2Enabled: true,
-		phase1Model:     "test-model",
-	}
-
-	if !p.phase1V3Enabled || !p.phase1V2Enabled {
-		t.Error("both V3 and V2 flags should be enabled for this test")
-	}
-}
-
-func TestClassifyDomains_V3Enabled_EmptyFiles_ReturnsError(t *testing.T) {
-	p := &Provider{
-		phase1V3Enabled: true,
-		phase1Model:     "test-model",
+		phase1Model: "test-model",
 	}
 
 	_, _, err := p.classifyDomains(context.Background(), specview.Phase1Input{}, "Korean")

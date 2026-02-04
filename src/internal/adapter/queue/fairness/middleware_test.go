@@ -60,7 +60,7 @@ func setupMiddlewareWithResolver(t *testing.T, resolver TierResolver) (*Fairness
 	if err != nil {
 		t.Fatalf("NewPerUserLimiter failed: %v", err)
 	}
-	extractor := NewJSONArgsExtractor()
+	extractor := &JSONArgsExtractor{}
 	middleware := NewFairnessMiddleware(limiter, extractor, resolver, cfg)
 	return middleware, limiter, cfg
 }
