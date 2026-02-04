@@ -541,16 +541,24 @@ func (r *AnalysisRepository) saveTestsCopyFrom(
 	return nil
 }
 
-func (r *AnalysisRepository) saveFiles(
+func (r *AnalysisRepository) saveFilesBatch(
 	ctx context.Context,
 	tx pgx.Tx,
 	analysisID pgtype.UUID,
 	files []analysis.TestFile,
 ) (map[string]pgtype.UUID, error) {
-	fileIDs := make(map[string]pgtype.UUID, len(files))
-	queries := db.New(tx)
+	if len(files) == 0 {
+		return make(map[string]pgtype.UUID), nil
+	}
 
-	for _, file := range files {
+	type fileData struct {
+		path      string
+		framework pgtype.Text
+		hints     []byte
+	}
+	prepared := make([]fileData, len(files))
+
+	for i, file := range files {
 		var hintsJSON []byte
 		if file.DomainHints != nil {
 			var err error
@@ -559,17 +567,28 @@ func (r *AnalysisRepository) saveFiles(
 				return nil, fmt.Errorf("marshal domain hints for %q: %w", file.Path, err)
 			}
 		}
-
-		fileID, err := queries.InsertTestFile(ctx, db.InsertTestFileParams{
-			AnalysisID:  analysisID,
-			FilePath:    file.Path,
-			Framework:   pgtype.Text{String: file.Framework, Valid: file.Framework != ""},
-			DomainHints: hintsJSON,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("insert test file %q: %w", file.Path, err)
+		prepared[i] = fileData{
+			path:      file.Path,
+			framework: pgtype.Text{String: file.Framework, Valid: file.Framework != ""},
+			hints:     hintsJSON,
 		}
-		fileIDs[file.Path] = fileID
+	}
+
+	batch := &pgx.Batch{}
+	for _, fd := range prepared {
+		batch.Queue(db.InsertTestFileBatch, analysisID, fd.path, fd.framework, fd.hints)
+	}
+
+	results := tx.SendBatch(ctx, batch)
+	defer results.Close()
+
+	fileIDs := make(map[string]pgtype.UUID, len(files))
+	for _, fd := range prepared {
+		var id pgtype.UUID
+		if err := results.QueryRow().Scan(&id); err != nil {
+			return nil, fmt.Errorf("insert test file %q: %w", fd.path, err)
+		}
+		fileIDs[fd.path] = id
 	}
 
 	return fileIDs, nil
@@ -585,7 +604,7 @@ func (r *AnalysisRepository) saveInventory(
 		return 0, 0, 0, nil
 	}
 
-	fileIDs, err := r.saveFiles(ctx, tx, analysisID, inventory.Files)
+	fileIDs, err := r.saveFilesBatch(ctx, tx, analysisID, inventory.Files)
 	if err != nil {
 		return 0, 0, 0, fmt.Errorf("save files: %w", err)
 	}

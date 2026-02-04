@@ -30,3 +30,8 @@ INSERT INTO behavior_caches (cache_key_hash, converted_description)
 VALUES ($1, $2)
 ON CONFLICT (cache_key_hash) DO UPDATE
 SET converted_description = EXCLUDED.converted_description`
+
+const InsertTestFileBatch = `
+INSERT INTO test_files (analysis_id, file_path, framework, domain_hints)
+VALUES ($1, $2, $3, $4)
+RETURNING id`
