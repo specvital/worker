@@ -1,5 +1,7 @@
 ---
-description: Execute commit N from plan.md and generate summary
+name: workflow-execute
+description: Execute commit N from plan.md and generate summary. Use to implement a specific commit from the implementation plan.
+disable-model-invocation: true
 ---
 
 # Issue Execution Command
@@ -66,36 +68,36 @@ Examples:
 
 ## Key Rules
 
-### 📝 Documentation Language
+### Documentation Language
 
 **CRITICAL**: All documents you generate (`summary-commit-N.md`) **MUST be written in Korean**.
 
-### ✅ Must Do
+### Must Do
 
 - Faithfully follow plan.md checklist
 - **Strictly follow** coding principles
 - Write tests
 - Auto-generate summary
 
-### ❌ Must Not Do
+### Must Not Do
 
 - Ignore checklist
 - Violate coding principles (without justification)
 - Skip verification
 
-### 🎯 Implementation Rules
+### Implementation Rules
 
 - **Setup first**: Initialize project structure, dependencies, configuration
 - **Tests before code**: If you need to write tests
 - **Core development**: Implement models, services, CLI commands
 
-### 📊 Progress Tracking
+### Progress Tracking
 
 - Report progress after each completed task
 - Halt execution if any non-parallel task fails
 - Provide clear error messages with context for debugging
 
-### 🧪 Prototype Code Usage (if exists)
+### Prototype Code Usage (if exists)
 
 **IMPORTANT**: If validation code exists in `__prototype__/` directory:
 
@@ -119,13 +121,13 @@ File to create: `docs/work/WORK-{task-name}/summary-commit-N.md`
 
 ---
 
-## 🎯 Achievement Goal
+## Achievement Goal
 
 [1 sentence]
 
 ---
 
-## 📝 Changed Files
+## Changed Files
 
 **Added**:
 
@@ -139,14 +141,14 @@ File to create: `docs/work/WORK-{task-name}/summary-commit-N.md`
 
 - `src/old/file.ts`: [Deletion reason]
 
-## 💡 Core Changes
+## Core Changes
 
 - [Change 1]
 - [Change 2]
 
 ---
 
-## ✅ Verification Results
+## Verification Results
 
 **Test Method**:
 
@@ -156,26 +158,26 @@ File to create: `docs/work/WORK-{task-name}/summary-commit-N.md`
 
 - [Results]
 
-## 🧪 Edge Cases (if verified)
+## Edge Cases (if verified)
 
 - [Case 1]: [Expected behavior]
 - [Case 2]: [Expected behavior]
 
 ---
 
-## 🔑 Technical Decisions (if any)
+## Technical Decisions (if any)
 
 - **[Technology/Pattern]**: [Selection reason in 1 line]
 
 ---
 
-## ⚠️ Caveats (if any)
+## Caveats (if any)
 
 - [Constraints]
 - [Environment variable added]: `KEY=value`
 - [Dependency install]: `npm install package`
 
-## 📌 Follow-up Tasks (if any)
+## Follow-up Tasks (if any)
 
 - TODO: [Specific content]
 ```

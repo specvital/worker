@@ -17,7 +17,26 @@ Format: `func TestXxx(t *testing.T)`. Write `TestMethodName` functions per metho
 
 ## Subtests
 
-Pattern: `t.Run("case name", func(t *testing.T) {...})`. Each case should be independently executable. Call `t.Parallel()` when running in parallel.
+Use `t.Run()` to provide domain context hierarchy. The subtest path is the strongest structural signal.
+
+```go
+// Good: Domain > Feature > Scenario hierarchy
+func TestAuthService(t *testing.T) {
+    t.Run("Login", func(t *testing.T) {
+        t.Run("valid credentials", func(t *testing.T) { ... })
+        t.Run("invalid password", func(t *testing.T) { ... })
+    })
+    t.Run("Token", func(t *testing.T) {
+        t.Run("refresh expired", func(t *testing.T) { ... })
+    })
+}
+
+// Bad: Flat structure
+func TestLoginWorks(t *testing.T) { ... }
+func TestLogoutWorks(t *testing.T) { ... }
+```
+
+Each case should be independently executable. Call `t.Parallel()` when running in parallel.
 
 ## Table-Driven Tests
 
@@ -40,6 +59,21 @@ for _, tt := range tests {
         if got != tt.want { ... }
     })
 }
+```
+
+## Imports
+
+Import actual domain packages under test. Import statements are the strongest signal for understanding test purpose.
+
+```go
+// Good: Clear domain imports
+import (
+    "myapp/modules/order"
+    "myapp/validators/payment"
+)
+
+// Bad: Only test utilities, no domain context
+import "testing"
 ```
 
 ## Mocking

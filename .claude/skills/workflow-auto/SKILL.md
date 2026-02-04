@@ -1,5 +1,7 @@
 ---
-description: Execute workflow-analyze → workflow-plan → workflow-execute → commit in sequence without intermediate approval (single commit)
+name: workflow-auto
+description: Execute workflow-analyze → workflow-plan → workflow-execute → commit in sequence without intermediate approval (single commit). Use for small tasks that can be completed in one commit.
+disable-model-invocation: true
 ---
 
 # Auto Workflow Command
@@ -115,7 +117,7 @@ Execute **exactly as `/commit`** command:
 
 ## Key Rules
 
-### ✅ Must Do
+### Must Do
 
 - Follow each phase's original command exactly
 - Use original templates (not simplified versions)
@@ -123,7 +125,7 @@ Execute **exactly as `/commit`** command:
 - Limit plan to single commit
 - Follow coding principles strictly
 
-### ❌ Must Not Do
+### Must Not Do
 
 - Simplify or skip any phase steps
 - Use custom/shortened templates
@@ -151,11 +153,11 @@ commit_message.md           (from commit - Korean and English versions)
 
 ## Execution
 
-Now execute the full workflow by reading and following each command file:
+Now execute the full workflow by reading and following each skill:
 
-1. **Read `.claude/commands/workflow-analyze.md`** and execute its full process
-2. Without stopping, **read `.claude/commands/workflow-plan.md`** and execute (single commit only)
-3. Without stopping, **read `.claude/commands/workflow-execute.md`** and execute for commit 1
-4. Without stopping, **read `.claude/commands/commit.md`** and execute to generate commit_message.md
+1. Execute **workflow-analyze** full process
+2. Without stopping, execute **workflow-plan** (single commit only)
+3. Without stopping, execute **workflow-execute** for commit 1
+4. Without stopping, execute **commit** to generate commit_message.md
 
-You MUST read each command file to understand the exact process and templates.
+You MUST follow each skill's exact process and templates.

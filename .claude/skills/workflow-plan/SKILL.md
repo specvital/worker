@@ -1,5 +1,7 @@
 ---
-description: Generate implementation plan with commit-level tasks
+name: workflow-plan
+description: Generate implementation plan with commit-level tasks. Use after workflow-analyze to create detailed, vertically-sliced commit plan.
+disable-model-invocation: true
 ---
 
 # Issue Planning Command
@@ -58,7 +60,7 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 ## Key Rules
 
-### 📝 Documentation Language
+### Documentation Language
 
 **CRITICAL**: You must generate **TWO versions** of all documents:
 
@@ -67,7 +69,7 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 **Both versions must contain identical structure and information**, only the language differs.
 
-### ✅ Must Do
+### Must Do
 
 - Checklist-focused
 - Reference analysis.md only (no repetition)
@@ -75,13 +77,13 @@ You **MUST** consider the user input before proceeding (if not empty).
 - Reflect coding principles
 - Impact scope approximate only
 
-### ❌ Must Not Do
+### Must Not Do
 
 - Redefine problem (it's in analysis.md)
 - List specific file names
 - Verbose explanations
 
-### 🎯 Vertical Slicing Principles (CRITICAL)
+### Vertical Slicing Principles (CRITICAL)
 
 **Each commit must satisfy**:
 
@@ -90,17 +92,17 @@ You **MUST** consider the user input before proceeding (if not empty).
 3. **Independently Testable**: Can be tested with this commit alone
 4. **Meaningful Value**: Provides real value to users/developers
 
-**❌ Horizontal Slicing Forbidden**:
+**Horizontal Slicing Forbidden**:
 
 - Separating types only → logic only → tests only → UI only (X)
 - This separation makes each commit functionally incomplete
 
-**✅ Vertical Slicing Example**:
+**Vertical Slicing Example**:
 
 - Commit 1: types + logic + tests + schema (usable with manual config)
 - Commit 2: UI integration (complete UX)
 
-### 📊 Phase Structure
+### Phase Structure
 
 - **Phase 1**: Setup
 - **Phase 2**: Foundational
@@ -124,35 +126,15 @@ Files to create:
 > **Analysis Result**: See `analysis.md`
 > **Selected Approach**: [Approach N]
 
-## 📁 Impact Scope (Approximate)
+## Impact Scope (Approximate)
 
 **Main Areas**: [StatusBarManager, ConfigManager, etc.]
 
 ---
 
-## 📝 Commit Plan
+## Commit Plan
 
-### ✅ Commit 1: [Title]
-
-**Goal**: [1 sentence - describe complete value provided by this commit]
-
-**Task Checklist**:
-
-- [ ] [Specific task 1]
-- [ ] [Specific task 2]
-- [ ] Test: [Test content]
-- [ ] Build verification: [Build command]
-
-**Verification Method**:
-
-1. [Specific verification method]
-2. [User scenario]
-
-**Independently Deployable**: ✅ / ⚠️ [Reason]
-
----
-
-### ⬜ Commit 2: [Title]
+### Commit 1: [Title]
 
 **Goal**: [1 sentence - describe complete value provided by this commit]
 
@@ -172,7 +154,27 @@ Files to create:
 
 ---
 
-## ⚠️ Principle Violation Justification (Only if needed)
+### Commit 2: [Title]
+
+**Goal**: [1 sentence - describe complete value provided by this commit]
+
+**Task Checklist**:
+
+- [ ] [Specific task 1]
+- [ ] [Specific task 2]
+- [ ] Test: [Test content]
+- [ ] Build verification: [Build command]
+
+**Verification Method**:
+
+1. [Specific verification method]
+2. [User scenario]
+
+**Independently Deployable**: ✅ / ⚠️ [Reason]
+
+---
+
+## Principle Violation Justification (Only if needed)
 
 | Violation | Why Necessary                | Why Simple Alternative Rejected |
 | --------- | ---------------------------- | ------------------------------- |
@@ -180,7 +182,7 @@ Files to create:
 
 ---
 
-## 📊 Progress
+## Progress
 
 - [ ] Commit 1
 - [ ] Commit 2

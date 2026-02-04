@@ -1,6 +1,7 @@
 ---
+name: document-business-rule
+description: Generate business rule documentation from domain knowledge and requirements. Use when you need to document complex business logic or domain rules.
 allowed-tools: Write, Read, Glob, Grep
-description: Generate business rule documentation from domain knowledge and requirements
 ---
 
 # Business Rule Documentation Generator
@@ -68,7 +69,6 @@ The business area covered by this domain (1-2 sentences)
 ```typescript
 // Actual usage example code
 ```
-````
 
 **Code Location:** `src/domain/concept.ts`
 
@@ -98,26 +98,24 @@ The business area covered by this domain (1-2 sentences)
 
 - **Term 1:** Definition
 - **Term 2:** Definition
-
-```
+````
 
 ## Output Location
 
 Determine appropriate location:
 
 ```
-
 project-root/
 ├── docs/
-│ └── domain/ # Primary location for domain docs
-│ └── {domain-name}.md
+│   └── domain/              # Primary location for domain docs
+│       └── {domain-name}.md
 └── src/
-└── {module}/
-└── README.md # Alternative: module-specific docs
-
-````
+    └── {module}/
+        └── README.md        # Alternative: module-specific docs
+```
 
 **Decision logic:**
+
 - If `docs/domain/` exists → use `docs/domain/{domain-name}.md`
 - If documenting specific module → use module's `README.md`
 - Ask user if unclear
@@ -156,4 +154,3 @@ project-root/
 - Update documentation when business rules change
 - Keep documentation close to related code
 - Use code references (`file:line`) for traceability
-````
