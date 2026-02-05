@@ -217,41 +217,59 @@ func (r *AnalysisRepository) SaveAnalysisInventory(ctx context.Context, params a
 		return fmt.Errorf("update analysis: %w", err)
 	}
 
-	if params.UserID != nil {
-		userUUID, parseErr := analysis.ParseUUID(*params.UserID)
-		if parseErr != nil {
-			slog.WarnContext(ctx, "invalid user ID format, skipping history record",
-				"user_id", *params.UserID,
-				"error", parseErr,
-			)
-		} else {
-			pgUserID := toPgUUID(userUUID)
-
-			retentionDays, retErr := queries.GetUserRetentionDays(ctx, pgUserID)
-			if retErr != nil && !errors.Is(retErr, pgx.ErrNoRows) {
-				return fmt.Errorf("get user retention days: %w", retErr)
-			}
-
-			if err := queries.RecordUserAnalysisHistory(ctx, db.RecordUserAnalysisHistoryParams{
-				UserID:                  pgUserID,
-				AnalysisID:              pgID,
-				RetentionDaysAtCreation: retentionDays,
-			}); err != nil {
-				return fmt.Errorf("record user analysis history: %w", err)
-			}
-
-			if err := queries.RecordAnalysisUsageEvent(ctx, db.RecordAnalysisUsageEventParams{
-				UserID:      pgUserID,
-				AnalysisID:  pgID,
-				QuotaAmount: 1,
-			}); err != nil {
-				return fmt.Errorf("record analysis usage event: %w", err)
-			}
-		}
+	if err := r.recordUserHistory(ctx, queries, pgID, params.UserID); err != nil {
+		return err
 	}
 
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit transaction: %w", err)
+	}
+
+	return nil
+}
+
+// recordUserHistory records user analysis history and usage event.
+// Skips recording if userID is nil or invalid format.
+func (r *AnalysisRepository) recordUserHistory(
+	ctx context.Context,
+	queries *db.Queries,
+	analysisID pgtype.UUID,
+	userID *string,
+) error {
+	if userID == nil {
+		return nil
+	}
+
+	userUUID, parseErr := analysis.ParseUUID(*userID)
+	if parseErr != nil {
+		slog.WarnContext(ctx, "invalid user ID format, skipping history record",
+			"user_id", *userID,
+			"error", parseErr,
+		)
+		return nil
+	}
+
+	pgUserID := toPgUUID(userUUID)
+
+	retentionDays, retErr := queries.GetUserRetentionDays(ctx, pgUserID)
+	if retErr != nil && !errors.Is(retErr, pgx.ErrNoRows) {
+		return fmt.Errorf("get user retention days: %w", retErr)
+	}
+
+	if err := queries.RecordUserAnalysisHistory(ctx, db.RecordUserAnalysisHistoryParams{
+		UserID:                  pgUserID,
+		AnalysisID:              analysisID,
+		RetentionDaysAtCreation: retentionDays,
+	}); err != nil {
+		return fmt.Errorf("record user analysis history: %w", err)
+	}
+
+	if err := queries.RecordAnalysisUsageEvent(ctx, db.RecordAnalysisUsageEventParams{
+		UserID:      pgUserID,
+		AnalysisID:  analysisID,
+		QuotaAmount: 1,
+	}); err != nil {
+		return fmt.Errorf("record analysis usage event: %w", err)
 	}
 
 	return nil
@@ -638,4 +656,93 @@ func (r *AnalysisRepository) saveInventory(
 	}
 
 	return len(inventory.Files), len(suites), len(tests), nil
+}
+
+// SaveAnalysisBatch saves a batch of test files with independent transaction.
+// Designed for streaming pipeline to enable incremental GC between batches.
+func (r *AnalysisRepository) SaveAnalysisBatch(ctx context.Context, params analysis.SaveAnalysisBatchParams) (*analysis.BatchStats, error) {
+	if err := params.Validate(); err != nil {
+		return nil, err
+	}
+
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() {
+		if rbErr := tx.Rollback(ctx); rbErr != nil && !errors.Is(rbErr, pgx.ErrTxClosed) {
+			slog.ErrorContext(ctx, "failed to rollback transaction",
+				"operation", "SaveAnalysisBatch",
+				"error", rbErr,
+				"analysis_id", params.AnalysisID,
+			)
+		}
+	}()
+
+	pgID := toPgUUID(params.AnalysisID)
+	inventory := &analysis.Inventory{Files: params.Files}
+
+	totalFiles, totalSuites, totalTests, err := r.saveInventory(ctx, tx, pgID, inventory)
+	if err != nil {
+		return nil, fmt.Errorf("save batch inventory: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit transaction: %w", err)
+	}
+
+	return &analysis.BatchStats{
+		FilesProcessed:  totalFiles,
+		SuitesProcessed: totalSuites,
+		TestsProcessed:  totalTests,
+	}, nil
+}
+
+// FinalizeAnalysis marks analysis as completed and records totals.
+// Called after all batches are processed in streaming pipeline.
+func (r *AnalysisRepository) FinalizeAnalysis(ctx context.Context, params analysis.FinalizeAnalysisParams) error {
+	if err := params.Validate(); err != nil {
+		return err
+	}
+
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() {
+		if rbErr := tx.Rollback(ctx); rbErr != nil && !errors.Is(rbErr, pgx.ErrTxClosed) {
+			slog.ErrorContext(ctx, "failed to rollback transaction",
+				"operation", "FinalizeAnalysis",
+				"error", rbErr,
+				"analysis_id", params.AnalysisID,
+			)
+		}
+	}()
+
+	queries := db.New(tx)
+	pgID := toPgUUID(params.AnalysisID)
+
+	if err := queries.UpdateAnalysisCompleted(ctx, db.UpdateAnalysisCompletedParams{
+		ID:          pgID,
+		TotalSuites: int32(params.TotalSuites),
+		TotalTests:  int32(params.TotalTests),
+		CompletedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
+		CommittedAt: pgtype.Timestamptz{Time: params.CommittedAt, Valid: !params.CommittedAt.IsZero()},
+	}); err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return analysis.ErrAlreadyCompleted
+		}
+		return fmt.Errorf("update analysis completed: %w", err)
+	}
+
+	if err := r.recordUserHistory(ctx, queries, pgID, params.UserID); err != nil {
+		return err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit transaction: %w", err)
+	}
+
+	return nil
 }

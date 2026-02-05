@@ -12,6 +12,13 @@ type Repository interface {
 	SaveAnalysisInventory(ctx context.Context, params SaveAnalysisInventoryParams) error
 }
 
+// StreamingRepository extends Repository with batch-based storage for streaming pipeline.
+type StreamingRepository interface {
+	Repository
+	FinalizeAnalysis(ctx context.Context, params FinalizeAnalysisParams) error
+	SaveAnalysisBatch(ctx context.Context, params SaveAnalysisBatchParams) (*BatchStats, error)
+}
+
 type CreateAnalysisRecordParams struct {
 	AnalysisID     *UUID
 	Branch         string
@@ -61,4 +68,46 @@ func (p SaveAnalysisInventoryParams) Validate() error {
 		return fmt.Errorf("%w: inventory is required", ErrInvalidInput)
 	}
 	return nil
+}
+
+// SaveAnalysisBatchParams contains parameters for saving a batch of test files.
+type SaveAnalysisBatchParams struct {
+	AnalysisID UUID
+	Files      []TestFile
+}
+
+func (p SaveAnalysisBatchParams) Validate() error {
+	if p.AnalysisID == NilUUID {
+		return fmt.Errorf("%w: analysis ID is required", ErrInvalidInput)
+	}
+	if len(p.Files) == 0 {
+		return fmt.Errorf("%w: files cannot be empty", ErrInvalidInput)
+	}
+	return nil
+}
+
+// FinalizeAnalysisParams contains parameters for finalizing a streaming analysis.
+type FinalizeAnalysisParams struct {
+	AnalysisID  UUID
+	CommittedAt time.Time
+	TotalSuites int
+	TotalTests  int
+	UserID      *string
+}
+
+func (p FinalizeAnalysisParams) Validate() error {
+	if p.AnalysisID == NilUUID {
+		return fmt.Errorf("%w: analysis ID is required", ErrInvalidInput)
+	}
+	if p.TotalSuites < 0 || p.TotalTests < 0 {
+		return fmt.Errorf("%w: totals cannot be negative", ErrInvalidInput)
+	}
+	return nil
+}
+
+// BatchStats represents statistics from a batch save operation.
+type BatchStats struct {
+	FilesProcessed  int
+	SuitesProcessed int
+	TestsProcessed  int
 }

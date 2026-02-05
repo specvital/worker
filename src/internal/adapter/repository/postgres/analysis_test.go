@@ -33,7 +33,7 @@ func TestAnalysisRepository_SaveAnalysisResult(t *testing.T) {
 			Repo:           "testrepo",
 			CommitSHA:      "abc123def456",
 			Branch:         "main",
-			ExternalRepoID:  "12345",
+			ExternalRepoID: "12345",
 			ParserVersion:  testParserVersion,
 			Result: &parser.ScanResult{
 				Inventory: &domain.Inventory{
@@ -124,7 +124,7 @@ func TestAnalysisRepository_SaveAnalysisResult(t *testing.T) {
 			Repo:           "repo2",
 			CommitSHA:      "def789",
 			Branch:         "develop",
-			ExternalRepoID:  "22222",
+			ExternalRepoID: "22222",
 			ParserVersion:  testParserVersion,
 			Result: &parser.ScanResult{
 				Inventory: &domain.Inventory{
@@ -208,7 +208,7 @@ func TestAnalysisRepository_SaveAnalysisResult(t *testing.T) {
 			Repo:           "repo3",
 			CommitSHA:      "ghi012",
 			Branch:         "main",
-			ExternalRepoID:  "33333",
+			ExternalRepoID: "33333",
 			ParserVersion:  testParserVersion,
 			Result: &parser.ScanResult{
 				Inventory: &domain.Inventory{
@@ -255,7 +255,7 @@ func TestAnalysisRepository_SaveAnalysisResult(t *testing.T) {
 			Repo:           "repo4",
 			CommitSHA:      "jkl345",
 			Branch:         "main",
-			ExternalRepoID:  "44444",
+			ExternalRepoID: "44444",
 			ParserVersion:  testParserVersion,
 			Result:         &parser.ScanResult{Inventory: nil},
 		}
@@ -293,7 +293,7 @@ func TestAnalysisRepository_TransactionRollback(t *testing.T) {
 			Repo:           "rollback-repo",
 			CommitSHA:      "same-commit-sha",
 			Branch:         "main",
-			ExternalRepoID:  "rollback-id",
+			ExternalRepoID: "rollback-id",
 			ParserVersion:  testParserVersion,
 			Result:         &parser.ScanResult{Inventory: nil},
 		}
@@ -336,7 +336,7 @@ func TestAnalysisRepository_RecordFailure(t *testing.T) {
 			Repo:           "test-repo",
 			CommitSHA:      "abc123",
 			Branch:         "main",
-			ExternalRepoID:  "failure-test-1",
+			ExternalRepoID: "failure-test-1",
 			ParserVersion:  testParserVersion,
 		})
 		if err != nil {
@@ -377,7 +377,7 @@ func TestAnalysisRepository_RecordFailure(t *testing.T) {
 			Repo:           "empty-err-repo",
 			CommitSHA:      "empty123",
 			Branch:         "main",
-			ExternalRepoID:  "empty-err-id",
+			ExternalRepoID: "empty-err-id",
 			ParserVersion:  testParserVersion,
 		})
 		err := repo.RecordFailure(ctx, analysisID, "")
@@ -404,7 +404,7 @@ func TestAnalysisRepository_CreateAnalysisRecord(t *testing.T) {
 			Repo:           "create-repo",
 			CommitSHA:      "def456",
 			Branch:         "develop",
-			ExternalRepoID:  "create-id",
+			ExternalRepoID: "create-id",
 			ParserVersion:  testParserVersion,
 		})
 		if err != nil {
@@ -445,7 +445,7 @@ func TestAnalysisRepository_SaveAnalysisInventory(t *testing.T) {
 			Repo:           "domain-repo",
 			CommitSHA:      "xyz789",
 			Branch:         "main",
-			ExternalRepoID:  "domain-id",
+			ExternalRepoID: "domain-id",
 			ParserVersion:  testParserVersion,
 		})
 		if err != nil {
@@ -865,7 +865,7 @@ func TestAnalysisRepository_DomainHints(t *testing.T) {
 			Repo:           "hints-repo",
 			CommitSHA:      "hints123",
 			Branch:         "main",
-			ExternalRepoID:  "hints-id-1",
+			ExternalRepoID: "hints-id-1",
 			ParserVersion:  testParserVersion,
 		})
 		if err != nil {
@@ -953,7 +953,7 @@ func TestAnalysisRepository_DomainHints(t *testing.T) {
 			Repo:           "nil-hints-repo",
 			CommitSHA:      "nilhints123",
 			Branch:         "main",
-			ExternalRepoID:  "nil-hints-id",
+			ExternalRepoID: "nil-hints-id",
 			ParserVersion:  testParserVersion,
 		})
 		if err != nil {
@@ -1013,7 +1013,7 @@ func TestAnalysisRepository_DomainHints(t *testing.T) {
 			Repo:           "empty-hints-repo",
 			CommitSHA:      "emptyhints123",
 			Branch:         "main",
-			ExternalRepoID:  "empty-hints-id",
+			ExternalRepoID: "empty-hints-id",
 			ParserVersion:  testParserVersion,
 		})
 		if err != nil {
@@ -1102,7 +1102,7 @@ func TestAnalysisRepository_FileIdRelationship(t *testing.T) {
 			Repo:           "fileid-repo",
 			CommitSHA:      "fileid123",
 			Branch:         "main",
-			ExternalRepoID:  "fileid-id-1",
+			ExternalRepoID: "fileid-id-1",
 			ParserVersion:  testParserVersion,
 		})
 		if err != nil {
@@ -1216,7 +1216,7 @@ func TestAnalysisRepository_FileIdRelationship(t *testing.T) {
 			Repo:           "cascade-repo",
 			CommitSHA:      "cascade123",
 			Branch:         "main",
-			ExternalRepoID:  "cascade-id-1",
+			ExternalRepoID: "cascade-id-1",
 			ParserVersion:  testParserVersion,
 		})
 		if err != nil {
@@ -1326,7 +1326,7 @@ func TestAnalysisRepository_FileIdRelationship(t *testing.T) {
 			Repo:           "reverse-repo",
 			CommitSHA:      "reverse123",
 			Branch:         "main",
-			ExternalRepoID:  "reverse-id-1",
+			ExternalRepoID: "reverse-id-1",
 			ParserVersion:  testParserVersion,
 		})
 		if err != nil {
@@ -1439,7 +1439,7 @@ func TestAnalysisRepository_UserAnalysisHistory(t *testing.T) {
 			Repo:           "history-repo",
 			CommitSHA:      "hist123",
 			Branch:         "main",
-			ExternalRepoID:  "history-id-1",
+			ExternalRepoID: "history-id-1",
 			ParserVersion:  testParserVersion,
 		})
 		if err != nil {
@@ -1498,7 +1498,7 @@ func TestAnalysisRepository_UserAnalysisHistory(t *testing.T) {
 			Repo:           "anon-repo",
 			CommitSHA:      "anon123",
 			Branch:         "main",
-			ExternalRepoID:  "anon-id-1",
+			ExternalRepoID: "anon-id-1",
 			ParserVersion:  testParserVersion,
 		})
 		if err != nil {
@@ -1560,7 +1560,7 @@ func TestAnalysisRepository_UserAnalysisHistory(t *testing.T) {
 			Repo:           "reanalysis-repo",
 			CommitSHA:      "commit1",
 			Branch:         "main",
-			ExternalRepoID:  "reanalysis-id",
+			ExternalRepoID: "reanalysis-id",
 			ParserVersion:  testParserVersion,
 		})
 		if err != nil {
@@ -1658,7 +1658,7 @@ func TestAnalysisRepository_UserAnalysisHistory(t *testing.T) {
 			Repo:           "shared-repo",
 			CommitSHA:      "shared123",
 			Branch:         "main",
-			ExternalRepoID:  "shared-id",
+			ExternalRepoID: "shared-id",
 			ParserVersion:  testParserVersion,
 		})
 		if err != nil {
@@ -1745,7 +1745,7 @@ func TestAnalysisRepository_UserAnalysisHistory(t *testing.T) {
 			Repo:           "retention-repo",
 			CommitSHA:      "ret123",
 			Branch:         "main",
-			ExternalRepoID:  "retention-id",
+			ExternalRepoID: "retention-id",
 			ParserVersion:  testParserVersion,
 		})
 		if err != nil {
@@ -1830,7 +1830,7 @@ func TestAnalysisRepository_UserAnalysisHistory(t *testing.T) {
 			Repo:           "enterprise-repo",
 			CommitSHA:      "ent123",
 			Branch:         "main",
-			ExternalRepoID:  "enterprise-id",
+			ExternalRepoID: "enterprise-id",
 			ParserVersion:  testParserVersion,
 		})
 		if err != nil {
@@ -1895,7 +1895,7 @@ func TestAnalysisRepository_UserAnalysisHistory(t *testing.T) {
 			Repo:           "nosub-repo",
 			CommitSHA:      "nosub123",
 			Branch:         "main",
-			ExternalRepoID:  "nosub-id",
+			ExternalRepoID: "nosub-id",
 			ParserVersion:  testParserVersion,
 		})
 		if err != nil {
@@ -1940,6 +1940,404 @@ func TestAnalysisRepository_UserAnalysisHistory(t *testing.T) {
 
 		if retentionDays.Valid {
 			t.Errorf("expected retention_days_at_creation to be NULL for user without subscription, got %d", retentionDays.Int32)
+		}
+	})
+}
+
+func TestAnalysisRepository_SaveAnalysisBatch(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+
+	pool, cleanup := testdb.SetupTestDB(t)
+	defer cleanup()
+
+	repo := NewAnalysisRepository(pool)
+	ctx := context.Background()
+
+	t.Run("should save batch of files", func(t *testing.T) {
+		analysisID, err := repo.CreateAnalysisRecord(ctx, analysis.CreateAnalysisRecordParams{
+			Owner:          "batch-owner",
+			Repo:           "batch-repo",
+			CommitSHA:      "batch123",
+			Branch:         "main",
+			ExternalRepoID: "batch-id-1",
+			ParserVersion:  testParserVersion,
+		})
+		if err != nil {
+			t.Fatalf("CreateAnalysisRecord failed: %v", err)
+		}
+
+		files := []analysis.TestFile{
+			{
+				Path:      "auth/login.test.ts",
+				Framework: "jest",
+				Suites: []analysis.TestSuite{
+					{
+						Name:     "LoginService",
+						Location: analysis.Location{StartLine: 10},
+						Tests: []analysis.Test{
+							{Name: "should login user", Location: analysis.Location{StartLine: 12}},
+							{Name: "should reject invalid password", Location: analysis.Location{StartLine: 20}},
+						},
+					},
+				},
+			},
+			{
+				Path:      "auth/logout.test.ts",
+				Framework: "jest",
+				Suites: []analysis.TestSuite{
+					{
+						Name:     "LogoutService",
+						Location: analysis.Location{StartLine: 5},
+						Tests: []analysis.Test{
+							{Name: "should logout user", Location: analysis.Location{StartLine: 7}},
+						},
+					},
+				},
+			},
+		}
+
+		stats, err := repo.SaveAnalysisBatch(ctx, analysis.SaveAnalysisBatchParams{
+			AnalysisID: analysisID,
+			Files:      files,
+		})
+		if err != nil {
+			t.Fatalf("SaveAnalysisBatch failed: %v", err)
+		}
+
+		if stats.FilesProcessed != 2 {
+			t.Errorf("expected 2 files processed, got %d", stats.FilesProcessed)
+		}
+		if stats.SuitesProcessed != 2 {
+			t.Errorf("expected 2 suites processed, got %d", stats.SuitesProcessed)
+		}
+		if stats.TestsProcessed != 3 {
+			t.Errorf("expected 3 tests processed, got %d", stats.TestsProcessed)
+		}
+
+		pgID := toPgUUID(analysisID)
+		var fileCount int
+		err = pool.QueryRow(ctx, "SELECT COUNT(*) FROM test_files WHERE analysis_id = $1", pgID).Scan(&fileCount)
+		if err != nil {
+			t.Fatalf("failed to query test_files: %v", err)
+		}
+		if fileCount != 2 {
+			t.Errorf("expected 2 test_files in DB, got %d", fileCount)
+		}
+	})
+
+	t.Run("should accumulate multiple batches", func(t *testing.T) {
+		_, err := pool.Exec(ctx, "TRUNCATE codebases CASCADE")
+		if err != nil {
+			t.Fatalf("failed to truncate: %v", err)
+		}
+
+		analysisID, err := repo.CreateAnalysisRecord(ctx, analysis.CreateAnalysisRecordParams{
+			Owner:          "multi-batch-owner",
+			Repo:           "multi-batch-repo",
+			CommitSHA:      "multi123",
+			Branch:         "main",
+			ExternalRepoID: "multi-batch-id",
+			ParserVersion:  testParserVersion,
+		})
+		if err != nil {
+			t.Fatalf("CreateAnalysisRecord failed: %v", err)
+		}
+
+		batch1 := []analysis.TestFile{
+			{
+				Path:      "batch1/file1.test.ts",
+				Framework: "jest",
+				Suites: []analysis.TestSuite{
+					{
+						Name:     "Suite1",
+						Location: analysis.Location{StartLine: 1},
+						Tests: []analysis.Test{
+							{Name: "test1", Location: analysis.Location{StartLine: 2}},
+						},
+					},
+				},
+			},
+		}
+
+		batch2 := []analysis.TestFile{
+			{
+				Path:      "batch2/file2.test.ts",
+				Framework: "vitest",
+				Suites: []analysis.TestSuite{
+					{
+						Name:     "Suite2",
+						Location: analysis.Location{StartLine: 1},
+						Tests: []analysis.Test{
+							{Name: "test2", Location: analysis.Location{StartLine: 2}},
+						},
+					},
+				},
+			},
+		}
+
+		stats1, err := repo.SaveAnalysisBatch(ctx, analysis.SaveAnalysisBatchParams{
+			AnalysisID: analysisID,
+			Files:      batch1,
+		})
+		if err != nil {
+			t.Fatalf("first SaveAnalysisBatch failed: %v", err)
+		}
+
+		stats2, err := repo.SaveAnalysisBatch(ctx, analysis.SaveAnalysisBatchParams{
+			AnalysisID: analysisID,
+			Files:      batch2,
+		})
+		if err != nil {
+			t.Fatalf("second SaveAnalysisBatch failed: %v", err)
+		}
+
+		totalFiles := stats1.FilesProcessed + stats2.FilesProcessed
+		totalTests := stats1.TestsProcessed + stats2.TestsProcessed
+
+		if totalFiles != 2 {
+			t.Errorf("expected total 2 files, got %d", totalFiles)
+		}
+		if totalTests != 2 {
+			t.Errorf("expected total 2 tests, got %d", totalTests)
+		}
+
+		pgID := toPgUUID(analysisID)
+		var fileCount int
+		err = pool.QueryRow(ctx, "SELECT COUNT(*) FROM test_files WHERE analysis_id = $1", pgID).Scan(&fileCount)
+		if err != nil {
+			t.Fatalf("failed to query test_files: %v", err)
+		}
+		if fileCount != 2 {
+			t.Errorf("expected 2 test_files in DB after two batches, got %d", fileCount)
+		}
+	})
+
+	t.Run("should reject empty files", func(t *testing.T) {
+		analysisID, _ := repo.CreateAnalysisRecord(ctx, analysis.CreateAnalysisRecordParams{
+			Owner:          "empty-batch-owner",
+			Repo:           "empty-batch-repo",
+			CommitSHA:      "empty123",
+			Branch:         "main",
+			ExternalRepoID: "empty-batch-id",
+			ParserVersion:  testParserVersion,
+		})
+
+		_, err := repo.SaveAnalysisBatch(ctx, analysis.SaveAnalysisBatchParams{
+			AnalysisID: analysisID,
+			Files:      []analysis.TestFile{},
+		})
+		if !errors.Is(err, analysis.ErrInvalidInput) {
+			t.Errorf("expected ErrInvalidInput for empty files, got %v", err)
+		}
+	})
+
+	t.Run("should reject nil UUID", func(t *testing.T) {
+		_, err := repo.SaveAnalysisBatch(ctx, analysis.SaveAnalysisBatchParams{
+			AnalysisID: analysis.NilUUID,
+			Files: []analysis.TestFile{
+				{Path: "test.ts", Framework: "jest"},
+			},
+		})
+		if !errors.Is(err, analysis.ErrInvalidInput) {
+			t.Errorf("expected ErrInvalidInput for nil UUID, got %v", err)
+		}
+	})
+}
+
+func TestAnalysisRepository_FinalizeAnalysis(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+
+	pool, cleanup := testdb.SetupTestDB(t)
+	defer cleanup()
+
+	repo := NewAnalysisRepository(pool)
+	ctx := context.Background()
+
+	t.Run("should finalize analysis with totals", func(t *testing.T) {
+		analysisID, err := repo.CreateAnalysisRecord(ctx, analysis.CreateAnalysisRecordParams{
+			Owner:          "finalize-owner",
+			Repo:           "finalize-repo",
+			CommitSHA:      "finalize123",
+			Branch:         "main",
+			ExternalRepoID: "finalize-id-1",
+			ParserVersion:  testParserVersion,
+		})
+		if err != nil {
+			t.Fatalf("CreateAnalysisRecord failed: %v", err)
+		}
+
+		files := []analysis.TestFile{
+			{
+				Path:      "test.ts",
+				Framework: "jest",
+				Suites: []analysis.TestSuite{
+					{
+						Name:     "Suite",
+						Location: analysis.Location{StartLine: 1},
+						Tests: []analysis.Test{
+							{Name: "test1", Location: analysis.Location{StartLine: 2}},
+							{Name: "test2", Location: analysis.Location{StartLine: 3}},
+						},
+					},
+				},
+			},
+		}
+
+		_, err = repo.SaveAnalysisBatch(ctx, analysis.SaveAnalysisBatchParams{
+			AnalysisID: analysisID,
+			Files:      files,
+		})
+		if err != nil {
+			t.Fatalf("SaveAnalysisBatch failed: %v", err)
+		}
+
+		committedAt := time.Now().Add(-time.Hour)
+		err = repo.FinalizeAnalysis(ctx, analysis.FinalizeAnalysisParams{
+			AnalysisID:  analysisID,
+			CommittedAt: committedAt,
+			TotalSuites: 1,
+			TotalTests:  2,
+		})
+		if err != nil {
+			t.Fatalf("FinalizeAnalysis failed: %v", err)
+		}
+
+		pgID := toPgUUID(analysisID)
+		var status string
+		var totalSuites, totalTests int
+		err = pool.QueryRow(ctx, "SELECT status, total_suites, total_tests FROM analyses WHERE id = $1", pgID).
+			Scan(&status, &totalSuites, &totalTests)
+		if err != nil {
+			t.Fatalf("failed to query analysis: %v", err)
+		}
+
+		if status != "completed" {
+			t.Errorf("expected status 'completed', got '%s'", status)
+		}
+		if totalSuites != 1 {
+			t.Errorf("expected 1 total suite, got %d", totalSuites)
+		}
+		if totalTests != 2 {
+			t.Errorf("expected 2 total tests, got %d", totalTests)
+		}
+	})
+
+	t.Run("should record user history on finalize", func(t *testing.T) {
+		_, err := pool.Exec(ctx, "TRUNCATE codebases CASCADE")
+		if err != nil {
+			t.Fatalf("failed to truncate: %v", err)
+		}
+
+		var userID string
+		err = pool.QueryRow(ctx, "INSERT INTO users (email, username) VALUES ('finalize@example.com', 'finalizeuser') RETURNING id::text").Scan(&userID)
+		if err != nil {
+			t.Fatalf("failed to create test user: %v", err)
+		}
+
+		analysisID, err := repo.CreateAnalysisRecord(ctx, analysis.CreateAnalysisRecordParams{
+			Owner:          "finalize-user-owner",
+			Repo:           "finalize-user-repo",
+			CommitSHA:      "finalizeuser123",
+			Branch:         "main",
+			ExternalRepoID: "finalize-user-id",
+			ParserVersion:  testParserVersion,
+		})
+		if err != nil {
+			t.Fatalf("CreateAnalysisRecord failed: %v", err)
+		}
+
+		err = repo.FinalizeAnalysis(ctx, analysis.FinalizeAnalysisParams{
+			AnalysisID:  analysisID,
+			TotalSuites: 0,
+			TotalTests:  0,
+			UserID:      &userID,
+		})
+		if err != nil {
+			t.Fatalf("FinalizeAnalysis failed: %v", err)
+		}
+
+		var historyCount int
+		err = pool.QueryRow(ctx, "SELECT COUNT(*) FROM user_analysis_history WHERE user_id = $1", userID).Scan(&historyCount)
+		if err != nil {
+			t.Fatalf("failed to query history: %v", err)
+		}
+		if historyCount != 1 {
+			t.Errorf("expected 1 history record, got %d", historyCount)
+		}
+	})
+
+	t.Run("should reject nil UUID", func(t *testing.T) {
+		err := repo.FinalizeAnalysis(ctx, analysis.FinalizeAnalysisParams{
+			AnalysisID: analysis.NilUUID,
+		})
+		if !errors.Is(err, analysis.ErrInvalidInput) {
+			t.Errorf("expected ErrInvalidInput for nil UUID, got %v", err)
+		}
+	})
+
+	t.Run("should reject double finalize", func(t *testing.T) {
+		_, err := pool.Exec(ctx, "TRUNCATE codebases CASCADE")
+		if err != nil {
+			t.Fatalf("failed to truncate: %v", err)
+		}
+
+		analysisID, err := repo.CreateAnalysisRecord(ctx, analysis.CreateAnalysisRecordParams{
+			Owner:          "double-finalize-owner",
+			Repo:           "double-finalize-repo",
+			CommitSHA:      "double123",
+			Branch:         "main",
+			ExternalRepoID: "double-finalize-id",
+			ParserVersion:  testParserVersion,
+		})
+		if err != nil {
+			t.Fatalf("CreateAnalysisRecord failed: %v", err)
+		}
+
+		err = repo.FinalizeAnalysis(ctx, analysis.FinalizeAnalysisParams{
+			AnalysisID: analysisID,
+		})
+		if err != nil {
+			t.Fatalf("first FinalizeAnalysis failed: %v", err)
+		}
+
+		err = repo.FinalizeAnalysis(ctx, analysis.FinalizeAnalysisParams{
+			AnalysisID: analysisID,
+		})
+		if !errors.Is(err, analysis.ErrAlreadyCompleted) {
+			t.Errorf("expected ErrAlreadyCompleted for double finalize, got %v", err)
+		}
+	})
+
+	t.Run("should reject negative totals", func(t *testing.T) {
+		analysisID, _ := repo.CreateAnalysisRecord(ctx, analysis.CreateAnalysisRecordParams{
+			Owner:          "negative-owner",
+			Repo:           "negative-repo",
+			CommitSHA:      "negative123",
+			Branch:         "main",
+			ExternalRepoID: "negative-id",
+			ParserVersion:  testParserVersion,
+		})
+
+		err := repo.FinalizeAnalysis(ctx, analysis.FinalizeAnalysisParams{
+			AnalysisID:  analysisID,
+			TotalSuites: -1,
+			TotalTests:  0,
+		})
+		if !errors.Is(err, analysis.ErrInvalidInput) {
+			t.Errorf("expected ErrInvalidInput for negative suites, got %v", err)
+		}
+
+		err = repo.FinalizeAnalysis(ctx, analysis.FinalizeAnalysisParams{
+			AnalysisID:  analysisID,
+			TotalSuites: 0,
+			TotalTests:  -1,
+		})
+		if !errors.Is(err, analysis.ErrInvalidInput) {
+			t.Errorf("expected ErrInvalidInput for negative tests, got %v", err)
 		}
 	})
 }
