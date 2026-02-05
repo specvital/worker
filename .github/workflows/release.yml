@@ -63,7 +63,7 @@ jobs:
           node-version: "22"
 
       - name: Setup just
-        uses: extractions/setup-just@v2
+        uses: extractions/setup-just@v3
 
       - name: Install dependencies
         run: pnpm install
